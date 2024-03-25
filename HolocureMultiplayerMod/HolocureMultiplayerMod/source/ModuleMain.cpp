@@ -828,12 +828,12 @@ EXPORTED AurieStatus ModuleInitialize(
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 
-	// TODO: Improve movement with high ping by queueing up the movement data
 	// TODO: Improve ping by changing the message handler to be in a separate thread and change some messages to be sent via UDP
 	// TODO: Probably should reduce attack speed
 	// TODO: Add message when paused indicating that it's waiting for other players
 
 	// Lower priority
+	// TODO: Add verbose file logs
 	// TODO: Some weapons aren't added on the client side when chosen as a level up option because the client hasn't unlocked it yet. It's still added on the host side
 	// Does affect being able to choose the weapons as a collab option, so should probably fix this
 	// TODO: Fix some attacks not being deleted properly. Probably due to the attack id being reused and overwriting the last attack using that id before it got deleted

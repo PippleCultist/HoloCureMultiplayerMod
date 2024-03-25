@@ -4,6 +4,41 @@
 #include "MessageStructs.h"
 #include "ScriptFunctions.h"
 
+
+struct clientMovementData
+{
+	float direction;
+	bool isPlayerMoving;
+	bool isDownHeld;
+	bool isUpHeld;
+	bool isLeftHeld;
+	bool isRightHeld;
+
+	clientMovementData() : direction(0), isPlayerMoving(false), isDownHeld(false), isUpHeld(false), isLeftHeld(false), isRightHeld(false)
+	{
+	}
+
+	clientMovementData(float direction, bool isPlayerMoving, bool isDownHeld, bool isUpHeld, bool isLeftHeld, bool isRightHeld) :
+		direction(direction), isPlayerMoving(isPlayerMoving), isDownHeld(isDownHeld), isUpHeld(isUpHeld), isLeftHeld(isLeftHeld), isRightHeld(isRightHeld)
+	{
+	}
+};
+
+struct clientMovementQueueData
+{
+	std::queue<clientMovementData> data;
+	uint32_t lastTimeNumUpdated;
+	int numEarlyUpdates;
+
+	clientMovementQueueData() : lastTimeNumUpdated(0), numEarlyUpdates(0)
+	{
+	}
+
+	clientMovementQueueData(uint32_t lastTimeNumUpdated, int numEarlyUpdates) : lastTimeNumUpdated(lastTimeNumUpdated), numEarlyUpdates(numEarlyUpdates)
+	{
+	}
+};
+
 struct levelUpPausedData
 {
 	uint32_t playerID;

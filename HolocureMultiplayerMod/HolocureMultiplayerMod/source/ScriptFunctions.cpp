@@ -1864,6 +1864,8 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 	return ReturnValue;
 }
 
+extern std::unordered_map<uint32_t, clientMovementQueueData> lastTimeReceivedMoveDataMap;
+
 void cleanupPlayerGameData()
 {
 	playerMap.clear();
@@ -1883,6 +1885,7 @@ void cleanupPlayerGameData()
 	charSelectedMap.clear();
 	playerDataMap.clear();
 	isPlayerCreatedMap.clear();
+	lastTimeReceivedMoveDataMap.clear();
 
 	instanceToIDMap.clear();
 	pickupableToIDMap.clear();

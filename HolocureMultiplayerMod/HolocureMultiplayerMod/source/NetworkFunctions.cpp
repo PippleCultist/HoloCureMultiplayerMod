@@ -19,6 +19,8 @@ std::queue<uint16_t> availableVFXIDs;
 std::queue<uint16_t> availableInteractableIDs;
 RValue instanceArr[maxNumAvailableInstanceIDs];
 
+std::unordered_map<uint32_t, clientMovementQueueData> lastTimeReceivedMoveDataMap;
+
 void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInstance)
 {
 	RValue levelUpName = levelUpData.levelUpName;
@@ -308,6 +310,53 @@ struct messageClientPlayerData
 	}
 };
 
+void processInputMessage(MessageTypes messageType, clientMovementData data, uint32_t playerID)
+{
+	if (!playerMap.empty())
+	{
+		RValue doesPlayerExist = g_ModuleInterface->CallBuiltin("instance_exists", { playerMap[playerID] });
+		if (!doesPlayerExist.AsBool())
+		{
+			return;
+		}
+		VariableNames spriteType = data.isPlayerMoving ? GML_runSprite : GML_idleSprite;
+		setInstanceVariable(playerMap[playerID], GML_sprite_index, getInstanceVariable(playerMap[playerID], spriteType));
+
+		double horizontalDiff = data.isRightHeld - data.isLeftHeld;
+		double verticalDiff = data.isDownHeld - data.isUpHeld;
+
+		RValue playerX = getInstanceVariable(playerMap[playerID], GML_x);
+		RValue playerY = getInstanceVariable(playerMap[playerID], GML_y);
+		RValue playerSPD = getInstanceVariable(playerMap[playerID], GML_SPD);
+		// TODO: Seems like place_meeting doesn't work if it's outside the player instance since it uses the current self instance
+//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX.m_Real + playerSPD.m_Real * horizontalDiff, playerY, objObstacleIndex }).AsBool())
+		{
+			playerX.m_Real += playerSPD.m_Real * horizontalDiff;
+		}
+		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX, playerY.m_Real + playerSPD.m_Real * verticalDiff, objObstacleIndex }).AsBool())
+		{
+			playerY.m_Real += playerSPD.m_Real * verticalDiff;
+		}
+		setInstanceVariable(playerMap[playerID], GML_x, playerX);
+		setInstanceVariable(playerMap[playerID], GML_y, playerY);
+
+		if (data.isPlayerMoving && messageType == MESSAGE_INPUT_NO_AIM)
+		{
+			RValue playerDirection = getInstanceVariable(playerMap[playerID], GML_direction);
+			// TODO: probably should just calculate this instead of depending on GML
+			RValue directionMoving = g_ModuleInterface->CallBuiltin("point_direction", { 0.0, 0.0, static_cast<double>(horizontalDiff), static_cast<double>(verticalDiff) });
+			RValue directionDifference = g_ModuleInterface->CallBuiltin("angle_difference", { playerDirection, directionMoving });
+			playerDirection.m_Real -= std::clamp(directionDifference.m_Real, -24.0, 24.0);
+			setInstanceVariable(playerMap[playerID], GML_direction, playerDirection);
+		}
+
+		if (messageType == MESSAGE_INPUT_AIM || messageType == MESSAGE_INPUT_MOUSEFOLLOW)
+		{
+			setInstanceVariable(playerMap[playerID], GML_direction, data.direction);
+		}
+	}
+}
+
 int receiveInputMessage(SOCKET socket, MessageTypes messageType, uint32_t playerID)
 {
 	int curMessageLen = -1;
@@ -378,47 +427,71 @@ int receiveInputMessage(SOCKET socket, MessageTypes messageType, uint32_t player
 		}
 	}
 
-	if (!playerMap.empty())
+	clientMovementData inputData = clientMovementData(direction, isPlayerMoving, isDownHeld, isUpHeld, isLeftHeld, isRightHeld);
+	// TODO: Should probably improve this to use a queue per client
+	// Prevent receiving multiple input messages if the host hasn't yet progressed to the next frame (occurs if the host is lagging)
+	auto lastTimeFind = lastTimeReceivedMoveDataMap.find(playerID);
+	if (lastTimeFind == lastTimeReceivedMoveDataMap.end())
 	{
-		RValue doesPlayerExist = g_ModuleInterface->CallBuiltin("instance_exists", { playerMap[playerID] });
-		if (!doesPlayerExist.AsBool())
+		lastTimeReceivedMoveDataMap[playerID] = clientMovementQueueData(timeNum, 0);
+		processInputMessage(messageType, inputData, playerID);
+	}
+	else
+	{
+		clientMovementQueueData& queueData = lastTimeFind->second;
+		if (timeNum == queueData.lastTimeNumUpdated)
 		{
-			return curMessageLen;
+			// Received input message too early, so queue it up for later
+			queueData.data.push(inputData);
+			queueData.numEarlyUpdates++;
+			return -1;
 		}
-		VariableNames spriteType = isPlayerMoving ? GML_runSprite : GML_idleSprite;
-		setInstanceVariable(playerMap[playerID], GML_sprite_index, getInstanceVariable(playerMap[playerID], spriteType));
-
-		double horizontalDiff = isRightHeld - isLeftHeld;
-		double verticalDiff = isDownHeld - isUpHeld;
-
-		RValue playerX = getInstanceVariable(playerMap[playerID], GML_x);
-		RValue playerY = getInstanceVariable(playerMap[playerID], GML_y);
-		RValue playerSPD = getInstanceVariable(playerMap[playerID], GML_SPD);
-		// TODO: Seems like place_meeting doesn't work if it's outside the player instance since it uses the current self instance
-//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX.m_Real + playerSPD.m_Real * horizontalDiff, playerY, objObstacleIndex }).AsBool())
+		else
 		{
-			playerX.m_Real += playerSPD.m_Real * horizontalDiff;
-		}
-//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX, playerY.m_Real + playerSPD.m_Real * verticalDiff, objObstacleIndex }).AsBool())
-		{
-			playerY.m_Real += playerSPD.m_Real * verticalDiff;
-		}
-		setInstanceVariable(playerMap[playerID], GML_x, playerX);
-		setInstanceVariable(playerMap[playerID], GML_y, playerY);
+			// Check how many messages are still in the queue and process the amount of messages based on the frame difference
 
-		if (isPlayerMoving && messageType == MESSAGE_INPUT_NO_AIM)
-		{
-			RValue playerDirection = getInstanceVariable(playerMap[playerID], GML_direction);
-			// TODO: probably should just calculate this instead of depending on GML
-			RValue directionMoving = g_ModuleInterface->CallBuiltin("point_direction", { 0.0, 0.0, static_cast<double>(horizontalDiff), static_cast<double>(verticalDiff) });
-			RValue directionDifference = g_ModuleInterface->CallBuiltin("angle_difference", { playerDirection, directionMoving });
-			playerDirection.m_Real -= std::clamp(directionDifference.m_Real, -24.0, 24.0);
-			setInstanceVariable(playerMap[playerID], GML_direction, playerDirection);
-		}
-
-		if (messageType == MESSAGE_INPUT_AIM || messageType == MESSAGE_INPUT_MOUSEFOLLOW)
-		{
-			setInstanceVariable(playerMap[playerID], GML_direction, direction);
+			int numMessagesToProcess = timeNum - queueData.lastTimeNumUpdated;
+			if (numMessagesToProcess >= queueData.data.size())
+			{
+				numMessagesToProcess -= static_cast<int>(queueData.data.size());
+				while (!queueData.data.empty())
+				{
+					clientMovementData& curData = queueData.data.front();
+					queueData.data.pop();
+					processInputMessage(messageType, curData, playerID);
+				}
+			}
+			else
+			{
+				for (int i = 0; i < numMessagesToProcess; i++)
+				{
+					clientMovementData& curData = queueData.data.front();
+					queueData.data.pop();
+					processInputMessage(messageType, curData, playerID);
+				}
+				numMessagesToProcess = 0;
+			}
+			if (numMessagesToProcess > 0)
+			{
+				// Process the current message if there wasn't enough in the queue to catch up
+				processInputMessage(messageType, inputData, playerID);
+				numMessagesToProcess--;
+				queueData.numEarlyUpdates = numMessagesToProcess;
+			}
+			else
+			{
+				// Current message couldn't get processed
+				if (queueData.data.size() < 12)
+				{
+					// Only add to the queue if there are less than .2 seconds worth of messages in the queue.
+					// Does mean that messages are dropped, but it's better than having the client input being forever delayed
+					queueData.data.push(inputData);
+					numMessagesToProcess++;
+					
+				}
+				queueData.numEarlyUpdates = numMessagesToProcess;
+			}
+			queueData.lastTimeNumUpdated = timeNum;
 		}
 	}
 	return curMessageLen;
@@ -1973,8 +2046,6 @@ int receiveMessage(SOCKET socket, uint32_t playerID)
 	return -1;
 }
 
-uint32_t timeLastInputMessageSent = 0;
-
 int sendInputMessage(SOCKET socket)
 {
 	if (!hasObtainedClientID || !isPlayerCreatedMap[clientID])
@@ -1986,14 +2057,6 @@ int sendInputMessage(SOCKET socket)
 	{
 		return -1;
 	}
-
-	// Prevent sending multiple input messages if the host hasn't sent over the next game data message (occurs if the host is lagging)
-	if (timeLastInputMessageSent == timeNum)
-	{
-		return -1;
-	}
-
-	timeLastInputMessageSent = timeNum;
 
 	RValue isDownHeld;
 	RValue isUpHeld;
