@@ -53,6 +53,9 @@ optionType convertStringOptionTypeToEnum(RValue optionType);
 
 extern std::unordered_map<uint32_t, levelUpOptionNames> levelUpOptionNamesMap;
 extern bool isHostWaitingForClientUnpause;
+extern bool isInGamemodeSelect;
+extern bool isInNetworkAdapterMenu;
+extern bool hasReadNetworkAdapterDisclaimer;
 extern bool isInCoopOptionMenu;
 extern bool isInLobby;
 extern bool isSelectingCharacter;

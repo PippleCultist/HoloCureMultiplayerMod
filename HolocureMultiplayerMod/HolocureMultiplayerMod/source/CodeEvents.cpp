@@ -1,3 +1,4 @@
+#pragma comment(lib, "iphlpapi.lib")
 #include <WS2tcpip.h>
 #include "CodeEvents.h"
 #include <YYToolkit/shared.hpp>
@@ -9,6 +10,7 @@
 #include "CommonFunctions.h"
 #include "NetworkFunctions.h"
 #include <fstream>
+#include <iphlpapi.h>
 
 std::vector<destructableData> createDestructableMessagesList;
 std::unordered_map<uint32_t, bool> hasClientPlayerDisconnected;
@@ -44,6 +46,8 @@ int curSelectedMap = -1;
 int curSelectedGameMode = -1;
 int curSelectedStageSprite = -1;
 int curCoopOptionMenuIndex = 0;
+
+extern IP_ADAPTER_ADDRESSES* adapterAddresses;
 
 // TODO: Improve this to assign better IDs
 uint32_t curUnusedPlayerID = 1;
@@ -263,6 +267,15 @@ void serverDisconnected()
 	isSelectingMap = false;
 	closesocket(serverSocket);
 	serverSocket = INVALID_SOCKET;
+	closesocket(connectClientSocket);
+	connectClientSocket = INVALID_SOCKET;
+	closesocket(broadcastSocket);
+	broadcastSocket = INVALID_SOCKET;
+	if (adapterAddresses != NULL)
+	{
+		free(adapterAddresses);
+	}
+	adapterAddresses = NULL;
 	if (playerManagerInstanceVar != nullptr)
 	{
 		g_ModuleInterface->CallBuiltin("instance_destroy", { playerManagerInstanceVar });
@@ -404,87 +417,89 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 
 void EnemyStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
-	CInstance* Self = std::get<0>(Args);
-	RValue followTarget = getInstanceVariable(Self, GML_followTarget);
-	if (followTarget.m_Kind == VALUE_REF)
+	if (hasConnected)
 	{
-		double posX = getInstanceVariable(Self, GML_x).m_Real;
-		double posY = getInstanceVariable(Self, GML_y).m_Real;
-		// TODO: Probably should cache this since it won't change for the current frame
-		double originalPlayerPosX = getInstanceVariable(playerMap[0], GML_x).m_Real;
-		double originalPlayerPosY = getInstanceVariable(playerMap[0], GML_y).m_Real;
-		double minDis = (posX - originalPlayerPosX) * (posX - originalPlayerPosX) + (posY - originalPlayerPosY) * (posY - originalPlayerPosY);
-		uint32_t closestPlayerID = 0;
-		for (auto& curPlayer : playerMap)
-		{
-			uint32_t playerID = curPlayer.first;
-			RValue playerInstance = curPlayer.second;
-			double playerPosX = getInstanceVariable(playerInstance, GML_x).m_Real;
-			double playerPosY = getInstanceVariable(playerInstance, GML_y).m_Real;
-			double curDis = (posX - playerPosX) * (posX - playerPosX) + (posY - playerPosY) * (posY - playerPosY);
-			if (curDis < minDis)
-			{
-				minDis = curDis;
-				closestPlayerID = playerID;
-			}
-		}
-		setInstanceVariable(Self, GML_followTarget, playerMap[closestPlayerID]);
-	}
-
-
-	if (hasConnected && isHost)
-	{
-		if (getInstanceVariable(Self, GML_isDead).AsBool())
-		{
-			return;
-		}
-		// TODO: Use UDP in order to send these messages
 		CInstance* Self = std::get<0>(Args);
-		auto mapInstance = instanceToIDMap.find(Self);
-		if (mapInstance == instanceToIDMap.end())
+		RValue followTarget = getInstanceVariable(Self, GML_followTarget);
+		if (followTarget.m_Kind == VALUE_REF)
 		{
-			int instanceID = availableInstanceIDs.front();
-			instanceToIDMap[Self] = instanceID;
-			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-			float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
-			float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
-			// Probably should change this to uint16_t
-			short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-			char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
-			// seems like there's something that doesn't have a sprite at the beginning? Not sure what it is
-			// Maybe it's the additional player I created?
-			// temp code to just make it work for now
-			if (spriteIndex < 0)
+			double posX = getInstanceVariable(Self, GML_x).m_Real;
+			double posY = getInstanceVariable(Self, GML_y).m_Real;
+			// TODO: Probably should cache this since it won't change for the current frame
+			double originalPlayerPosX = getInstanceVariable(playerMap[0], GML_x).m_Real;
+			double originalPlayerPosY = getInstanceVariable(playerMap[0], GML_y).m_Real;
+			double minDis = (posX - originalPlayerPosX) * (posX - originalPlayerPosX) + (posY - originalPlayerPosY) * (posY - originalPlayerPosY);
+			uint32_t closestPlayerID = 0;
+			for (auto& curPlayer : playerMap)
 			{
-				spriteIndex = 0;
-			}
-			instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, instanceID, truncatedImageIndex);
-			//			if (spriteIndex >= 0)
-			{
-				instancesCreateMessage.addInstance(data);
-				if (instancesCreateMessage.numInstances >= instanceCreateDataLen)
+				uint32_t playerID = curPlayer.first;
+				RValue playerInstance = curPlayer.second;
+				double playerPosX = getInstanceVariable(playerInstance, GML_x).m_Real;
+				double playerPosY = getInstanceVariable(playerInstance, GML_y).m_Real;
+				double curDis = (posX - playerPosX) * (posX - playerPosX) + (posY - playerPosY) * (posY - playerPosY);
+				if (curDis < minDis)
 				{
-					sendAllInstanceCreateMessage();
+					minDis = curDis;
+					closestPlayerID = playerID;
 				}
 			}
-
-			availableInstanceIDs.pop();
+			setInstanceVariable(Self, GML_followTarget, playerMap[closestPlayerID]);
 		}
-		else
+
+		if (isHost)
 		{
-			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-			float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
-			float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
-			// Probably should change this to uint16_t
-			short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-			char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
-			instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, mapInstance->second, truncatedImageIndex);
-			instancesUpdateMessage.addInstance(data);
-			if (instancesUpdateMessage.numInstances >= instanceUpdateDataLen)
+			if (getInstanceVariable(Self, GML_isDead).AsBool())
 			{
-				sendAllInstanceUpdateMessage();
+				return;
+			}
+			// TODO: Use UDP in order to send these messages
+			CInstance* Self = std::get<0>(Args);
+			auto mapInstance = instanceToIDMap.find(Self);
+			if (mapInstance == instanceToIDMap.end())
+			{
+				int instanceID = availableInstanceIDs.front();
+				instanceToIDMap[Self] = instanceID;
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+				// Probably should change this to uint16_t
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				// seems like there's something that doesn't have a sprite at the beginning? Not sure what it is
+				// Maybe it's the additional player I created?
+				// temp code to just make it work for now
+				if (spriteIndex < 0)
+				{
+					spriteIndex = 0;
+				}
+				instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, instanceID, truncatedImageIndex);
+				//			if (spriteIndex >= 0)
+				{
+					instancesCreateMessage.addInstance(data);
+					if (instancesCreateMessage.numInstances >= instanceCreateDataLen)
+					{
+						sendAllInstanceCreateMessage();
+					}
+				}
+
+				availableInstanceIDs.pop();
+			}
+			else
+			{
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+				// Probably should change this to uint16_t
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, mapInstance->second, truncatedImageIndex);
+				instancesUpdateMessage.addInstance(data);
+				if (instancesUpdateMessage.numInstances >= instanceUpdateDataLen)
+				{
+					sendAllInstanceUpdateMessage();
+				}
 			}
 		}
 	}
@@ -1684,16 +1699,10 @@ void StickerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>&
 
 void TextControllerCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
-	RValue textContainer = g_ModuleInterface->CallBuiltin("variable_global_get", { "TextContainer" });
-	RValue titleButtons = g_ModuleInterface->CallBuiltin("variable_instance_get", { textContainer, "titleButtons" });
-	RValue eng = g_ModuleInterface->CallBuiltin("variable_instance_get", { titleButtons, "eng" });
-	eng[0] = "Play Modded Co-op";
 }
 
-void drawCoopMenuButtons(std::vector<std::string> CoopOptionMenuTextList, CInstance* Self)
+void drawCoopMenuButtons(std::vector<std::string> CoopOptionMenuTextList, CInstance* Self, double buttonX, double buttonY)
 {
-	double buttonX = 530;
-	double buttonY = 104;
 	double buttonYSpacing = 29;
 	double textColor[2]{ 0xFFFFFF, 0 };
 	RValue inputManager = g_ModuleInterface->CallBuiltin("instance_find", { objInputManagerIndex, 0 });
@@ -1702,7 +1711,7 @@ void drawCoopMenuButtons(std::vector<std::string> CoopOptionMenuTextList, CInsta
 	{
 		if (isMouseMoving)
 		{
-			RValue** args = new RValue * [4];
+			RValue** args = new RValue*[4];
 			RValue mouseOverType = "long";
 			RValue curButtonX = buttonX;
 			RValue curButtonY = buttonY + i * buttonYSpacing;
@@ -1726,11 +1735,114 @@ void drawCoopMenuButtons(std::vector<std::string> CoopOptionMenuTextList, CInsta
 	}
 }
 
+int adapterPageNum = 0;
+int prevPageButtonNum = -1;
+int nextPageButtonNum = -1;
+
+int menuButtonsNum = 0;
+int menuButtonsXPos = 0;
+int menuButtonsYPos = 0;
 void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
-	if (isInCoopOptionMenu)
+	if (isInGamemodeSelect)
 	{
-		drawCoopMenuButtons({ "Host LAN Session", "Join LAN Session" }, std::get<0>(Args));
+		drawCoopMenuButtons({ "Play Single Player", "Use saved network adapter", "Select network adapter" }, std::get<0>(Args), 530, 104);
+		menuButtonsNum = 3;
+		menuButtonsXPos = 530;
+		menuButtonsYPos = 104;
+	}
+	else if (isInNetworkAdapterMenu)
+	{
+		if (!hasReadNetworkAdapterDisclaimer)
+		{
+			CInstance* Self = std::get<0>(Args);
+			const char* networkAdapterDisclaimer = "DISCLAIMER: Please be aware that clicking the OK button will bring up a list of your computer's network adapter names which may contain private/sensitive information.";
+			g_ModuleInterface->CallBuiltin("draw_set_font", { jpFont });
+			g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
+			RValue** args = new RValue*[10];
+			args[0] = new RValue(320);
+			args[1] = new RValue(100);
+			args[2] = new RValue(networkAdapterDisclaimer);
+			args[3] = new RValue(1.0);
+			args[4] = new RValue(static_cast<double>(0x000000));
+			args[5] = new RValue(14.0);
+			args[6] = new RValue(20.0);
+			args[7] = new RValue(440.0);
+			args[8] = new RValue(static_cast<double>(0x0FFFFF));
+			args[9] = new RValue(1.0);
+			RValue returnVal;
+			origDrawTextOutlineScript(Self, nullptr, returnVal, 10, args);
+
+			drawCoopMenuButtons({ "OK" }, std::get<0>(Args), 320, 250);
+			menuButtonsNum = 1;
+			menuButtonsXPos = 320;
+			menuButtonsYPos = 250;
+		}
+		else
+		{
+			if (adapterAddresses != NULL)
+			{
+				std::vector<std::string> adapterNames;
+				IP_ADAPTER_ADDRESSES* adapter(NULL);
+
+				bool hasPrev = false;
+				bool hasNext = false;
+				int count = -1;
+				for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
+				{
+					if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
+					{
+						continue;
+					}
+
+					count++;
+					if (count < adapterPageNum * 5)
+					{
+						hasPrev = true;
+						continue;
+					}
+					if (count >= (adapterPageNum + 1) * 5)
+					{
+						hasNext = true;
+						break;
+					}
+
+					int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), NULL, 0, NULL, NULL);
+					std::string resString(sizeNeeded, 0);
+					WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), &resString[0], sizeNeeded, NULL, NULL);
+					adapterNames.push_back(resString);
+				}
+				if (hasPrev)
+				{
+					prevPageButtonNum = static_cast<int>(adapterNames.size());
+					adapterNames.push_back("Prev Page");
+				}
+				else
+				{
+					prevPageButtonNum = -1;
+				}
+				if (hasNext)
+				{
+					nextPageButtonNum = static_cast<int>(adapterNames.size());
+					adapterNames.push_back("Next Page");
+				}
+				else
+				{
+					nextPageButtonNum = -1;
+				}
+				drawCoopMenuButtons(adapterNames, std::get<0>(Args), 530, 104);
+				menuButtonsNum = static_cast<int>(adapterNames.size());
+				menuButtonsXPos = 530;
+				menuButtonsYPos = 104;
+			}
+		}
+	}
+	else if (isInCoopOptionMenu)
+	{
+		drawCoopMenuButtons({ "Host LAN Session", "Join LAN Session" }, std::get<0>(Args), 530, 104);
+		menuButtonsNum = 2;
+		menuButtonsXPos = 530;
+		menuButtonsYPos = 104;
 	}
 	else if (isInLobby && (isHost || hasObtainedClientID))
 	{
@@ -1803,7 +1915,10 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 				}
 			}
 		}
-		drawCoopMenuButtons(CoopOptionMenuTextList, std::get<0>(Args));
+		drawCoopMenuButtons(CoopOptionMenuTextList, std::get<0>(Args), 530, 104);
+		menuButtonsNum = static_cast<int>(CoopOptionMenuTextList.size());
+		menuButtonsXPos = 530;
+		menuButtonsYPos = 104;
 	}
 }
 
@@ -2012,7 +2127,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 
 void TitleCharacterDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
-	if (isInLobby || isSelectingCharacter || isSelectingMap)
+	if (isInLobby || isSelectingCharacter || isSelectingMap || (isInNetworkAdapterMenu && !hasReadNetworkAdapterDisclaimer))
 	{
 		callbackManagerInterfacePtr->CancelOriginalFunction();
 	}
@@ -2029,4 +2144,31 @@ void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 		g_ModuleInterface->SetBuiltin("alarm", Self, 0, disableAlarmVal);
 	}
 	g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharacterDataIndex });
+}
+
+void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (isInGamemodeSelect || isInNetworkAdapterMenu || isInCoopOptionMenu || (isInLobby && (isHost || hasObtainedClientID)))
+	{
+		CInstance* Self = std::get<0>(Args);
+		for (int i = 0; i < menuButtonsNum; i++)
+		{
+			RValue** args = new RValue*[4];
+			RValue mouseOverType = "long";
+			RValue curButtonX = menuButtonsXPos;
+			RValue curButtonY = menuButtonsYPos + i * 29 - 3;
+			args[0] = &mouseOverType;
+			args[1] = &curButtonX;
+			args[2] = &curButtonY;
+			RValue returnVal;
+			origMouseOverButtonScript(Self, nullptr, returnVal, 3, args);
+			if (returnVal.AsBool())
+			{
+				RValue ConfirmedMethod = getInstanceVariable(Self, GML_Confirmed);
+				RValue ConfirmedMethodArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
+				g_ModuleInterface->CallBuiltin("method_call", { ConfirmedMethod, ConfirmedMethodArr });
+			}
+		}
+		callbackManagerInterfacePtr->CancelOriginalFunction();
+	}
 }

@@ -112,6 +112,7 @@ int sprSummonPointerIndex = -1;
 int sprHudInitButtonsIndex = -1;
 int jpFont = -1;
 int rmTitle = -1;
+int rmCharSelect = -1;
 
 char broadcastAddressBuffer[16] = { 0 };
 
@@ -454,6 +455,11 @@ EXPORTED AurieStatus ModuleInitialize(
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_TitleScreen_Create_0", nullptr, TitleScreenCreateAfter)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_TitleScreen_Create_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_TitleScreen_Mouse_53", TitleScreenMouse53Before, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_TitleScreen_Mouse_53");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	
@@ -822,6 +828,11 @@ EXPORTED AurieStatus ModuleInitialize(
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 
+	// TODO: Improve movement with high ping by queueing up the movement data
+	// TODO: Improve ping by changing the message handler to be in a separate thread and change some messages to be sent via UDP
+	// TODO: Probably should reduce attack speed
+	// TODO: Add message when paused indicating that it's waiting for other players
+
 	// Lower priority
 	// TODO: Some weapons aren't added on the client side when chosen as a level up option because the client hasn't unlocked it yet. It's still added on the host side
 	// Does affect being able to choose the weapons as a collab option, so should probably fix this
@@ -922,6 +933,7 @@ EXPORTED AurieStatus ModuleInitialize(
 	sprHudInitButtonsIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_initButtons" }).AsReal());
 	jpFont = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "jpFont" }).AsReal());
 	rmTitle = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_Title" }).AsReal());
+	rmCharSelect = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_CharSelect" }).AsReal());
 	g_RunnerInterface = g_ModuleInterface->GetRunnerInterface();
 	g_ModuleInterface->GetGlobalInstance(&globalInstance);
 
@@ -942,83 +954,6 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to initialize winsock: %d\n", iResult);
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-
-	IP_ADAPTER_ADDRESSES* adapterAddresses(NULL);
-	IP_ADAPTER_ADDRESSES* adapter(NULL);
-
-	DWORD adapterAddressesBufferSize = 16 * 1024;
-
-	for (int i = 0; i < 3; i++)
-	{
-		adapterAddresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(malloc(adapterAddressesBufferSize));
-		DWORD error = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME, NULL, adapterAddresses, &adapterAddressesBufferSize);
-		if (error == ERROR_SUCCESS)
-		{
-			break;
-		}
-		else if (error == ERROR_BUFFER_OVERFLOW)
-		{
-			free(adapterAddresses);
-			adapterAddresses = NULL;
-			continue;
-		}
-		else
-		{
-			free(adapterAddresses);
-			adapterAddresses = NULL;
-			continue;
-		}
-	}
-
-	for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
-	{
-		if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
-		{
-			continue;
-		}
-		// TODO: Might not always want to use these adapters. Should probably find a more general way to get the LAN address
-		if (wcscmp(adapter->FriendlyName, L"Wi-Fi") != 0 && wcscmp(adapter->FriendlyName, L"wlo1") != 0)
-		{
-			continue;
-		}
-
-		for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
-		{
-			auto family = address->Address.lpSockaddr->sa_family;
-			if (family == AF_INET)
-			{
-				SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
-				ULONG subnetMask;
-				ConvertLengthToIpv4Mask(address->OnLinkPrefixLength, &subnetMask);
-				ipv4->sin_addr.s_addr |= ~subnetMask;
-				inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
-
-				struct addrinfo* res = nullptr, * it;
-				struct addrinfo hints;
-				memset(&hints, 0, sizeof(struct addrinfo));
-				hints.ai_family = AF_INET;
-				hints.ai_socktype = SOCK_DGRAM;
-
-				getaddrinfo(broadcastAddressBuffer, BROADCAST_PORT, &hints, &res);
-
-				for (it = res; it != NULL; it = it->ai_next)
-				{
-					broadcastSocket = socket(it->ai_family, it->ai_socktype, it->ai_protocol);
-					char enable = '1';
-					setsockopt(broadcastSocket, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
-					u_long mode = 1;
-					ioctlsocket(broadcastSocket, FIONBIO, &mode);
-					broadcastSocketAddr = it->ai_addr;
-					broadcastSocketLen = it->ai_addrlen;
-					break;
-				}
-				break;
-			}
-		}
-		break;
-	}
-	free(adapterAddresses);
-	adapterAddresses = NULL;
 
 	struct addrinfo hints, *servinfo, *p = NULL;
 

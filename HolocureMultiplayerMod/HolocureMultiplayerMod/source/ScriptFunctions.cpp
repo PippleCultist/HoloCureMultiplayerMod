@@ -1,3 +1,4 @@
+#pragma comment(lib, "iphlpapi.lib")
 #include <WS2tcpip.h>
 #include "ScriptFunctions.h"
 #include <YYToolkit/shared.hpp>
@@ -7,6 +8,8 @@
 #include "CommonFunctions.h"
 #include "NetworkFunctions.h"
 #include "CodeEvents.h"
+#include <iphlpapi.h>
+#include <fstream>
 
 #define HOST_INDEX 0
 
@@ -509,9 +512,12 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 
 RValue& CanSubmitScoreFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	ReturnValue.m_Kind = VALUE_BOOL;
-	ReturnValue.m_Real = 0;
-	callbackManagerInterfacePtr->CancelOriginalFunction();
+	if (hasConnected)
+	{
+		ReturnValue.m_Kind = VALUE_BOOL;
+		ReturnValue.m_Real = 0;
+		callbackManagerInterfacePtr->CancelOriginalFunction();
+	}
 	return ReturnValue;
 }
 
@@ -1493,6 +1499,9 @@ RValue& ApplyBuffsPlayerManagerBefore(CInstance* Self, CInstance* Other, RValue&
 	return ReturnValue;
 }
 
+bool isInNetworkAdapterMenu = false;
+bool hasReadNetworkAdapterDisclaimer = false;
+bool isInGamemodeSelect = false;
 bool isInCoopOptionMenu = false;
 bool isInLobby = false;
 bool isSelectingCharacter = false;
@@ -1502,6 +1511,11 @@ SOCKET listenSocket;
 SOCKET broadcastSocket = INVALID_SOCKET;
 sockaddr* broadcastSocketAddr = nullptr;
 size_t broadcastSocketLen = 0;
+
+extern int adapterPageNum;
+extern int prevPageButtonNum;
+extern int nextPageButtonNum;
+IP_ADAPTER_ADDRESSES* adapterAddresses(NULL);
 
 RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
@@ -1548,6 +1562,8 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 			isInLobby = false;
 			closesocket(connectClientSocket);
 			connectClientSocket = INVALID_SOCKET;
+			closesocket(broadcastSocket);
+			broadcastSocket = INVALID_SOCKET;
 			g_ModuleInterface->CallBuiltin("room_goto", { curSelectedMap });
 		}
 	}
@@ -1595,13 +1611,251 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 		isInLobby = true;
 		isInCoopOptionMenu = false;
 	}
+	else if (isInNetworkAdapterMenu)
+	{
+		if (!hasReadNetworkAdapterDisclaimer)
+		{
+			hasReadNetworkAdapterDisclaimer = true;
+			adapterPageNum = 0;
+			prevPageButtonNum = -1;
+			nextPageButtonNum = -1;
+			DWORD adapterAddressesBufferSize = 16 * 1024;
+
+			for (int i = 0; i < 3; i++)
+			{
+				adapterAddresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(malloc(adapterAddressesBufferSize));
+				DWORD error = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME, NULL, adapterAddresses, &adapterAddressesBufferSize);
+				if (error == ERROR_SUCCESS)
+				{
+					break;
+				}
+				else if (error == ERROR_BUFFER_OVERFLOW)
+				{
+					free(adapterAddresses);
+					adapterAddresses = NULL;
+					continue;
+				}
+				else
+				{
+					free(adapterAddresses);
+					adapterAddresses = NULL;
+					continue;
+				}
+			}
+		}
+		else
+		{
+			if (curCoopOptionMenuIndex == prevPageButtonNum)
+			{
+				prevPageButtonNum = -1;
+				nextPageButtonNum = -1;
+				adapterPageNum--;
+			}
+			else if (curCoopOptionMenuIndex == nextPageButtonNum)
+			{
+				prevPageButtonNum = -1;
+				nextPageButtonNum = -1;
+				adapterPageNum++;
+			}
+			else
+			{
+				IP_ADAPTER_ADDRESSES* adapter(NULL);
+
+				int count = -1;
+				for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
+				{
+					if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
+					{
+						continue;
+					}
+
+					count++;
+					if (adapterPageNum * 5 + curCoopOptionMenuIndex != count)
+					{
+						continue;
+					}
+
+					CreateDirectory(L"MultiplayerMod", NULL);
+					std::ofstream outFile;
+					outFile.open("MultiplayerMod/lastUsedNetworkAdapter");
+					int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), NULL, 0, NULL, NULL);
+					std::string resString(sizeNeeded, 0);
+					WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), &resString[0], sizeNeeded, NULL, NULL);
+					outFile << resString;
+					outFile.close();
+
+					for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
+					{
+						auto family = address->Address.lpSockaddr->sa_family;
+						if (family == AF_INET)
+						{
+							SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
+							ULONG subnetMask;
+							ConvertLengthToIpv4Mask(address->OnLinkPrefixLength, &subnetMask);
+							ipv4->sin_addr.s_addr |= ~subnetMask;
+							inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
+
+							struct addrinfo* res = nullptr, * it;
+							struct addrinfo hints;
+							memset(&hints, 0, sizeof(struct addrinfo));
+							hints.ai_family = AF_INET;
+							hints.ai_socktype = SOCK_DGRAM;
+
+							getaddrinfo(broadcastAddressBuffer, BROADCAST_PORT, &hints, &res);
+
+							for (it = res; it != NULL; it = it->ai_next)
+							{
+								broadcastSocket = socket(it->ai_family, it->ai_socktype, it->ai_protocol);
+								char enable = '1';
+								setsockopt(broadcastSocket, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
+								u_long mode = 1;
+								ioctlsocket(broadcastSocket, FIONBIO, &mode);
+								broadcastSocketAddr = it->ai_addr;
+								broadcastSocketLen = it->ai_addrlen;
+								break;
+							}
+							break;
+						}
+					}
+					break;
+				}
+
+				isInCoopOptionMenu = true;
+				isInNetworkAdapterMenu = false;
+				hasReadNetworkAdapterDisclaimer = false;
+			}
+		}
+	}
+	else if (isInGamemodeSelect)
+	{
+		if (curCoopOptionMenuIndex == 0)
+		{
+			// Single player
+			g_ModuleInterface->CallBuiltin("room_goto", { rmCharSelect });
+			isInGamemodeSelect = false;
+		}
+		else if (curCoopOptionMenuIndex == 1)
+		{
+			// Use saved adapter
+			CreateDirectory(L"MultiplayerMod", NULL);
+			if (!std::filesystem::exists("MultiplayerMod/lastUsedNetworkAdapter"))
+			{
+				g_ModuleInterface->Print(CM_RED, "Couldn't find the last used network adapter file");
+				return ReturnValue;
+			}
+			std::ifstream inFile;
+			inFile.open("MultiplayerMod/lastUsedNetworkAdapter");
+			std::string line;
+			if (!std::getline(inFile, line))
+			{
+				g_ModuleInterface->Print(CM_RED, "Couldn't read network adapter name from MultiplayerMod/lastUsedNetworkAdapter");
+				inFile.close();
+				return ReturnValue;
+			}
+			
+			IP_ADAPTER_ADDRESSES* adapter(NULL);
+
+			DWORD adapterAddressesBufferSize = 16 * 1024;
+
+			for (int i = 0; i < 3; i++)
+			{
+				adapterAddresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(malloc(adapterAddressesBufferSize));
+				DWORD error = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME, NULL, adapterAddresses, &adapterAddressesBufferSize);
+				if (error == ERROR_SUCCESS)
+				{
+					break;
+				}
+				else if (error == ERROR_BUFFER_OVERFLOW)
+				{
+					free(adapterAddresses);
+					adapterAddresses = NULL;
+					continue;
+				}
+				else
+				{
+					free(adapterAddresses);
+					adapterAddresses = NULL;
+					continue;
+				}
+			}
+
+			for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
+			{
+				if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
+				{
+					continue;
+				}
+
+				int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), NULL, 0, NULL, NULL);
+				std::string resString(sizeNeeded, 0);
+				WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), &resString[0], sizeNeeded, NULL, NULL);
+				if (line.compare(resString) != 0)
+				{
+					continue;
+				}
+
+				isInCoopOptionMenu = true;
+				isInGamemodeSelect = false;
+
+				for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
+				{
+					auto family = address->Address.lpSockaddr->sa_family;
+					if (family == AF_INET)
+					{
+						SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
+						ULONG subnetMask;
+						ConvertLengthToIpv4Mask(address->OnLinkPrefixLength, &subnetMask);
+						ipv4->sin_addr.s_addr |= ~subnetMask;
+						inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
+
+						struct addrinfo* res = nullptr, * it;
+						struct addrinfo hints;
+						memset(&hints, 0, sizeof(struct addrinfo));
+						hints.ai_family = AF_INET;
+						hints.ai_socktype = SOCK_DGRAM;
+
+						getaddrinfo(broadcastAddressBuffer, BROADCAST_PORT, &hints, &res);
+
+						for (it = res; it != NULL; it = it->ai_next)
+						{
+							broadcastSocket = socket(it->ai_family, it->ai_socktype, it->ai_protocol);
+							char enable = '1';
+							setsockopt(broadcastSocket, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
+							u_long mode = 1;
+							ioctlsocket(broadcastSocket, FIONBIO, &mode);
+							broadcastSocketAddr = it->ai_addr;
+							broadcastSocketLen = it->ai_addrlen;
+							break;
+						}
+						break;
+					}
+				}
+				inFile.close();
+				free(adapterAddresses);
+				adapterAddresses = NULL;
+				return ReturnValue;
+			}
+			free(adapterAddresses);
+			adapterAddresses = NULL;
+
+			g_ModuleInterface->Print(CM_RED, "Couldn't find network adapter %s", line);
+			inFile.close();
+		}
+		else if (curCoopOptionMenuIndex == 2)
+		{
+			// Choose an adapter
+			isInGamemodeSelect = false;
+			isInNetworkAdapterMenu = true;
+			hasReadNetworkAdapterDisclaimer = false;
+		}
+	}
 	else
 	{
 		// On the original title screen
 		int currentOption = static_cast<int>(lround(getInstanceVariable(Self, GML_currentOption).m_Real));
 		if (currentOption == 0)
 		{
-			isInCoopOptionMenu = true;
+			isInGamemodeSelect = true;
 			setInstanceVariable(Self, GML_canControl, RValue(false));
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
@@ -1684,10 +1938,33 @@ bool hasReturnedFromSelectingMap = false;
 RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
 	curCoopOptionMenuIndex = 0;
-	if (isInCoopOptionMenu)
+	if (isInGamemodeSelect)
 	{
-		isInCoopOptionMenu = false;
+		isInGamemodeSelect = false;
 		setInstanceVariable(Self, GML_canControl, RValue(true));
+	}
+	else if (isInNetworkAdapterMenu)
+	{
+		isInGamemodeSelect = true;
+		isInNetworkAdapterMenu = false;
+		hasReadNetworkAdapterDisclaimer = false;
+		if (adapterAddresses != NULL)
+		{
+			free(adapterAddresses);
+		}
+		adapterAddresses = NULL;
+	}
+	else if (isInCoopOptionMenu)
+	{
+		isInGamemodeSelect = true;
+		isInCoopOptionMenu = false;
+		closesocket(broadcastSocket);
+		broadcastSocket = INVALID_SOCKET;
+		if (adapterAddresses != NULL)
+		{
+			free(adapterAddresses);
+		}
+		adapterAddresses = NULL;
 	}
 	else if (isInLobby)
 	{
@@ -1740,8 +2017,7 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 
 RValue& ReturnCharSelectCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	RValue holoHouseMode = g_ModuleInterface->CallBuiltin("variable_global_get", { "holoHouseMode" });
-	if (!holoHouseMode.AsBool())
+	if (isSelectingCharacter || isSelectingMap)
 	{
 		RValue charSelected = g_ModuleInterface->CallBuiltin("variable_global_get", { "charSelected" });
 		if (charSelected.m_Kind != VALUE_OBJECT)

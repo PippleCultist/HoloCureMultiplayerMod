@@ -175,6 +175,7 @@
 	DO(createdTime) \
 	DO(image_number) \
 	DO(spritePlaybackSpeed) \
+	DO(Confirmed) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -273,6 +274,7 @@ extern int sprSummonPointerIndex;
 extern int sprHudInitButtonsIndex;
 extern int jpFont;
 extern int rmTitle;
+extern int rmCharSelect;
 
 extern SOCKET serverSocket;
 extern SOCKET connectClientSocket;
