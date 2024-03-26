@@ -262,7 +262,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Player_Step_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_PlayerManager_Draw_64", PlayerManagerDraw64Before, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_PlayerManager_Draw_64", PlayerManagerDraw64Before, PlayerManagerDraw64After)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_PlayerManager_Draw_64");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
@@ -578,11 +578,6 @@ EXPORTED AurieStatus ModuleInitialize(
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Pause_gml_Object_obj_PlayerManager_Create_0", PausePlayerManagerCreateFuncBefore, nullptr, &origPauseScript)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_Pause_gml_Object_obj_PlayerManager_Create_0");
-		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
-	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Unpause_gml_Object_obj_PlayerManager_Create_0", UnpausePlayerManagerCreateFuncBefore, nullptr, nullptr)))
-	{
-		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_Unpause_gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script__CreateTakodachi_gml_Object_obj_AttackController_Other_14", CreateTakodachiAttackControllerOther14FuncBefore, nullptr, nullptr)))

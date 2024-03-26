@@ -21,6 +21,7 @@ extern int curSelectedGameMode;
 extern int curSelectedStageSprite;
 
 extern bool hasSent;
+extern bool hasHostPaused;
 
 extern std::unordered_map<uint32_t, bool> hasClientPlayerDisconnected;
 
@@ -62,6 +63,7 @@ void AttackDestroyBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 void PlayerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerManagerDraw64Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void EXPCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AllPickupableStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AllPickupableCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

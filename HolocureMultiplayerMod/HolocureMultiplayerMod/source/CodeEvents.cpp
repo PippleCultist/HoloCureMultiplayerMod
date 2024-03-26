@@ -47,12 +47,31 @@ int curSelectedGameMode = -1;
 int curSelectedStageSprite = -1;
 int curCoopOptionMenuIndex = 0;
 
+bool hasHostPaused = false;
+
 extern IP_ADAPTER_ADDRESSES* adapterAddresses;
 
 // TODO: Improve this to assign better IDs
 uint32_t curUnusedPlayerID = 1;
 
 // TODO: Make sure that the additional players will teleport accordingly on the infinite maps when crossing the border
+
+void drawTextOutline(CInstance* Self, double xPos, double yPos, std::string text, double outlineWidth, int outlineColor, double numOutline, double linePixelSeparation, double pixelsBeforeLineBreak, int textColor, double alpha)
+{
+	RValue** args = new RValue*[10];
+	args[0] = new RValue(xPos);
+	args[1] = new RValue(yPos);
+	args[2] = new RValue(text);
+	args[3] = new RValue(outlineWidth);
+	args[4] = new RValue(static_cast<double>(outlineColor));
+	args[5] = new RValue(numOutline);
+	args[6] = new RValue(linePixelSeparation);
+	args[7] = new RValue(pixelsBeforeLineBreak);
+	args[8] = new RValue(static_cast<double>(textColor));
+	args[9] = new RValue(alpha);
+	RValue returnVal;
+	origDrawTextOutlineScript(Self, nullptr, returnVal, 10, args);
+}
 
 bool hasInitializedInputManagerSettings = false;
 void InputManagerCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
@@ -107,29 +126,18 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 			return;
 		}
 
+		g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
+
 		// Draw player num
-		RValue** args = new RValue*[10];
 		double curXPos = getInstanceVariable(Self, GML_x).m_Real;
 		double curYPos = getInstanceVariable(Self, GML_y).m_Real;
-		args[0] = new RValue(curXPos - 4);
-		args[1] = new RValue(curYPos);
-		args[2] = new RValue(std::format("P{}", lobbyPlayerDataMap[playerID].playerName));
-		args[3] = new RValue(1.0);
-		args[4] = new RValue(static_cast<double>(0x000000));
-		args[5] = new RValue(14.0);
-		args[6] = new RValue(0.0);
-		args[7] = new RValue(100.0);
-		args[8] = new RValue(static_cast<double>(0xFFFFFF));
-		args[9] = new RValue(1.0);
-		origDrawTextOutlineScript(Self, Other, returnVal, 10, args);
+		drawTextOutline(Self, curXPos, curYPos, std::format("P{}", lobbyPlayerDataMap[playerID].playerName), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
 
 		// Draw ping numbers under all clients for the host and only under the host for the clients
 		// Equivalent to xor, but probably not as readable
 		if ((isHost && playerID != 0) || (!isHost && playerID == 0))
 		{
-			args[1] = new RValue(curYPos + 10);
-			args[2] = new RValue(std::format("{} ms", playerPingMap[playerID]));
-			origDrawTextOutlineScript(Self, Other, returnVal, 10, args);
+			drawTextOutline(Self, curXPos, curYPos + 10, std::format("{} ms", playerPingMap[playerID]), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
 		}
 
 		if (clientID == playerID)
@@ -187,16 +195,11 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 					double clientArrowDiffLength = sqrt(clientArrowXPosDiff * clientArrowXPosDiff + clientArrowYPosDiff * clientArrowYPosDiff);
 					double clientArrowXDir = clientArrowXPosDiff / clientArrowDiffLength;
 					double clientArrowYDir = clientArrowYPosDiff / clientArrowDiffLength;
-					args[0] = new RValue(clientArrowXPos - clientArrowXDir * 30);
-					args[1] = new RValue(clientArrowYPos - clientArrowYDir * 30 - 5);
-					args[2] = new RValue(std::format("P{}", lobbyPlayerDataMap[curPlayerID].playerName));
-					origDrawTextOutlineScript(Self, Other, returnVal, 10, args);
+					drawTextOutline(Self, clientArrowXPos - clientArrowXDir * 30, clientArrowYPos - clientArrowYDir * 30 - 5, std::format("P{}", lobbyPlayerDataMap[curPlayerID].playerName), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
 
 					if ((isHost && curPlayerID != 0) || (!isHost && curPlayerID == 0))
 					{
-						args[1] = new RValue(clientArrowYPos - clientArrowYDir * 30 + 5);
-						args[2] = new RValue(std::format("{} ms", playerPingMap[curPlayerID]));
-						origDrawTextOutlineScript(Self, Other, returnVal, 10, args);
+						drawTextOutline(Self, clientArrowXPos - clientArrowXDir * 30, clientArrowYPos - clientArrowYDir * 30 + 5, std::format("{} ms", playerPingMap[curPlayerID]), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
 					}
 				}
 			}
@@ -893,6 +896,31 @@ void PlayerManagerDraw64Before(std::tuple<CInstance*, CInstance*, CCode*, int, R
 	}
 }
 
+void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			if (isHostWaitingForClientUnpause)
+			{
+				CInstance* Self = std::get<0>(Args);
+				g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
+				drawTextOutline(Self, 320, 50, "Waiting for players...", 1, 0x000000, 14, 0, 440, 0xFFFFFF, 1);
+			}
+		}
+		else
+		{
+			if (hasHostPaused && !isClientPaused)
+			{
+				CInstance* Self = std::get<0>(Args);
+				g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
+				drawTextOutline(Self, 320, 50, "Waiting for players...", 1, 0x000000, 14, 0, 440, 0xFFFFFF, 1);
+			}
+		}
+	}
+}
+
 void EXPCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
 	if (hasConnected && !isHost)
@@ -1564,6 +1592,7 @@ void HoloAnvilCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, i
 				setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(true));
 				RValue returnVal;
 				origPauseScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
+				sendAllHostHasPausedMessage();
 
 				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
 				sendAllInteractablePlayerInteractedMessage(playerID, interactableMapIndexVal, 1);
@@ -1607,6 +1636,7 @@ void GoldenAnvilCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*,
 				setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(true));
 				RValue returnVal;
 				origPauseScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
+				sendAllHostHasPausedMessage();
 
 				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
 				sendAllInteractablePlayerInteractedMessage(playerID, interactableMapIndexVal, 2);
@@ -1662,6 +1692,7 @@ void StickerCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 				setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(true));
 				RValue returnVal;
 				origPauseScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
+				sendAllHostHasPausedMessage();
 
 				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
 				RValue stickerID = getInstanceVariable(Self, GML_stickerID);
@@ -1759,19 +1790,7 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 			const char* networkAdapterDisclaimer = "DISCLAIMER: Please be aware that clicking the OK button will bring up a list of your computer's network adapter names which may contain private/sensitive information.";
 			g_ModuleInterface->CallBuiltin("draw_set_font", { jpFont });
 			g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
-			RValue** args = new RValue*[10];
-			args[0] = new RValue(320);
-			args[1] = new RValue(100);
-			args[2] = new RValue(networkAdapterDisclaimer);
-			args[3] = new RValue(1.0);
-			args[4] = new RValue(static_cast<double>(0x000000));
-			args[5] = new RValue(14.0);
-			args[6] = new RValue(20.0);
-			args[7] = new RValue(440.0);
-			args[8] = new RValue(static_cast<double>(0x0FFFFF));
-			args[9] = new RValue(1.0);
-			RValue returnVal;
-			origDrawTextOutlineScript(Self, nullptr, returnVal, 10, args);
+			drawTextOutline(Self, 320, 100, networkAdapterDisclaimer, 1, 0x000000, 14, 20, 440, 0x0FFFFF, 1);
 
 			drawCoopMenuButtons({ "OK" }, std::get<0>(Args), 320, 250);
 			menuButtonsNum = 1;
@@ -1791,6 +1810,28 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 				for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
 				{
 					if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
+					{
+						continue;
+					}
+
+					bool isValidAddress = true;
+					for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
+					{
+						auto family = address->Address.lpSockaddr->sa_family;
+						if (family == AF_INET)
+						{
+							SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
+							inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
+
+							if (strncmp("169.254", broadcastAddressBuffer, 7) == 0)
+							{
+								isValidAddress = false;
+							}
+							break;
+						}
+					}
+
+					if (!isValidAddress)
 					{
 						continue;
 					}
@@ -1855,18 +1896,7 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 			lobbyPlayerData curLobbyPlayerData = curPlayerData.second;
 			double textXPos = 20;
 			double textYPos = curPlayerIndex * 32 + 14;
-			RValue** args = new RValue*[10];
-			args[0] = new RValue(textXPos);
-			args[1] = new RValue(textYPos);
-			args[2] = new RValue(std::format("P{}", curLobbyPlayerData.playerName));
-			args[3] = new RValue(1.0);
-			args[4] = new RValue(static_cast<double>(0x000000));
-			args[5] = new RValue(14.0);
-			args[6] = new RValue(0.0);
-			args[7] = new RValue(100.0);
-			args[8] = new RValue(static_cast<double>(0xFFFFFF));
-			args[9] = new RValue(1.0);
-			origDrawTextOutlineScript(Self, nullptr, returnVal, 10, args);
+			drawTextOutline(Self, textXPos, textYPos, std::format("P{}", curLobbyPlayerData.playerName), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
 
 			if (!curLobbyPlayerData.charName.empty())
 			{
@@ -1876,9 +1906,7 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 			}
 			if (curLobbyPlayerData.isReady)
 			{
-				args[0] = new RValue(textXPos + 64);
-				args[2] = new RValue("Ready");
-				origDrawTextOutlineScript(Self, nullptr, returnVal, 10, args);
+				drawTextOutline(Self, textXPos + 64, textYPos, "Ready", 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
 			}
 			curPlayerIndex++;
 		}

@@ -141,3 +141,5 @@ int sendBuffDataMessage(SOCKET socket, std::vector<buffData> buffDataList);
 int sendCharDataMessage(SOCKET socket, lobbyPlayerData playerData, uint32_t playerID);
 int sendAllReturnToLobbyMessage();
 int sendAllLobbyPlayerDisconnectedMessage(uint32_t playerID);
+int sendAllHostHasPausedMessage();
+int sendAllHostHasUnpausedMessage();

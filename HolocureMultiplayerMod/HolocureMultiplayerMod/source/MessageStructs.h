@@ -46,6 +46,8 @@ enum MessageTypes : char
 	MESSAGE_CHAR_DATA,
 	MESSAGE_RETURN_TO_LOBBY,
 	MESSAGE_LOBBY_PLAYER_DISCONNECTED,
+	MESSAGE_HOST_HAS_PAUSED,
+	MESSAGE_HOST_HAS_UNPAUSED,
 	MESSAGE_INVALID
 };
 
@@ -1772,5 +1774,23 @@ struct messageLobbyPlayerDisconnected
 		curMessageSize++;
 		curMessageSize += 4;
 		return curMessageSize;
+	}
+};
+
+struct messageHostHasPaused
+{
+	void serialize(char* messageBuffer)
+	{
+		int startBufferPos = 0;
+		writeCharToByteBuffer(messageBuffer, MESSAGE_HOST_HAS_PAUSED, startBufferPos);
+	}
+};
+
+struct messageHostHasUnpaused
+{
+	void serialize(char* messageBuffer)
+	{
+		int startBufferPos = 0;
+		writeCharToByteBuffer(messageBuffer, MESSAGE_HOST_HAS_UNPAUSED, startBufferPos);
 	}
 };

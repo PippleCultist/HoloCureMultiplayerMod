@@ -481,9 +481,9 @@ int receiveInputMessage(SOCKET socket, MessageTypes messageType, uint32_t player
 			else
 			{
 				// Current message couldn't get processed
-				if (queueData.data.size() < 12)
+				if (queueData.data.size() < 6)
 				{
-					// Only add to the queue if there are less than .2 seconds worth of messages in the queue.
+					// Only add to the queue if there are less than .1 seconds worth of messages in the queue.
 					// Does mean that messages are dropped, but it's better than having the client input being forever delayed
 					queueData.data.push(inputData);
 					numMessagesToProcess++;
@@ -1858,6 +1858,18 @@ int receiveLobbyPlayerDisconnected(SOCKET socket)
 	return curMessageLen;
 }
 
+int receiveHostHasPaused(SOCKET socket)
+{
+	hasHostPaused = true;
+	return 1;
+}
+
+int receiveHostHasUnpaused(SOCKET socket)
+{
+	hasHostPaused = false;
+	return 1;
+}
+
 int receiveMessage(SOCKET socket, uint32_t playerID)
 {
 	const int messageTypeLen = 1;
@@ -2041,6 +2053,14 @@ int receiveMessage(SOCKET socket, uint32_t playerID)
 		{
 			return receiveLobbyPlayerDisconnected(socket);
 		}
+		case MESSAGE_HOST_HAS_PAUSED:
+		{
+			return receiveHostHasPaused(socket);
+		}
+		case MESSAGE_HOST_HAS_UNPAUSED:
+		{
+			return receiveHostHasUnpaused(socket);
+		}
 	}
 	g_ModuleInterface->Print(CM_RED, "Unknown message type received %d", messageType[0]);
 	return -1;
@@ -2053,7 +2073,7 @@ int sendInputMessage(SOCKET socket)
 		return -1;
 	}
 
-	if (isClientPaused)
+	if (isClientPaused || hasHostPaused)
 	{
 		return -1;
 	}
@@ -2795,6 +2815,36 @@ int sendAllLobbyPlayerDisconnectedMessage(uint32_t playerID)
 {
 	messageLobbyPlayerDisconnected curMessage = messageLobbyPlayerDisconnected();
 	const int messageBufferLen = 4;
+	char messageBuffer[messageBufferLen];
+	curMessage.serialize(messageBuffer);
+	// TODO: Should probably do something to check if it's unable to send to only some sockets
+	for (auto& clientSocket : clientSocketMap)
+	{
+		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+	}
+
+	return messageBufferLen;
+}
+
+int sendAllHostHasPausedMessage()
+{
+	messageHostHasPaused curMessage = messageHostHasPaused();
+	const int messageBufferLen = 1;
+	char messageBuffer[messageBufferLen];
+	curMessage.serialize(messageBuffer);
+	// TODO: Should probably do something to check if it's unable to send to only some sockets
+	for (auto& clientSocket : clientSocketMap)
+	{
+		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+	}
+
+	return messageBufferLen;
+}
+
+int sendAllHostHasUnpausedMessage()
+{
+	messageHostHasUnpaused curMessage = messageHostHasUnpaused();
+	const int messageBufferLen = 1;
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets

@@ -580,26 +580,20 @@ bool isClientPaused = false;
 
 RValue& PausePlayerManagerCreateFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	if (hasConnected && !isHost)
+	if (hasConnected)
 	{
-		isClientPaused = true;
-		if (!(!hasObtainedClientID || !isPlayerCreatedMap[clientID]))
+		if (isHost)
 		{
-			setInstanceVariable(playerMap[clientID], GML_canControl, RValue(false));
+			sendAllHostHasPausedMessage();
 		}
-		callbackManagerInterfacePtr->CancelOriginalFunction();
-	}
-	return ReturnValue;
-}
-
-RValue& UnpausePlayerManagerCreateFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
-{
-	if (hasConnected && !isHost)
-	{
-		isClientPaused = false;
-		if (!(!hasObtainedClientID || !isPlayerCreatedMap[clientID]))
+		else
 		{
-			setInstanceVariable(playerMap[clientID], GML_canControl, RValue(true));
+			isClientPaused = true;
+			if (!(!hasObtainedClientID || !isPlayerCreatedMap[clientID]))
+			{
+				setInstanceVariable(playerMap[clientID], GML_canControl, RValue(false));
+			}
+			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
 	}
 	return ReturnValue;
@@ -1112,6 +1106,7 @@ void unpauseHost()
 	RValue returnVal;
 	origUnpauseScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
 	setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
+	sendAllHostHasUnpausedMessage();
 	// Make sure to actually delete the paused screen
 	RValue inputArgs[1];
 	inputArgs[0] = getInstanceVariable(playerManagerInstanceVar, GML_paused_screen_sprite);
@@ -1166,6 +1161,12 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 		}
 		else
 		{
+			isClientPaused = false;
+			if (!(!hasObtainedClientID || !isPlayerCreatedMap[clientID]))
+			{
+				setInstanceVariable(playerMap[clientID], GML_canControl, RValue(true));
+			}
+
 			if (isClientUsingBox)
 			{
 				isClientUsingBox = false;
@@ -1439,12 +1440,9 @@ RValue& TakeDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue&
 		if (playerID != 100000)
 		{
 			// Player is taking damage
-			/*
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
 			hasPlayerTakenDamage = true;
-			*/
-			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
 		else
 		{
@@ -1464,11 +1462,9 @@ RValue& TakeDamageBaseMobCreateAfter(CInstance* Self, CInstance* Other, RValue& 
 	{
 		if (hasPlayerTakenDamage)
 		{
-			/*
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 			swapPlayerData(playerManagerInstanceVar, attackController, 0);
 			hasPlayerTakenDamage = false;
-			*/
 		}
 		if (hasEnemyTakenDamage)
 		{
@@ -1665,6 +1661,28 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 				for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
 				{
 					if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
+					{
+						continue;
+					}
+
+					bool isValidAddress = true;
+					for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
+					{
+						auto family = address->Address.lpSockaddr->sa_family;
+						if (family == AF_INET)
+						{
+							SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
+							inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
+
+							if (strncmp("169.254", broadcastAddressBuffer, 7) == 0)
+							{
+								isValidAddress = false;
+							}
+							break;
+						}
+					}
+
+					if (!isValidAddress)
 					{
 						continue;
 					}
@@ -1918,6 +1936,7 @@ void cleanupPlayerGameData()
 	isClientUsingGoldenAnvil = false;
 	isClientUsingStamp = false;
 	hasSent = false;
+	hasHostPaused = false;
 }
 
 void cleanupPlayerClientData()
