@@ -11,10 +11,13 @@ static YYTKInterface* GetYYTKInterface()
 	// If we error, we return nullptr.
 	if (!module_interface)
 	{
-		ObGetInterface(
+		AurieStatus last_status = ObGetInterface(
 			"YYTK_Main",
 			reinterpret_cast<AurieInterfaceBase*&>(module_interface)
 		);
+
+		if (!AurieSuccess(last_status))
+			printf("[%s : %d] FATAL: Failed to get YYTK Interface (%s)!\n", __FILE__, __LINE__, AurieStatusToString(last_status));
 	}
 
 	return module_interface;
@@ -121,12 +124,14 @@ YYTK::RValue::RValue(
 	*this = std::string_view(Value);
 }
 
+#if YYTK_CPP_VERSION > 202002L
 YYTK::RValue::RValue(
 	IN const char8_t* Value
 )
 {
 	*this = std::u8string_view(Value);
 }
+#endif // YYTK_CPP_VERSION
 
 RValue::RValue(
 	IN std::string_view Value
@@ -146,12 +151,14 @@ RValue::RValue(
 	);
 }
 
+#if YYTK_CPP_VERSION > 202002L
 YYTK::RValue::RValue(
 	IN std::u8string_view Value
 )
 {
 	*this = std::string(Value.cbegin(), Value.cend());
 }
+#endif // YYTK_CPP_VERSION
 
 YYTK::RValue::RValue(
 	IN const std::string& Value
@@ -160,12 +167,14 @@ YYTK::RValue::RValue(
 	*this = std::string_view(Value);
 }
 
+#if YYTK_CPP_VERSION > 202002L
 YYTK::RValue::RValue(
 	IN const std::u8string& Value
 )
 {
 	*this = std::u8string_view(Value);
 }
+#endif // YYTK_CPP_VERSION
 
 RValue::RValue(
 	IN std::string_view Value,
@@ -204,8 +213,12 @@ bool RValue::AsBool() const
 	case VALUE_INT64:
 		return this->m_i64 > 0;
 	default:
-		// Bool argument has incorrect type!
-		assert(false);
+		GetYYTKInterface()->PrintError(
+			__FILE__,
+			__LINE__,
+			"Trying to get boolean value of invalid kind '%u'!",
+			this->m_Kind
+		);
 	}
 
 	return false;
@@ -224,8 +237,12 @@ double RValue::AsReal() const
 	case VALUE_INT64:
 		return static_cast<double>(this->m_i64);
 	default:
-		// Real argument has incorrect type!
-		assert(false);
+		GetYYTKInterface()->PrintError(
+			__FILE__,
+			__LINE__,
+			"Trying to get real value of invalid kind '%u'!",
+			this->m_Kind
+		);
 	}
 
 	return 0.0;
@@ -266,12 +283,22 @@ RValue& RValue::operator[](
 		return *this;
 
 	RValue* result = nullptr;
-	if (!AurieSuccess(GetYYTKInterface()->GetArrayEntry(
+	AurieStatus last_status = GetYYTKInterface()->GetArrayEntry(
 		*this,
 		Index,
 		result
-	)))
+	);
+
+	if (!AurieSuccess(last_status))
 	{
+		GetYYTKInterface()->PrintError(
+			__FILE__,
+			__LINE__,
+			"Trying to index invalid array index '%lld' (%s)!",
+			Index,
+			AurieStatusToString(last_status)
+		);
+
 		return *this;
 	}
 
@@ -295,6 +322,14 @@ RValue& RValue::operator[](
 	// Prevents access violations, null references are undefined behavior in the C++ standard
 	if (!AurieSuccess(last_status) || !instance_member)
 	{
+		GetYYTKInterface()->PrintError(
+			__FILE__,
+			__LINE__,
+			"Trying to access inaccessible instance member '%s' (%s)!",
+			Element.data(),
+			AurieStatusToString(last_status)
+		);
+
 		return *this;
 	}
 
@@ -314,6 +349,69 @@ RValue& RValue::at(
 {
 	return this->operator[](Element);
 }
+
+RValue* YYTK::RValue::data()
+{
+	if (!GetYYTKInterface())
+		return this;
+
+	RValue* data_base_address = this;
+
+	// The "data_base_address" variable will remain a thisptr unless the function succeeds,
+	// so we don't need to check the return value, as we will always return a valid pointer
+	GetYYTKInterface()->GetArrayEntry(
+		*this,
+		0,
+		data_base_address
+	);
+
+	return data_base_address;
+}
+
+size_t YYTK::RValue::length()
+{
+	// Non-array RValues always only have 1 element
+	if (this->m_Kind != VALUE_ARRAY)
+		return 1;
+
+	YYTKInterface* module_interface = GetYYTKInterface();
+	if (!module_interface)
+		return 0;
+
+	// We don't have to check return value, since if the function failed,
+	// the value in current_size is preserved.
+	size_t current_size = 0;
+	module_interface->GetArraySize(
+		*this,
+		current_size
+	);
+
+	return current_size;
+}
+
+#if YYTK_DEFINE_INTERNAL
+CInstanceInternal& YYTK::CInstance::GetMembers()
+{
+	YYTKInterface* module_interface = GetYYTKInterface();
+	if (!module_interface)
+		return this->Unmasked.Members;
+
+	RValue self_id_builtin;
+	module_interface->GetBuiltin(
+		"id",
+		this,
+		NULL_INDEX,
+		self_id_builtin
+	);
+
+	int32_t self_id = static_cast<int32_t>(self_id_builtin.AsReal());
+
+	if (this->Unmasked.Members.m_ID == self_id)
+		return this->Unmasked.Members;
+
+	return this->Masked.Members;
+}
+#endif // YYTK_DEFINE_INTERNAL
 
 RValue& CInstance::operator[](
 	IN std::string_view Element

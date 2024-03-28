@@ -4,7 +4,6 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 #include "ModuleMain.h"
-#include "YYTKTypes/YYObjectBase.h"
 #include "CommonFunctions.h"
 #include "NetworkFunctions.h"
 #include "CodeEvents.h"
