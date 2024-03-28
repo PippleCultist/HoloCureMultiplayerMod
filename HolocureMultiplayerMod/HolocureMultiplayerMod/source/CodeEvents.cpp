@@ -1412,6 +1412,22 @@ void HoloBoxCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 	}
 }
 
+void HoloBoxCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		CInstance* Self = std::get<0>(Args);
+		if (isHost)
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[0]);
+		}
+		else
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[clientID]);
+		}
+	}
+}
+
 void HoloAnvilCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
 	if (hasConnected && isHost)
@@ -1431,6 +1447,22 @@ void HoloAnvilCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.m_Real));
 
 		sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, -1, 1));
+	}
+}
+
+void HoloAnvilCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		CInstance* Self = std::get<0>(Args);
+		if (isHost)
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[0]);
+		}
+		else
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[clientID]);
+		}
 	}
 }
 
@@ -1456,6 +1488,22 @@ void GoldenAnvilCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 	}
 }
 
+void GoldenAnvilCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		CInstance* Self = std::get<0>(Args);
+		if (isHost)
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[0]);
+		}
+		else
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[clientID]);
+		}
+	}
+}
+
 void GoldenHammerCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
 	if (hasConnected && isHost)
@@ -1475,6 +1523,38 @@ void GoldenHammerCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.m_Real));
 
 		sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, -1, 3));
+	}
+}
+
+void GoldenHammerCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		CInstance* Self = std::get<0>(Args);
+		if (isHost)
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[0]);
+		}
+		else
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[clientID]);
+		}
+	}
+}
+
+void StickerCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		CInstance* Self = std::get<0>(Args);
+		if (isHost)
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[0]);
+		}
+		else
+		{
+			setInstanceVariable(Self, GML_followPlayerID, playerMap[clientID]);
+		}
 	}
 }
 
