@@ -153,9 +153,7 @@
     <ClInclude Include="include\Aurie\shared.hpp" />
     <ClInclude Include="include\CallbackManager\CallbackManagerInterface.h" />
     <ClInclude Include="include\FunctionWrapper\FunctionWrapper.hpp" />
-    <ClInclude Include="include\YYTKTypes\CHashMap.h" />
     <ClInclude Include="include\YYTKTypes\RefThing.h" />
-    <ClInclude Include="include\YYTKTypes\YYObjectBase.h" />
     <ClInclude Include="include\YYToolkit\Shared.hpp" />
     <ClInclude Include="source\BuiltinFunctions.h" />
     <ClInclude Include="source\CodeEvents.h" />

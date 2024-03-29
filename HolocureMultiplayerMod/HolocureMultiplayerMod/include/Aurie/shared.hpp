@@ -48,7 +48,7 @@
 #endif // AURIE_FWK_MINOR
 
 #ifndef AURIE_FWK_PATCH
-#define AURIE_FWK_PATCH 0
+#define AURIE_FWK_PATCH 4
 #endif // AURIE_FWK_PATCH
 
 
@@ -98,7 +98,9 @@ namespace Aurie
 		// The target file header, directory, or RVA could not be found or is invalid.
 		AURIE_FILE_PART_NOT_FOUND,
 		// The object was not found.
-		AURIE_OBJECT_NOT_FOUND
+		AURIE_OBJECT_NOT_FOUND,
+		// The requested resource is unavailable.
+		AURIE_UNAVAILABLE
 	};
 
 	enum AurieObjectType : uint32_t
@@ -129,6 +131,47 @@ namespace Aurie
 		return Status == AURIE_SUCCESS;
 	}
 
+	constexpr inline const char* AurieStatusToString(const AurieStatus Status) noexcept
+	{
+		switch (Status)
+		{
+		case AURIE_SUCCESS:
+			return "AURIE_SUCCESS";
+		case AURIE_INVALID_ARCH:
+			return "AURIE_INVALID_ARCH";
+		case AURIE_EXTERNAL_ERROR:
+			return "AURIE_EXTERNAL_ERROR";
+		case AURIE_FILE_NOT_FOUND:
+			return "AURIE_FILE_NOT_FOUND";
+		case AURIE_ACCESS_DENIED:
+			return "AURIE_ACCESS_DENIED";
+		case AURIE_OBJECT_ALREADY_EXISTS:
+			return "AURIE_OBJECT_ALREADY_EXISTS";
+		case AURIE_INVALID_PARAMETER:
+			return "AURIE_INVALID_PARAMETER";
+		case AURIE_INSUFFICIENT_MEMORY:
+			return "AURIE_INSUFFICIENT_MEMORY";
+		case AURIE_INVALID_SIGNATURE:
+			return "AURIE_INVALID_SIGNATURE";
+		case AURIE_NOT_IMPLEMENTED:
+			return "AURIE_NOT_IMPLEMENTED";
+		case AURIE_MODULE_INTERNAL_ERROR:
+			return "AURIE_MODULE_INTERNAL_ERROR";
+		case AURIE_MODULE_DEPENDENCY_NOT_RESOLVED:
+			return "AURIE_MODULE_DEPENDENCY_NOT_RESOLVED";
+		case AURIE_MODULE_INITIALIZATION_FAILED:
+			return "AURIE_MODULE_INITIALIZATION_FAILED";
+		case AURIE_FILE_PART_NOT_FOUND:
+			return "AURIE_FILE_PART_NOT_FOUND";
+		case AURIE_OBJECT_NOT_FOUND:
+			return "AURIE_OBJECT_NOT_FOUND";
+		case AURIE_UNAVAILABLE:
+			return "AURIE_UNAVAILABLE";
+		}
+
+		return "AURIE_UNKNOWN_STATUS_CODE";
+	}
+
 	// All interfaces must inherit from the following class
 	// You can add your own functions (make sure to open-source the interface class declaration)
 	struct AurieInterfaceBase
@@ -143,6 +186,21 @@ namespace Aurie
 			OUT short& Minor,
 			OUT short& Patch
 		) = 0;
+	};
+
+	struct AurieOperationInfo
+	{
+		union
+		{
+			uint8_t Flags;
+			struct
+			{
+				bool IsFutureCall : 1;
+				bool Reserved : 7;
+			};
+		};
+
+		PVOID ModuleBaseAddress;
 	};
 
 	// Always points to the initial Aurie image
@@ -163,9 +221,9 @@ namespace Aurie
 		);
 
 	using AurieModuleCallback = void(*)(
-		IN const AurieModule* const AffectedModule,
-		IN const AurieModuleOperationType OperationType,
-		IN const bool IsFutureCall
+		IN AurieModule* AffectedModule,
+		IN AurieModuleOperationType OperationType,
+		OPTIONAL IN OUT AurieOperationInfo* OperationInfo
 		);
 }
 
@@ -409,6 +467,14 @@ namespace Aurie
 	{
 		return AURIE_API_CALL(MdIsImageInitialized, Module);
 	}
+
+	inline bool MdIsImageRuntimeLoaded(
+		IN AurieModule* Module
+	)
+	{
+		return AURIE_API_CALL(MdIsImageRuntimeLoaded, Module);
+	}
+
 
 	inline AurieStatus MdMapFolder(
 		IN const fs::path& FolderPath,
