@@ -729,12 +729,17 @@ int receiveAttackUpdateMessage(SOCKET socket)
 	for (int i = 0; i < curAttacks.numAttacks; i++)
 	{
 		attackData curData = curAttacks.data[i];
-		RValue instance = attackMap[curData.instanceID];
-		setInstanceVariable(instance, GML_x, RValue(curData.xPos));
-		setInstanceVariable(instance, GML_y, RValue(curData.yPos));
-		setInstanceVariable(instance, GML_image_angle, RValue(curData.imageAngle));
-		setInstanceVariable(instance, GML_image_alpha, RValue(curData.imageAlpha));
-		setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
+		auto attackFind = attackMap.find(curData.instanceID);
+		// It might be possible that the update message would be sent before the create message. Just ignore the message if that does happen for now
+		if (attackFind != attackMap.end())
+		{
+			RValue instance = attackFind->second;
+			setInstanceVariable(instance, GML_x, RValue(curData.xPos));
+			setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+			setInstanceVariable(instance, GML_image_angle, RValue(curData.imageAngle));
+			setInstanceVariable(instance, GML_image_alpha, RValue(curData.imageAlpha));
+			setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
+		}
 	}
 	return curMessageLen;
 }
@@ -753,8 +758,13 @@ int receiveAttackDeleteMessage(SOCKET socket)
 	for (int i = 0; i < curAttack.numAttacks; i++)
 	{
 		int instanceID = curAttack.attackIDArr[i];
+		auto attackFind = attackMap.find(instanceID);
 		// TODO: Could probably cache the instance or deactivate it instead of destroying it
-		g_ModuleInterface->CallBuiltin("instance_destroy", { attackMap[instanceID] });
+		// Seems like it's possible that the delete message would be sent before the create message. Just ignore the message if that does happen for now
+		if (attackFind != attackMap.end())
+		{
+			g_ModuleInterface->CallBuiltin("instance_destroy", { attackFind->second });
+		}
 		attackMap.erase(instanceID);
 	}
 	return curMessageLen;

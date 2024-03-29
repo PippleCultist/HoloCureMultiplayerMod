@@ -261,6 +261,7 @@ void resetAllData()
 
 void serverDisconnected()
 {
+	hasHostPaused = false;
 	hasConnected = false;
 	isInCoopOptionMenu = false;
 	isInLobby = false;
@@ -2241,15 +2242,18 @@ void TitleCharacterDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 
 void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
+	CInstance* Self = std::get<0>(Args);
 	if (isInLobby)
 	{
 		// Should only happen after the host retries the game when it ends
-		CInstance* Self = std::get<0>(Args);
 		setInstanceVariable(Self, GML_canControl, RValue(false));
 		RValue disableAlarmVal = -1;
 		g_ModuleInterface->SetBuiltin("alarm", Self, 0, disableAlarmVal);
 	}
 	g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharacterDataIndex });
+	RValue strVersion = getInstanceVariable(Self, GML_version);
+	RValue newStrVersion = g_ModuleInterface->CallBuiltin("string_concat", { strVersion, " Multiplayer Mod v1.0.4" });
+	setInstanceVariable(Self, GML_version, newStrVersion);
 }
 
 void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)

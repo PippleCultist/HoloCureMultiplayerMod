@@ -580,7 +580,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_Move_gml_Object_obj_Player_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Pause_gml_Object_obj_PlayerManager_Create_0", PausePlayerManagerCreateFuncBefore, nullptr, &origPauseScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Pause_gml_Object_obj_PlayerManager_Create_0", PausePlayerManagerCreateFuncBefore, PausePlayerManagerCreateFuncAfter, &origPauseScript)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_Pause_gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
@@ -831,6 +831,7 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Fix stage ending sometimes not actually pausing (Might be because a player picks up a box at the same time)
 	// TODO: Improve ping by changing the message handler to be in a separate thread and change some messages to be sent via UDP
 	// TODO: Probably should reduce attack speed
+	// TODO: Need to prevent player from moving outside the map and actually collide with stuff (first need to rewrite the message handler)
 
 	// Lower priority
 	// TODO: Add verbose file logs

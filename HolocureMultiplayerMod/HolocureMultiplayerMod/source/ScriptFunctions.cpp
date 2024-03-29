@@ -67,6 +67,8 @@ std::unordered_map<uint32_t, levelUpOptionNames> levelUpOptionNamesMap;
 
 double moneyGainMultiplier = 0;
 
+int curPlayerID = 0;
+
 RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructPtr);
 RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr);
 
@@ -576,7 +578,7 @@ RValue& MovePlayerCreateFuncBefore(CInstance* Self, CInstance* Other, RValue& Re
 }
 
 bool isClientPaused = false;
-
+int swapPausePlayerID = -1;
 RValue& PausePlayerManagerCreateFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
 	if (hasConnected)
@@ -584,6 +586,12 @@ RValue& PausePlayerManagerCreateFuncBefore(CInstance* Self, CInstance* Other, RV
 		if (isHost)
 		{
 			sendAllHostHasPausedMessage();
+			swapPausePlayerID = curPlayerID;
+			if (curPlayerID != 0)
+			{
+				RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+				swapPlayerData(Self, attackController, 0);
+			}
 		}
 		else
 		{
@@ -593,6 +601,23 @@ RValue& PausePlayerManagerCreateFuncBefore(CInstance* Self, CInstance* Other, RV
 				setInstanceVariable(playerMap[clientID], GML_canControl, RValue(false));
 			}
 			callbackManagerInterfacePtr->CancelOriginalFunction();
+		}
+	}
+	return ReturnValue;
+}
+
+RValue& PausePlayerManagerCreateFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			if (swapPausePlayerID != -1 && swapPausePlayerID != 0)
+			{
+				RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+				swapPlayerData(Self, attackController, swapPausePlayerID);
+			}
+			swapPausePlayerID = -1;
 		}
 	}
 	return ReturnValue;
@@ -681,7 +706,6 @@ optionType convertStringOptionTypeToEnum(RValue optionType)
 	return optionType_NONE;
 }
 
-int curPlayerID = 0;
 void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, uint32_t playerID)
 {
 	if (playerID == 100000 || curPlayerID == playerID)

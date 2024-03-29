@@ -176,6 +176,7 @@
 	DO(image_number) \
 	DO(spritePlaybackSpeed) \
 	DO(Confirmed) \
+	DO(version) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
