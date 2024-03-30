@@ -3,6 +3,7 @@
 #include "ScriptFunctions.h"
 #include "CodeEvents.h"
 #include "CommonFunctions.h"
+#include <semaphore>
 
 messageInstancesCreate instancesCreateMessage;
 messageInstancesUpdate instancesUpdateMessage;
@@ -19,7 +20,192 @@ std::queue<uint16_t> availableVFXIDs;
 std::queue<uint16_t> availableInteractableIDs;
 RValue instanceArr[maxNumAvailableInstanceIDs];
 
+std::unordered_map<short, RValue> attackMap;
+RValue pickupableArr[maxNumAvailablePickupableIDs];
+
+std::binary_semaphore lastTimeReceivedMoveDataMapLock(1);
 std::unordered_map<uint32_t, clientMovementQueueData> lastTimeReceivedMoveDataMap;
+
+std::binary_semaphore roomMessageLock(1);
+bool hasReceivedRoomMessage = false;
+messageRoom roomMessage;
+
+std::binary_semaphore createInstancesMessageQueueLock(1);
+std::queue<messageInstancesCreate> createInstancesMessageQueue;
+
+std::binary_semaphore updateInstancesMessageQueueLock(1);
+std::queue<messageInstancesUpdate> updateInstancesMessageQueue;
+
+std::binary_semaphore deleteInstancesMessageQueueLock(1);
+std::queue<messageInstancesDelete> deleteInstancesMessageQueue;
+
+std::binary_semaphore clientPlayerDataMessageQueueLock(1);
+std::queue<messageClientPlayerData> clientPlayerDataMessageQueue;
+
+std::binary_semaphore createAttackMessageQueueLock(1);
+std::queue<messageAttackCreate> createAttackMessageQueue;
+
+std::binary_semaphore updateAttackMessageQueueLock(1);
+std::queue<messageAttackUpdate> updateAttackMessageQueue;
+
+std::binary_semaphore deleteAttackMessageQueueLock(1);
+std::queue<messageAttackDelete> deleteAttackMessageQueue;
+
+std::binary_semaphore clientIDMessageQueueLock(1);
+std::queue<messageClientID> clientIDMessageQueue;
+
+std::binary_semaphore createPickupableMessageQueueLock(1);
+std::queue<messagePickupableCreate> createPickupableMessageQueue;
+
+std::binary_semaphore updatePickupableMessageQueueLock(1);
+std::queue<messagePickupableUpdate> updatePickupableMessageQueue;
+
+std::binary_semaphore deletePickupableMessageQueueLock(1);
+std::queue<messagePickupableDelete> deletePickupableMessageQueue;
+
+std::binary_semaphore gameDataMessageQueueLock(1);
+std::queue<messageGameData> gameDataMessageQueue;
+
+std::binary_semaphore levelUpOptionsMessageQueueLock(1);
+std::queue<messageLevelUpOptions> levelUpOptionsMessageQueue;
+
+std::binary_semaphore levelUpClientChoiceMessageQueueLock(1);
+std::queue<messageLevelUpClientChoice> levelUpClientChoiceMessageQueue;
+
+std::binary_semaphore destructableCreateMessageQueueLock(1);
+std::queue<messageDestructableCreate> destructableCreateMessageQueue;
+
+std::binary_semaphore destructableBreakMessageQueueLock(1);
+std::queue<messageDestructableBreak> destructableBreakMessageQueue;
+
+std::binary_semaphore eliminateLevelUpClientChoiceMessageQueueLock(1);
+std::queue<messageEliminateLevelUpClientChoice> eliminateLevelUpClientChoiceMessageQueue;
+
+std::binary_semaphore clientSpecialAttackMessageQueueLock(1);
+std::queue<uint32_t> clientSpecialAttackMessageQueue;
+
+std::binary_semaphore cautionCreateMessageQueueLock(1);
+std::queue<messageCautionCreate> cautionCreateMessageQueue;
+
+std::binary_semaphore preCreateUpdateMessageQueueLock(1);
+std::queue<messagePreCreateUpdate> preCreateUpdateMessageQueue;
+
+std::binary_semaphore vfxUpdateMessageQueueLock(1);
+std::queue<messageVfxUpdate> vfxUpdateMessageQueue;
+
+std::binary_semaphore interactableCreateMessageQueueLock(1);
+std::queue<messageInteractableCreate> interactableCreateMessageQueue;
+
+std::binary_semaphore interactableDeleteMessageQueueLock(1);
+std::queue<messageInteractableDelete> interactableDeleteMessageQueue;
+
+std::binary_semaphore interactablePlayerInteractedMessageQueueLock(1);
+std::queue<messageInteractablePlayerInteracted> interactablePlayerInteractedMessageQueue;
+
+std::binary_semaphore stickerPlayerInteractedMessageQueueLock(1);
+std::queue<messageStickerPlayerInteracted> stickerPlayerInteractedMessageQueue;
+
+std::binary_semaphore boxPlayerInteractedMessageQueueLock(1);
+std::queue<messageBoxPlayerInteracted> boxPlayerInteractedMessageQueue;
+
+std::binary_semaphore interactFinishedMessageQueueLock(1);
+bool hasInteractFinishedMessage = false;
+
+std::binary_semaphore boxTakeOptionMessageQueueLock(1);
+std::queue<messageBoxTakeOption> boxTakeOptionMessageQueue;
+
+std::binary_semaphore anvilChooseOptionMessageQueueLock(1);
+std::queue<messageAnvilChooseOption> anvilChooseOptionMessageQueue;
+
+std::binary_semaphore clientGainMoneyMessageQueueLock(1);
+std::queue<messageClientGainMoney> clientGainMoneyMessageQueue;
+
+std::binary_semaphore clientAnvilEnchantMessageQueueLock(1);
+std::queue<messageClientAnvilEnchant> clientAnvilEnchantMessageQueue;
+
+std::binary_semaphore stickerChooseOptionMessageQueueLock(1);
+std::queue<messageStickerChooseOption> stickerChooseOptionMessageQueue;
+
+std::binary_semaphore chooseCollabMessageQueueLock(1);
+std::queue<messageChooseCollab> chooseCollabMessageQueue;
+
+std::binary_semaphore buffDataMessageQueueLock(1);
+std::queue<messageBuffData> buffDataMessageQueue;
+
+std::binary_semaphore charDataMessageQueueLock(1);
+std::queue<messageCharData> charDataMessageQueue;
+
+std::binary_semaphore ReturnToLobbyQueueLock(1);
+bool hasReturnToLobby = false;
+
+std::binary_semaphore lobbyPlayerDisconnectedQueueLock(1);
+std::queue<messageLobbyPlayerDisconnected> lobbyPlayerDisconnectedQueue;
+
+std::binary_semaphore hostHasPausedQueueLock(1);
+bool receivedHostHasPaused = false;
+
+std::binary_semaphore hostHasUnpausedQueueLock(1);
+bool receivedHostHasUnpaused = false;
+
+// Message handler should probably only handle receiving messages. Let the sending be handled somewhere else
+
+void clientReceiveMessageHandler()
+{
+	while (hasConnected)
+	{
+		int result = -1;
+		do
+		{
+			result = receiveMessage(serverSocket);
+			if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
+			{
+				g_ModuleInterface->Print(CM_RED, "Server disconnected");
+				serverDisconnected();
+			}
+		} while (result > 0);
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+}
+
+void hostReceiveMessageHandler()
+{
+	while (hasConnected)
+	{
+		std::vector<uint32_t> playerDisconnectedList;
+		for (auto& curClientSocket : clientSocketMap)
+		{
+			uint32_t clientPlayerID = curClientSocket.first;
+			SOCKET clientSocket = curClientSocket.second;
+			int result = -1;
+			do
+			{
+				result = receiveMessage(clientSocket, clientPlayerID);
+				if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
+				{
+					g_ModuleInterface->Print(CM_RED, "Client disconnected");
+					playerDisconnectedList.push_back(clientPlayerID);
+				}
+			} while (result > 0);
+		}
+		if (isInLobby || isSelectingCharacter || isSelectingMap)
+		{
+			for (uint32_t disconnectedPlayerID : playerDisconnectedList)
+			{
+				playerPingMap.erase(disconnectedPlayerID);
+				clientUnpausedMap.erase(disconnectedPlayerID);
+				clientSocketMap.erase(disconnectedPlayerID);
+				lobbyPlayerDataMap.erase(disconnectedPlayerID);
+				hasClientPlayerDisconnected.erase(disconnectedPlayerID);
+				sendAllLobbyPlayerDisconnectedMessage(disconnectedPlayerID);
+			}
+		}
+		else
+		{
+			// TODO: Do something if the client disconnects during a game
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
+	}
+}
 
 void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInstance)
 {
@@ -27,79 +213,79 @@ void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInst
 	RValue returnVal;
 	switch (levelUpData.levelUpType)
 	{
-		case optionType_Weapon:
+	case optionType_Weapon:
+	{
+		RValue** args = new RValue*[1];
+		args[0] = &levelUpName;
+		origAddAttackPlayerManagerOtherScript(playerManagerInstance, nullptr, returnVal, 1, args);
+		break;
+	}
+	case optionType_Skill:
+	{
+		RValue** args = new RValue*[1];
+		args[0] = &levelUpName;
+		origAddPerkScript(playerManagerInstance, nullptr, returnVal, 1, args);
+		break;
+	}
+	case optionType_Item:
+	{
+		RValue** args = new RValue*[1];
+		args[0] = &levelUpName;
+		origAddItemScript(playerManagerInstance, nullptr, returnVal, 1, args);
+		break;
+	}
+	case optionType_Consumable:
+	{
+		RValue** args = new RValue*[1];
+		args[0] = &levelUpName;
+		origAddConsumableScript(playerManagerInstance, nullptr, returnVal, 1, args);
+		break;
+	}
+	case optionType_StatUp:
+	{
+		RValue** args = new RValue*[1];
+		args[0] = &levelUpName;
+		origAddStatScript(playerManagerInstance, nullptr, returnVal, 1, args);
+		break;
+	}
+	case optionType_Enchant:
+	{
+		RValue** args = new RValue*[2];
+		int gainedModsSize = static_cast<int>(levelUpData.gainedMods.size());
+		RValue gainedModsArr = g_ModuleInterface->CallBuiltin("array_create", { gainedModsSize });
+		for (int i = 0; i < gainedModsSize; i++)
 		{
-			RValue** args = new RValue*[1];
-			args[0] = &levelUpName;
-			origAddAttackPlayerManagerOtherScript(playerManagerInstance, nullptr, returnVal, 1, args);
-			break;
+			gainedModsArr[i] = levelUpData.gainedMods[i];
 		}
-		case optionType_Skill:
-		{
-			RValue** args = new RValue*[1];
-			args[0] = &levelUpName;
-			origAddPerkScript(playerManagerInstance, nullptr, returnVal, 1, args);
-			break;
-		}
-		case optionType_Item:
-		{
-			RValue** args = new RValue*[1];
-			args[0] = &levelUpName;
-			origAddItemScript(playerManagerInstance, nullptr, returnVal, 1, args);
-			break;
-		}
-		case optionType_Consumable:
-		{
-			RValue** args = new RValue*[1];
-			args[0] = &levelUpName;
-			origAddConsumableScript(playerManagerInstance, nullptr, returnVal, 1, args);
-			break;
-		}
-		case optionType_StatUp:
-		{
-			RValue** args = new RValue*[1];
-			args[0] = &levelUpName;
-			origAddStatScript(playerManagerInstance, nullptr, returnVal, 1, args);
-			break;
-		}
-		case optionType_Enchant:
-		{
-			RValue** args = new RValue*[2];
-			int gainedModsSize = static_cast<int>(levelUpData.gainedMods.size());
-			RValue gainedModsArr = g_ModuleInterface->CallBuiltin("array_create", { gainedModsSize });
-			for (int i = 0; i < gainedModsSize; i++)
-			{
-				gainedModsArr[i] = levelUpData.gainedMods[i];
-			}
-			args[0] = &levelUpName;
-			args[1] = &gainedModsArr;
-			origAddEnchantScript(playerManagerInstance, nullptr, returnVal, 2, args);
-			break;
-		}
-		case optionType_Collab:
-		{
-			RValue** args = new RValue*[1];
-			args[0] = &levelUpName;
-			origAddCollabScript(playerManagerInstance, nullptr, returnVal, 1, args);
-			break;
-		}
-		case optionType_SuperCollab:
-		{
-			RValue** args = new RValue*[1];
-			args[0] = &levelUpName;
-			origAddSuperCollabScript(playerManagerInstance, nullptr, returnVal, 1, args);
-			break;
-		}
-		default:
-		{
-			g_ModuleInterface->Print(CM_RED, "Unhandled level up type %d for %s", levelUpData.levelUpType, levelUpName.AsString().data());
-		}
+		args[0] = &levelUpName;
+		args[1] = &gainedModsArr;
+		origAddEnchantScript(playerManagerInstance, nullptr, returnVal, 2, args);
+		break;
+	}
+	case optionType_Collab:
+	{
+		RValue** args = new RValue*[1];
+		args[0] = &levelUpName;
+		origAddCollabScript(playerManagerInstance, nullptr, returnVal, 1, args);
+		break;
+	}
+	case optionType_SuperCollab:
+	{
+		RValue** args = new RValue*[1];
+		args[0] = &levelUpName;
+		origAddSuperCollabScript(playerManagerInstance, nullptr, returnVal, 1, args);
+		break;
+	}
+	default:
+	{
+		g_ModuleInterface->Print(CM_RED, "Unhandled level up type %d for %s", levelUpData.levelUpType, levelUpName.AsString().data());
+	}
 	}
 }
 
 inline void getInputState(const char* inputName, size_t playerIndex, RValue& result)
 {
-	RValue** args = new RValue * [2];
+	RValue** args = new RValue*[2];
 	args[0] = new RValue(inputName);
 	args[1] = new RValue(static_cast<double>(playerIndex));
 	origInputCheckScript(globalInstance, nullptr, result, 2, args);
@@ -232,85 +418,98 @@ struct messageInputMouseFollow
 	}
 };
 
-struct messageRoom
+int receiveInputMessage(SOCKET socket, MessageTypes messageType, uint32_t playerID)
 {
-	char roomNum;
-	char gameMode;
-
-	messageRoom(char roomNum, char gameMode) : roomNum(roomNum), gameMode(gameMode)
+	int curMessageLen = -1;
+	bool isPlayerMoving = false;
+	bool isDownHeld = false;
+	bool isUpHeld = false;
+	bool isLeftHeld = false;
+	bool isRightHeld = false;
+	float direction = 0;
+	switch (messageType)
 	{
+	case MESSAGE_INPUT_AIM:
+	{
+		const int inputMessageLen = sizeof(messageInputAim);
+		char inputMessage[inputMessageLen];
+		curMessageLen = inputMessageLen;
+		int result = -1;
+		if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+		{
+			return result;
+		}
+		messageInputAim curMessage = messageInputAim(inputMessage);
+		isDownHeld = curMessage.isDirHeld & 0b0001;
+		isUpHeld = curMessage.isDirHeld & 0b0010;
+		isLeftHeld = curMessage.isDirHeld & 0b0100;
+		isRightHeld = curMessage.isDirHeld & 0b1000;
+		isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
+		direction = curMessage.direction;
+		break;
+	}
+	case MESSAGE_INPUT_NO_AIM:
+	{
+		const int inputMessageLen = sizeof(messageInputNoAim);
+		char inputMessage[inputMessageLen];
+		curMessageLen = inputMessageLen;
+		int result = -1;
+		if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+		{
+			return result;
+		}
+		messageInputNoAim curMessage = messageInputNoAim(inputMessage);
+		isDownHeld = curMessage.isDirHeld & 0b0001;
+		isUpHeld = curMessage.isDirHeld & 0b0010;
+		isLeftHeld = curMessage.isDirHeld & 0b0100;
+		isRightHeld = curMessage.isDirHeld & 0b1000;
+		isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
+		direction = curMessage.direction;
+		break;
+	}
+	case MESSAGE_INPUT_MOUSEFOLLOW:
+	{
+		const int inputMessageLen = sizeof(messageInputMouseFollow);
+		char inputMessage[inputMessageLen];
+		curMessageLen = inputMessageLen;
+		int result = -1;
+		if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+		{
+			return result;
+		}
+		messageInputMouseFollow curMessage = messageInputMouseFollow(inputMessage);
+		isDownHeld = curMessage.isDirHeld & 0b0001;
+		isUpHeld = curMessage.isDirHeld & 0b0010;
+		isLeftHeld = curMessage.isDirHeld & 0b0100;
+		isRightHeld = curMessage.isDirHeld & 0b1000;
+		isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
+		direction = curMessage.direction;
+		break;
+	}
 	}
 
-	messageRoom(char* messageBuffer)
+	clientMovementData inputData = clientMovementData(messageType, direction, isPlayerMoving, isDownHeld, isUpHeld, isLeftHeld, isRightHeld);
+	lastTimeReceivedMoveDataMapLock.acquire();
+	auto lastTimeFind = lastTimeReceivedMoveDataMap.find(playerID);
+	if (lastTimeFind == lastTimeReceivedMoveDataMap.end())
 	{
-		int startBufferPos = 0;
-		readByteBufferToChar(&roomNum, messageBuffer, startBufferPos);
-		readByteBufferToChar(&gameMode, messageBuffer, startBufferPos);
+		lastTimeReceivedMoveDataMap[playerID] = clientMovementQueueData(timeNum, 0);
+		lastTimeReceivedMoveDataMap[playerID].data.push(inputData);
 	}
-
-	void serialize(char* messageBuffer)
+	else
 	{
-		int startBufferPos = 0;
-		writeCharToByteBuffer(messageBuffer, MESSAGE_ROOM, startBufferPos);
-		writeCharToByteBuffer(messageBuffer, roomNum, startBufferPos);
-		writeCharToByteBuffer(messageBuffer, gameMode, startBufferPos);
+		if (lastTimeReceivedMoveDataMap[playerID].data.size() < 6)
+		{
+			// Only add to the queue if there are less than .1 seconds worth of messages in the queue.
+			// Does mean that messages are dropped, but it's better than having the client input being forever delayed
+			lastTimeReceivedMoveDataMap[playerID].data.push(inputData);
+		}
 	}
-};
+	lastTimeReceivedMoveDataMapLock.release();
+	return curMessageLen;
+}
 
-// TODO: Fix padding causing these structs to be larger than necessary
-struct messageClientPlayerData
-{
-	playerData data;
-
-	messageClientPlayerData(playerData data) : data(data)
-	{
-	}
-
-	messageClientPlayerData(char* messageBuffer)
-	{
-		int startBufferPos = 0;
-		readByteBufferToLong(&data.playerID, messageBuffer, startBufferPos);
-		readByteBufferToFloat(&data.xPos, messageBuffer, startBufferPos);
-		readByteBufferToFloat(&data.yPos, messageBuffer, startBufferPos);
-		readByteBufferToFloat(&data.imageXScale, messageBuffer, startBufferPos);
-		readByteBufferToFloat(&data.imageYScale, messageBuffer, startBufferPos);
-		readByteBufferToFloat(&data.direction, messageBuffer, startBufferPos);
-		readByteBufferToFloat(&data.curAttack, messageBuffer, startBufferPos);
-		readByteBufferToFloat(&data.curSpeed, messageBuffer, startBufferPos);
-		readByteBufferToShort(&data.spriteIndex, messageBuffer, startBufferPos);
-		readByteBufferToShort(&data.curHP, messageBuffer, startBufferPos);
-		readByteBufferToShort(&data.maxHP, messageBuffer, startBufferPos);
-		readByteBufferToShort(&data.curCrit, messageBuffer, startBufferPos);
-		readByteBufferToShort(&data.curHaste, messageBuffer, startBufferPos);
-		readByteBufferToShort(&data.curPickupRange, messageBuffer, startBufferPos);
-		readByteBufferToShort(&data.specialMeter, messageBuffer, startBufferPos);
-		readByteBufferToChar(&data.truncatedImageIndex, messageBuffer, startBufferPos);
-	}
-
-	void serialize(char* messageBuffer)
-	{
-		int startBufferPos = 0;
-		writeCharToByteBuffer(messageBuffer, MESSAGE_CLIENT_PLAYER_DATA, startBufferPos);
-		writeLongToByteBuffer(messageBuffer, data.playerID, startBufferPos);
-		writeFloatToByteBuffer(messageBuffer, data.xPos, startBufferPos);
-		writeFloatToByteBuffer(messageBuffer, data.yPos, startBufferPos);
-		writeFloatToByteBuffer(messageBuffer, data.imageXScale, startBufferPos);
-		writeFloatToByteBuffer(messageBuffer, data.imageYScale, startBufferPos);
-		writeFloatToByteBuffer(messageBuffer, data.direction, startBufferPos);
-		writeFloatToByteBuffer(messageBuffer, data.curAttack, startBufferPos);
-		writeFloatToByteBuffer(messageBuffer, data.curSpeed, startBufferPos);
-		writeShortToByteBuffer(messageBuffer, data.spriteIndex, startBufferPos);
-		writeShortToByteBuffer(messageBuffer, data.curHP, startBufferPos);
-		writeShortToByteBuffer(messageBuffer, data.maxHP, startBufferPos);
-		writeShortToByteBuffer(messageBuffer, data.curCrit, startBufferPos);
-		writeShortToByteBuffer(messageBuffer, data.curHaste, startBufferPos);
-		writeShortToByteBuffer(messageBuffer, data.curPickupRange, startBufferPos);
-		writeShortToByteBuffer(messageBuffer, data.specialMeter, startBufferPos);
-		writeCharToByteBuffer(messageBuffer, data.truncatedImageIndex, startBufferPos);
-	}
-};
-
-void processInputMessage(MessageTypes messageType, clientMovementData data, uint32_t playerID)
+void processInputMessage(clientMovementData data, uint32_t playerID)
 {
 	if (!playerMap.empty())
 	{
@@ -328,8 +527,7 @@ void processInputMessage(MessageTypes messageType, clientMovementData data, uint
 		RValue playerX = getInstanceVariable(playerMap[playerID], GML_x);
 		RValue playerY = getInstanceVariable(playerMap[playerID], GML_y);
 		RValue playerSPD = getInstanceVariable(playerMap[playerID], GML_SPD);
-		// TODO: Seems like place_meeting doesn't work if it's outside the player instance since it uses the current self instance
-//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX.m_Real + playerSPD.m_Real * horizontalDiff, playerY, objObstacleIndex }).AsBool())
+		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX.m_Real + playerSPD.m_Real * horizontalDiff, playerY, objObstacleIndex }).AsBool())
 		{
 			playerX.m_Real += playerSPD.m_Real * horizontalDiff;
 		}
@@ -340,7 +538,7 @@ void processInputMessage(MessageTypes messageType, clientMovementData data, uint
 		setInstanceVariable(playerMap[playerID], GML_x, playerX);
 		setInstanceVariable(playerMap[playerID], GML_y, playerY);
 
-		if (data.isPlayerMoving && messageType == MESSAGE_INPUT_NO_AIM)
+		if (data.isPlayerMoving && data.messageType == MESSAGE_INPUT_NO_AIM)
 		{
 			RValue playerDirection = getInstanceVariable(playerMap[playerID], GML_direction);
 			// TODO: probably should just calculate this instead of depending on GML
@@ -350,151 +548,45 @@ void processInputMessage(MessageTypes messageType, clientMovementData data, uint
 			setInstanceVariable(playerMap[playerID], GML_direction, playerDirection);
 		}
 
-		if (messageType == MESSAGE_INPUT_AIM || messageType == MESSAGE_INPUT_MOUSEFOLLOW)
+		if (data.messageType == MESSAGE_INPUT_AIM || data.messageType == MESSAGE_INPUT_MOUSEFOLLOW)
 		{
 			setInstanceVariable(playerMap[playerID], GML_direction, data.direction);
 		}
 	}
 }
 
-int receiveInputMessage(SOCKET socket, MessageTypes messageType, uint32_t playerID)
+void handleInputMessage(CInstance* Self)
 {
-	int curMessageLen = -1;
-	bool isPlayerMoving = false;
-	bool isDownHeld = false;
-	bool isUpHeld = false;
-	bool isLeftHeld = false;
-	bool isRightHeld = false;
-	float direction = 0;
-	switch (messageType)
-	{
-		case MESSAGE_INPUT_AIM:
-		{
-			const int inputMessageLen = sizeof(messageInputAim);
-			char inputMessage[inputMessageLen];
-			curMessageLen = inputMessageLen;
-			int result = -1;
-			if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
-			{
-				return result;
-			}
-			messageInputAim curMessage = messageInputAim(inputMessage);
-			isDownHeld = curMessage.isDirHeld & 0b0001;
-			isUpHeld = curMessage.isDirHeld & 0b0010;
-			isLeftHeld = curMessage.isDirHeld & 0b0100;
-			isRightHeld = curMessage.isDirHeld & 0b1000;
-			isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
-			direction = curMessage.direction;
-			break;
-		}
-		case MESSAGE_INPUT_NO_AIM:
-		{
-			const int inputMessageLen = sizeof(messageInputNoAim);
-			char inputMessage[inputMessageLen];
-			curMessageLen = inputMessageLen;
-			int result = -1;
-			if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
-			{
-				return result;
-			}
-			messageInputNoAim curMessage = messageInputNoAim(inputMessage);
-			isDownHeld = curMessage.isDirHeld & 0b0001;
-			isUpHeld = curMessage.isDirHeld & 0b0010;
-			isLeftHeld = curMessage.isDirHeld & 0b0100;
-			isRightHeld = curMessage.isDirHeld & 0b1000;
-			isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
-			direction = curMessage.direction;
-			break;
-		}
-		case MESSAGE_INPUT_MOUSEFOLLOW:
-		{
-			const int inputMessageLen = sizeof(messageInputMouseFollow);
-			char inputMessage[inputMessageLen];
-			curMessageLen = inputMessageLen;
-			int result = -1;
-			if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
-			{
-				return result;
-			}
-			messageInputMouseFollow curMessage = messageInputMouseFollow(inputMessage);
-			isDownHeld = curMessage.isDirHeld & 0b0001;
-			isUpHeld = curMessage.isDirHeld & 0b0010;
-			isLeftHeld = curMessage.isDirHeld & 0b0100;
-			isRightHeld = curMessage.isDirHeld & 0b1000;
-			isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
-			direction = curMessage.direction;
-			break;
-		}
-	}
-
-	clientMovementData inputData = clientMovementData(direction, isPlayerMoving, isDownHeld, isUpHeld, isLeftHeld, isRightHeld);
-	// TODO: Should probably improve this to use a queue per client
-	// Prevent receiving multiple input messages if the host hasn't yet progressed to the next frame (occurs if the host is lagging)
+	uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
+	clientMovementQueueData* curData = nullptr;
+	bool hasFoundData = false;
 	auto lastTimeFind = lastTimeReceivedMoveDataMap.find(playerID);
-	if (lastTimeFind == lastTimeReceivedMoveDataMap.end())
+	if (lastTimeFind != lastTimeReceivedMoveDataMap.end())
 	{
-		lastTimeReceivedMoveDataMap[playerID] = clientMovementQueueData(timeNum, 0);
-		processInputMessage(messageType, inputData, playerID);
+		curData = &(lastTimeFind->second);
+		hasFoundData = true;
 	}
-	else
+	if (hasFoundData)
 	{
-		clientMovementQueueData& queueData = lastTimeFind->second;
-		if (timeNum == queueData.lastTimeNumUpdated)
+		int numMessagesToProcess = timeNum - curData->lastTimeNumUpdated + curData->numEarlyUpdates;
+		int numMessagesProcessed;
+		for (numMessagesProcessed = 0; numMessagesProcessed < numMessagesToProcess; numMessagesProcessed++)
 		{
-			// Received input message too early, so queue it up for later
-			queueData.data.push(inputData);
-			queueData.numEarlyUpdates++;
-			return -1;
+			clientMovementData movementData;
+			lastTimeReceivedMoveDataMapLock.acquire();
+			if (curData->data.empty())
+			{
+				lastTimeReceivedMoveDataMapLock.release();
+				break;
+			}
+			movementData = curData->data.front();
+			curData->data.pop();
+			lastTimeReceivedMoveDataMapLock.release();
+			processInputMessage(movementData, playerID);
 		}
-		else
-		{
-			// Check how many messages are still in the queue and process the amount of messages based on the frame difference
-
-			int numMessagesToProcess = timeNum - queueData.lastTimeNumUpdated;
-			if (numMessagesToProcess >= queueData.data.size())
-			{
-				numMessagesToProcess -= static_cast<int>(queueData.data.size());
-				while (!queueData.data.empty())
-				{
-					clientMovementData& curData = queueData.data.front();
-					queueData.data.pop();
-					processInputMessage(messageType, curData, playerID);
-				}
-			}
-			else
-			{
-				for (int i = 0; i < numMessagesToProcess; i++)
-				{
-					clientMovementData& curData = queueData.data.front();
-					queueData.data.pop();
-					processInputMessage(messageType, curData, playerID);
-				}
-				numMessagesToProcess = 0;
-			}
-			if (numMessagesToProcess > 0)
-			{
-				// Process the current message if there wasn't enough in the queue to catch up
-				processInputMessage(messageType, inputData, playerID);
-				numMessagesToProcess--;
-				queueData.numEarlyUpdates = numMessagesToProcess;
-			}
-			else
-			{
-				// Current message couldn't get processed
-				if (queueData.data.size() < 6)
-				{
-					// Only add to the queue if there are less than .1 seconds worth of messages in the queue.
-					// Does mean that messages are dropped, but it's better than having the client input being forever delayed
-					queueData.data.push(inputData);
-					numMessagesToProcess++;
-					
-				}
-				queueData.numEarlyUpdates = numMessagesToProcess;
-			}
-			queueData.lastTimeNumUpdated = timeNum;
-		}
+		curData->lastTimeNumUpdated = timeNum;
+		curData->numEarlyUpdates = numMessagesToProcess - numMessagesProcessed;
 	}
-	return curMessageLen;
 }
 
 int receiveRoomMessage(SOCKET socket)
@@ -507,11 +599,24 @@ int receiveRoomMessage(SOCKET socket)
 	{
 		return result;
 	}
-	messageRoom curMessage = messageRoom(inputMessage);
-	g_ModuleInterface->CallBuiltin("room_goto", { curMessage.roomNum });
-	g_ModuleInterface->CallBuiltin("variable_global_set", { "gameMode", curMessage.gameMode });
-	printf("Moved room\n");
+	roomMessageLock.acquire();
+	roomMessage = messageRoom(inputMessage);
+	roomMessageLock.release();
+	hasReceivedRoomMessage = true;
 	return curMessageLen;
+}
+
+void handleRoomMessage()
+{
+	// Handle receive room
+	if (hasReceivedRoomMessage)
+	{
+		roomMessageLock.acquire();
+		g_ModuleInterface->CallBuiltin("room_goto", { roomMessage.roomNum });
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "gameMode", roomMessage.gameMode });
+		hasReceivedRoomMessage = false;
+		roomMessageLock.release();
+	}
 }
 
 int receiveInstanceCreateMessage(SOCKET socket)
@@ -524,71 +629,114 @@ int receiveInstanceCreateMessage(SOCKET socket)
 	{
 		return result;
 	}
-	messageInstancesCreate curInstances = messageInstancesCreate(inputMessage);
-	// temp fix to this not being set
-	g_ModuleInterface->CallBuiltin("variable_global_set", { "reflection", false });
-	for (int i = 0; i < curInstances.numInstances; i++)
-	{
-		instanceData curData = curInstances.data[i];
-		RValue createdInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, -curData.yPos, objBaseMobIndex });
-		setInstanceVariable(createdInstance, GML_image_xscale, RValue(curData.imageXScale));
-		setInstanceVariable(createdInstance, GML_image_yscale, RValue(curData.imageYScale));
-		setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
-		setInstanceVariable(createdInstance, GML_completeStop, RValue(true));
-		setInstanceVariable(createdInstance, GML_image_speed, RValue(0));
-		instanceArr[curData.instanceID] = createdInstance;
-	}
+	createInstancesMessageQueueLock.acquire();
+	createInstancesMessageQueue.push(messageInstancesCreate(inputMessage));
+	createInstancesMessageQueueLock.release();
 	return curMessageLen;
+}
+
+void handleInstanceCreateMessage()
+{
+	// Handle receive create Instances
+	do
+	{
+		createInstancesMessageQueueLock.acquire();
+		if (createInstancesMessageQueue.empty())
+		{
+			createInstancesMessageQueueLock.release();
+			break;
+		}
+		messageInstancesCreate curInstances = createInstancesMessageQueue.front();
+		createInstancesMessageQueue.pop();
+		createInstancesMessageQueueLock.release();
+
+		// temp fix to this not being set
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "reflection", false });
+		for (int i = 0; i < curInstances.numInstances; i++)
+		{
+			instanceData curData = curInstances.data[i];
+			RValue createdInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, -curData.yPos, objBaseMobIndex });
+			setInstanceVariable(createdInstance, GML_image_xscale, RValue(curData.imageXScale));
+			setInstanceVariable(createdInstance, GML_image_yscale, RValue(curData.imageYScale));
+			setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
+			setInstanceVariable(createdInstance, GML_completeStop, RValue(true));
+			setInstanceVariable(createdInstance, GML_image_speed, RValue(0));
+			instanceArr[curData.instanceID] = createdInstance;
+		}
+
+	} while (true);
 }
 
 int receiveInstanceUpdateMessage(SOCKET socket)
 {
 	messageInstancesUpdate curInstances = messageInstancesUpdate();
 	int curMessageLen = curInstances.receiveMessage(socket);
-	std::vector<std::pair<double, double>> playerPosList(playerMap.size());
-	int count = 0;
-	for (auto& playerInstance : playerMap)
-	{
-		double xPos = getInstanceVariable(playerInstance.second, GML_x).m_Real;
-		double yPos = getInstanceVariable(playerInstance.second, GML_y).m_Real;
-		playerPosList[count] = std::make_pair(xPos, yPos);
-		count++;
-	}
-	for (int i = 0; i < curInstances.numInstances; i++)
-	{
-		instanceData curData = curInstances.data[i];
-		RValue instance = instanceArr[curData.instanceID];
-		setInstanceVariable(instance, GML_x, RValue(curData.xPos));
-		setInstanceVariable(instance, GML_y, RValue(curData.yPos));
-
-		int pos = -1;
-		double minDis = 1e20;
-		for (int j = 0; j < playerPosList.size(); j++)
-		{
-			double curDis = (curData.xPos - playerPosList[j].first) * (curData.xPos - playerPosList[j].first) + (curData.yPos - playerPosList[j].second) * (curData.yPos - playerPosList[j].second);
-			if (curDis < minDis)
-			{
-				pos = j;
-				minDis = curDis;
-			}
-		}
-		if (playerPosList[pos].first > curData.xPos)
-		{
-			// TODO: Could probably have some data for each instance to not require getting and then setting
-			double imageXScale = getInstanceVariable(instance, GML_image_xscale).m_Real;
-			setInstanceVariable(instance, GML_image_xscale, abs(imageXScale));
-		}
-		else
-		{
-			// TODO: Could probably have some data for each instance to not require getting and then setting
-			double imageXScale = getInstanceVariable(instance, GML_image_xscale).m_Real;
-			setInstanceVariable(instance, GML_image_xscale, -abs(imageXScale));
-		}
-		// TODO: Calculate which direction the instance should be facing
-		setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
-		setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
-	}
+	updateInstancesMessageQueueLock.acquire();
+	updateInstancesMessageQueue.push(curInstances);
+	updateInstancesMessageQueueLock.release();
 	return curMessageLen;
+}
+
+void handleInstanceUpdateMessage()
+{
+	// Handle receive update Instances
+	do
+	{
+		updateInstancesMessageQueueLock.acquire();
+		if (updateInstancesMessageQueue.empty())
+		{
+			updateInstancesMessageQueueLock.release();
+			break;
+		}
+		messageInstancesUpdate curInstances = updateInstancesMessageQueue.front();
+		updateInstancesMessageQueue.pop();
+		updateInstancesMessageQueueLock.release();
+
+		std::vector<std::pair<double, double>> playerPosList(playerMap.size());
+		int count = 0;
+		for (auto& playerInstance : playerMap)
+		{
+			double xPos = getInstanceVariable(playerInstance.second, GML_x).m_Real;
+			double yPos = getInstanceVariable(playerInstance.second, GML_y).m_Real;
+			playerPosList[count] = std::make_pair(xPos, yPos);
+			count++;
+		}
+		for (int i = 0; i < curInstances.numInstances; i++)
+		{
+			instanceData curData = curInstances.data[i];
+			RValue instance = instanceArr[curData.instanceID];
+			setInstanceVariable(instance, GML_x, RValue(curData.xPos));
+			setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+
+			int pos = -1;
+			double minDis = 1e20;
+			for (int j = 0; j < playerPosList.size(); j++)
+			{
+				double curDis = (curData.xPos - playerPosList[j].first) * (curData.xPos - playerPosList[j].first) + (curData.yPos - playerPosList[j].second) * (curData.yPos - playerPosList[j].second);
+				if (curDis < minDis)
+				{
+					pos = j;
+					minDis = curDis;
+				}
+			}
+			if (playerPosList[pos].first > curData.xPos)
+			{
+				// TODO: Could probably have some data for each instance to not require getting and then setting
+				double imageXScale = getInstanceVariable(instance, GML_image_xscale).m_Real;
+				setInstanceVariable(instance, GML_image_xscale, abs(imageXScale));
+			}
+			else
+			{
+				// TODO: Could probably have some data for each instance to not require getting and then setting
+				double imageXScale = getInstanceVariable(instance, GML_image_xscale).m_Real;
+				setInstanceVariable(instance, GML_image_xscale, -abs(imageXScale));
+			}
+			// TODO: Calculate which direction the instance should be facing
+			setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
+			setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
+		}
+
+	} while (true);
 }
 
 int receiveInstanceDeleteMessage(SOCKET socket)
@@ -602,13 +750,35 @@ int receiveInstanceDeleteMessage(SOCKET socket)
 		return result;
 	}
 	messageInstancesDelete curInstances = messageInstancesDelete(inputMessage);
-	for (int i = 0; i < curInstances.numInstances; i++)
-	{
-		int instanceID = curInstances.instanceIDArr[i];
-		// TODO: Could probably cache the instance or deactivate it instead of destroying it
-		g_ModuleInterface->CallBuiltin("instance_destroy", { instanceArr[instanceID] });
-	}
+	deleteInstancesMessageQueueLock.acquire();
+	deleteInstancesMessageQueue.push(curInstances);
+	deleteInstancesMessageQueueLock.release();
 	return curMessageLen;
+}
+
+void handleInstanceDeleteMessage()
+{
+	// Handle receive delete Instances
+	do
+	{
+		deleteInstancesMessageQueueLock.acquire();
+		if (deleteInstancesMessageQueue.empty())
+		{
+			deleteInstancesMessageQueueLock.release();
+			break;
+		}
+		messageInstancesDelete curInstances = deleteInstancesMessageQueue.front();
+		deleteInstancesMessageQueue.pop();
+		deleteInstancesMessageQueueLock.release();
+
+		for (int i = 0; i < curInstances.numInstances; i++)
+		{
+			int instanceID = curInstances.instanceIDArr[i];
+			// TODO: Could probably cache the instance or deactivate it instead of destroying it
+			g_ModuleInterface->CallBuiltin("instance_destroy", { instanceArr[instanceID] });
+		}
+
+	} while (true);
 }
 
 float clientCamPosX = 0;
@@ -626,51 +796,71 @@ int receiveClientPlayerDataMessage(SOCKET socket)
 		return result;
 	}
 	messageClientPlayerData clientPlayer = messageClientPlayerData(inputMessage);
-	playerData clientPlayerData = clientPlayer.data;
-	uint32_t playerID = clientPlayerData.playerID;
-	memcpy(&playerDataMap[playerID], &clientPlayerData, sizeof(playerData));
-
-	if (playerID == clientID)
-	{
-		clientCamPosX = clientPlayerData.xPos;
-		clientCamPosY = clientPlayerData.yPos;
-	}
-
-	if (isPlayerCreatedMap[playerID])
-	{
-		RValue& instance = playerMap[playerID];
-		setInstanceVariable(instance, GML_x, RValue(clientPlayerData.xPos));
-		setInstanceVariable(instance, GML_y, RValue(clientPlayerData.yPos));
-		setInstanceVariable(instance, GML_image_xscale, RValue(clientPlayerData.imageXScale));
-		setInstanceVariable(instance, GML_image_yscale, RValue(clientPlayerData.imageYScale));
-		setInstanceVariable(instance, GML_direction, RValue(clientPlayerData.direction));
-		setInstanceVariable(instance, GML_sprite_index, RValue(clientPlayerData.spriteIndex));
-		setInstanceVariable(instance, GML_image_index, RValue(clientPlayerData.truncatedImageIndex));
-		setInstanceVariable(instance, GML_currentHP, RValue(static_cast<double>(clientPlayerData.curHP)));
-		setInstanceVariable(instance, GML_HP, RValue(static_cast<double>(clientPlayerData.maxHP)));
-		setInstanceVariable(instance, GML_ATK, RValue(clientPlayerData.curAttack));
-		setInstanceVariable(instance, GML_SPD, RValue(clientPlayerData.curSpeed));
-		setInstanceVariable(instance, GML_crit, RValue(clientPlayerData.curCrit));
-		setInstanceVariable(instance, GML_haste, RValue(clientPlayerData.curHaste));
-		setInstanceVariable(instance, GML_pickupRange, RValue(clientPlayerData.curPickupRange));
-		setInstanceVariable(instance, GML_specialMeter, RValue(clientPlayerData.specialMeter));
-		// Need to set the playersnapshot for some stats to make sure it displays in the pause menu
-		// Seems like it is possible for this to still be nullptr if the player manager step doesn't run early enough
-		if (playerManagerInstanceVar != nullptr)
-		{
-			RValue playerSnapshot = getInstanceVariable(playerManagerInstanceVar, GML_playerSnapshot);
-			setInstanceVariable(playerSnapshot, GML_ATK, RValue(clientPlayerData.curAttack));
-			setInstanceVariable(playerSnapshot, GML_SPD, RValue(clientPlayerData.curSpeed));
-			setInstanceVariable(playerSnapshot, GML_crit, RValue(clientPlayerData.curCrit));
-			setInstanceVariable(playerSnapshot, GML_haste, RValue(clientPlayerData.curHaste));
-			setInstanceVariable(playerSnapshot, GML_pickupRange, RValue(clientPlayerData.curPickupRange));
-		}
-	}
+	clientPlayerDataMessageQueueLock.acquire();
+	clientPlayerDataMessageQueue.push(clientPlayer);
+	clientPlayerDataMessageQueueLock.release();
 
 	return curMessageLen;
 }
 
-std::unordered_map<short, RValue> attackMap;
+void handleClientPlayerDataMessage()
+{
+	// Handle receive client player data message
+	do
+	{
+		clientPlayerDataMessageQueueLock.acquire();
+		if (clientPlayerDataMessageQueue.empty())
+		{
+			clientPlayerDataMessageQueueLock.release();
+			break;
+		}
+		messageClientPlayerData clientPlayer = clientPlayerDataMessageQueue.front();
+		clientPlayerDataMessageQueue.pop();
+		clientPlayerDataMessageQueueLock.release();
+
+		playerData clientPlayerData = clientPlayer.data;
+		uint32_t playerID = clientPlayerData.playerID;
+		memcpy(&playerDataMap[playerID], &clientPlayerData, sizeof(playerData));
+
+		if (playerID == clientID)
+		{
+			clientCamPosX = clientPlayerData.xPos;
+			clientCamPosY = clientPlayerData.yPos;
+		}
+
+		if (isPlayerCreatedMap[playerID])
+		{
+			RValue& instance = playerMap[playerID];
+			setInstanceVariable(instance, GML_x, RValue(clientPlayerData.xPos));
+			setInstanceVariable(instance, GML_y, RValue(clientPlayerData.yPos));
+			setInstanceVariable(instance, GML_image_xscale, RValue(clientPlayerData.imageXScale));
+			setInstanceVariable(instance, GML_image_yscale, RValue(clientPlayerData.imageYScale));
+			setInstanceVariable(instance, GML_direction, RValue(clientPlayerData.direction));
+			setInstanceVariable(instance, GML_sprite_index, RValue(clientPlayerData.spriteIndex));
+			setInstanceVariable(instance, GML_image_index, RValue(clientPlayerData.truncatedImageIndex));
+			setInstanceVariable(instance, GML_currentHP, RValue(static_cast<double>(clientPlayerData.curHP)));
+			setInstanceVariable(instance, GML_HP, RValue(static_cast<double>(clientPlayerData.maxHP)));
+			setInstanceVariable(instance, GML_ATK, RValue(clientPlayerData.curAttack));
+			setInstanceVariable(instance, GML_SPD, RValue(clientPlayerData.curSpeed));
+			setInstanceVariable(instance, GML_crit, RValue(clientPlayerData.curCrit));
+			setInstanceVariable(instance, GML_haste, RValue(clientPlayerData.curHaste));
+			setInstanceVariable(instance, GML_pickupRange, RValue(clientPlayerData.curPickupRange));
+			setInstanceVariable(instance, GML_specialMeter, RValue(clientPlayerData.specialMeter));
+			// Need to set the playersnapshot for some stats to make sure it displays in the pause menu
+			// Seems like it is possible for this to still be nullptr if the player manager step doesn't run early enough
+			if (playerManagerInstanceVar != nullptr)
+			{
+				RValue playerSnapshot = getInstanceVariable(playerManagerInstanceVar, GML_playerSnapshot);
+				setInstanceVariable(playerSnapshot, GML_ATK, RValue(clientPlayerData.curAttack));
+				setInstanceVariable(playerSnapshot, GML_SPD, RValue(clientPlayerData.curSpeed));
+				setInstanceVariable(playerSnapshot, GML_crit, RValue(clientPlayerData.curCrit));
+				setInstanceVariable(playerSnapshot, GML_haste, RValue(clientPlayerData.curHaste));
+				setInstanceVariable(playerSnapshot, GML_pickupRange, RValue(clientPlayerData.curPickupRange));
+			}
+		}
+
+	} while (true);
+}
 
 int receiveAttackCreateMessage(SOCKET socket)
 {
@@ -683,65 +873,106 @@ int receiveAttackCreateMessage(SOCKET socket)
 		return result;
 	}
 	messageAttackCreate curAttacks = messageAttackCreate(inputMessage);
-	for (int i = 0; i < curAttacks.numAttacks; i++)
-	{
-		attackData curData = curAttacks.data[i];
-		auto attackFind = attackMap.find(curData.instanceID);
-		// If the instance still exists, assume that it's the hacky solution to update sprite index
-		// TODO: There is a potential issue where if an ID is reused to create before the instance is deleted, it could possibly mess up some stuff.
-		if (attackFind == attackMap.end())
-		{
-			RValue createdInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, -curData.yPos, objAttackIndex });
-			setInstanceVariable(createdInstance, GML_image_xscale, RValue(curData.imageXScale));
-			setInstanceVariable(createdInstance, GML_image_yscale, RValue(curData.imageYScale));
-			setInstanceVariable(createdInstance, GML_image_angle, RValue(curData.imageAngle));
-			setInstanceVariable(createdInstance, GML_image_alpha, RValue(curData.imageAlpha));
-			setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
-			setInstanceVariable(createdInstance, GML_customDrawScriptAbove, RValue(false));
-			setInstanceVariable(createdInstance, GML_customDrawScriptBelow, RValue(false));
-			setInstanceVariable(createdInstance, GML_transparent, RValue(false));
-			setInstanceVariable(createdInstance, GML_isEnemy, RValue(true));
-			setInstanceVariable(createdInstance, GML_spriteColor, RValue(0xFFFFFF));
-			setInstanceVariable(createdInstance, GML_duration, RValue(0));
-			setInstanceVariable(createdInstance, GML_image_speed, RValue(0));
-			attackMap[curData.instanceID] = createdInstance;
-		}
-		else
-		{
-			RValue createdInstance = attackFind->second;
-			setInstanceVariable(createdInstance, GML_x, RValue(curData.xPos));
-			setInstanceVariable(createdInstance, GML_y, RValue(curData.yPos));
-			setInstanceVariable(createdInstance, GML_image_xscale, RValue(curData.imageXScale));
-			setInstanceVariable(createdInstance, GML_image_yscale, RValue(curData.imageYScale));
-			setInstanceVariable(createdInstance, GML_image_angle, RValue(curData.imageAngle));
-			setInstanceVariable(createdInstance, GML_image_alpha, RValue(curData.imageAlpha));
-			setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
-			setInstanceVariable(createdInstance, GML_image_index, RValue(curData.truncatedImageIndex));
-		}
-	}
+	createAttackMessageQueueLock.acquire();
+	createAttackMessageQueue.push(curAttacks);
+	createAttackMessageQueueLock.release();
+
 	return curMessageLen;
+}
+
+void handleAttackCreateMessage()
+{
+	do
+	{
+		createAttackMessageQueueLock.acquire();
+		if (createAttackMessageQueue.empty())
+		{
+			createAttackMessageQueueLock.release();
+			break;
+		}
+		messageAttackCreate curAttacks = createAttackMessageQueue.front();
+		createAttackMessageQueue.pop();
+		createAttackMessageQueueLock.release();
+
+		for (int i = 0; i < curAttacks.numAttacks; i++)
+		{
+			attackData curData = curAttacks.data[i];
+			auto attackFind = attackMap.find(curData.instanceID);
+			// If the instance still exists, assume that it's the hacky solution to update sprite index
+			// TODO: There is a potential issue where if an ID is reused to create before the instance is deleted, it could possibly mess up some stuff.
+			if (attackFind == attackMap.end())
+			{
+				RValue createdInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, -curData.yPos, objAttackIndex });
+				setInstanceVariable(createdInstance, GML_image_xscale, RValue(curData.imageXScale));
+				setInstanceVariable(createdInstance, GML_image_yscale, RValue(curData.imageYScale));
+				setInstanceVariable(createdInstance, GML_image_angle, RValue(curData.imageAngle));
+				setInstanceVariable(createdInstance, GML_image_alpha, RValue(curData.imageAlpha));
+				setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
+				setInstanceVariable(createdInstance, GML_customDrawScriptAbove, RValue(false));
+				setInstanceVariable(createdInstance, GML_customDrawScriptBelow, RValue(false));
+				setInstanceVariable(createdInstance, GML_transparent, RValue(false));
+				setInstanceVariable(createdInstance, GML_isEnemy, RValue(true));
+				setInstanceVariable(createdInstance, GML_spriteColor, RValue(0xFFFFFF));
+				setInstanceVariable(createdInstance, GML_duration, RValue(0));
+				setInstanceVariable(createdInstance, GML_image_speed, RValue(0));
+				attackMap[curData.instanceID] = createdInstance;
+			}
+			else
+			{
+				RValue createdInstance = attackFind->second;
+				setInstanceVariable(createdInstance, GML_x, RValue(curData.xPos));
+				setInstanceVariable(createdInstance, GML_y, RValue(curData.yPos));
+				setInstanceVariable(createdInstance, GML_image_xscale, RValue(curData.imageXScale));
+				setInstanceVariable(createdInstance, GML_image_yscale, RValue(curData.imageYScale));
+				setInstanceVariable(createdInstance, GML_image_angle, RValue(curData.imageAngle));
+				setInstanceVariable(createdInstance, GML_image_alpha, RValue(curData.imageAlpha));
+				setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
+				setInstanceVariable(createdInstance, GML_image_index, RValue(curData.truncatedImageIndex));
+			}
+		}
+	} while (true);
 }
 
 int receiveAttackUpdateMessage(SOCKET socket)
 {
 	messageAttackUpdate curAttacks = messageAttackUpdate();
 	int curMessageLen = curAttacks.receiveMessage(socket);
-	for (int i = 0; i < curAttacks.numAttacks; i++)
-	{
-		attackData curData = curAttacks.data[i];
-		auto attackFind = attackMap.find(curData.instanceID);
-		// It might be possible that the update message would be sent before the create message. Just ignore the message if that does happen for now
-		if (attackFind != attackMap.end())
-		{
-			RValue instance = attackFind->second;
-			setInstanceVariable(instance, GML_x, RValue(curData.xPos));
-			setInstanceVariable(instance, GML_y, RValue(curData.yPos));
-			setInstanceVariable(instance, GML_image_angle, RValue(curData.imageAngle));
-			setInstanceVariable(instance, GML_image_alpha, RValue(curData.imageAlpha));
-			setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
-		}
-	}
+	updateAttackMessageQueueLock.acquire();
+	updateAttackMessageQueue.push(curAttacks);
+	updateAttackMessageQueueLock.release();
 	return curMessageLen;
+}
+
+void handleAttackUpdateMessage()
+{
+	do
+	{
+		updateAttackMessageQueueLock.acquire();
+		if (updateAttackMessageQueue.empty())
+		{
+			updateAttackMessageQueueLock.release();
+			break;
+		}
+		messageAttackUpdate curAttacks = updateAttackMessageQueue.front();
+		updateAttackMessageQueue.pop();
+		updateAttackMessageQueueLock.release();
+
+		for (int i = 0; i < curAttacks.numAttacks; i++)
+		{
+			attackData curData = curAttacks.data[i];
+			auto attackFind = attackMap.find(curData.instanceID);
+			// It might be possible that the update message would be sent before the create message. Just ignore the message if that does happen for now
+			if (attackFind != attackMap.end())
+			{
+				RValue instance = attackFind->second;
+				setInstanceVariable(instance, GML_x, RValue(curData.xPos));
+				setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+				setInstanceVariable(instance, GML_image_angle, RValue(curData.imageAngle));
+				setInstanceVariable(instance, GML_image_alpha, RValue(curData.imageAlpha));
+				setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
+			}
+		}
+	} while (true);
 }
 
 int receiveAttackDeleteMessage(SOCKET socket)
@@ -755,19 +986,39 @@ int receiveAttackDeleteMessage(SOCKET socket)
 		return result;
 	}
 	messageAttackDelete curAttack = messageAttackDelete(inputMessage);
-	for (int i = 0; i < curAttack.numAttacks; i++)
-	{
-		int instanceID = curAttack.attackIDArr[i];
-		auto attackFind = attackMap.find(instanceID);
-		// TODO: Could probably cache the instance or deactivate it instead of destroying it
-		// Seems like it's possible that the delete message would be sent before the create message. Just ignore the message if that does happen for now
-		if (attackFind != attackMap.end())
-		{
-			g_ModuleInterface->CallBuiltin("instance_destroy", { attackFind->second });
-		}
-		attackMap.erase(instanceID);
-	}
+	deleteAttackMessageQueueLock.acquire();
+	deleteAttackMessageQueue.push(curAttack);
+	deleteAttackMessageQueueLock.release();
 	return curMessageLen;
+}
+
+void handleAttackDeleteMessage()
+{
+	do
+	{
+		deleteAttackMessageQueueLock.acquire();
+		if (deleteAttackMessageQueue.empty())
+		{
+			deleteAttackMessageQueueLock.release();
+			break;
+		}
+		messageAttackDelete curAttack = deleteAttackMessageQueue.front();
+		deleteAttackMessageQueue.pop();
+		deleteAttackMessageQueueLock.release();
+
+		for (int i = 0; i < curAttack.numAttacks; i++)
+		{
+			int instanceID = curAttack.attackIDArr[i];
+			auto attackFind = attackMap.find(instanceID);
+			// TODO: Could probably cache the instance or deactivate it instead of destroying it
+			// Seems like it's possible that the delete message would be sent before the create message. Just ignore the message if that does happen for now
+			if (attackFind != attackMap.end())
+			{
+				g_ModuleInterface->CallBuiltin("instance_destroy", { attackFind->second });
+			}
+			attackMap.erase(instanceID);
+		}
+	} while (true);
 }
 
 bool hasObtainedClientID = false;
@@ -784,16 +1035,34 @@ int receiveClientIDMessage(SOCKET socket)
 		return result;
 	}
 	messageClientID clientNumber = messageClientID(inputMessage);
-	clientID = clientNumber.clientID;
-	hasObtainedClientID = true;
-	lobbyPlayerDataMap[clientID] = lobbyPlayerData();
-	// TODO: Let the client decide their own name eventually
-	lobbyPlayerDataMap[clientID].playerName = std::move(std::to_string(clientID));
-	printf("clientID: %d\n", clientID);
+	clientIDMessageQueueLock.acquire();
+	clientIDMessageQueue.push(clientNumber);
+	clientIDMessageQueueLock.release();
 	return curMessageLen;
 }
 
-RValue pickupableArr[maxNumAvailablePickupableIDs];
+void handleClientIDMessage()
+{
+	do
+	{
+		clientIDMessageQueueLock.acquire();
+		if (clientIDMessageQueue.empty())
+		{
+			clientIDMessageQueueLock.release();
+			break;
+		}
+		messageClientID clientNumber = clientIDMessageQueue.front();
+		clientIDMessageQueue.pop();
+		clientIDMessageQueueLock.release();
+
+		clientID = clientNumber.clientID;
+		hasObtainedClientID = true;
+		lobbyPlayerDataMap[clientID] = lobbyPlayerData();
+		// TODO: Let the client decide their own name eventually
+		lobbyPlayerDataMap[clientID].playerName = std::move(std::to_string(clientID));
+		printf("clientID: %d\n", clientID);
+	} while (true);
+}
 
 int receivePickupableCreateMessage(SOCKET socket)
 {
@@ -806,16 +1075,36 @@ int receivePickupableCreateMessage(SOCKET socket)
 		return result;
 	}
 	messagePickupableCreate curPickupable = messagePickupableCreate(inputMessage);
-	pickupableData curData = curPickupable.data;
-	RValue createdInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, -curData.yPos, objPickupableIndex });
-	setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
-	setInstanceVariable(createdInstance, GML_mask_index, RValue(sprEmptyMaskIndex));
-	setInstanceVariable(createdInstance, GML_image_speed, RValue(0));
-	pickupableArr[curData.pickupableID] = createdInstance;
-	setInstanceVariable(createdInstance, GML_createdTime, RValue(static_cast<int>(timeNum)));
-	RValue spritePlaybackSpeed = g_ModuleInterface->CallBuiltin("sprite_get_speed", { curData.spriteIndex });
-	setInstanceVariable(createdInstance, GML_spritePlaybackSpeed, spritePlaybackSpeed);
+	createPickupableMessageQueueLock.acquire();
+	createPickupableMessageQueue.push(curPickupable);
+	createPickupableMessageQueueLock.release();
 	return curMessageLen;
+}
+
+void handlePickupableCreateMessage()
+{
+	do
+	{
+		createPickupableMessageQueueLock.acquire();
+		if (createPickupableMessageQueue.empty())
+		{
+			createPickupableMessageQueueLock.release();
+			break;
+		}
+		messagePickupableCreate curPickupable = createPickupableMessageQueue.front();
+		createPickupableMessageQueue.pop();
+		createPickupableMessageQueueLock.release();
+
+		pickupableData curData = curPickupable.data;
+		RValue createdInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, -curData.yPos, objPickupableIndex });
+		setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
+		setInstanceVariable(createdInstance, GML_mask_index, RValue(sprEmptyMaskIndex));
+		setInstanceVariable(createdInstance, GML_image_speed, RValue(0));
+		pickupableArr[curData.pickupableID] = createdInstance;
+		setInstanceVariable(createdInstance, GML_createdTime, RValue(static_cast<int>(timeNum)));
+		RValue spritePlaybackSpeed = g_ModuleInterface->CallBuiltin("sprite_get_speed", { curData.spriteIndex });
+		setInstanceVariable(createdInstance, GML_spritePlaybackSpeed, spritePlaybackSpeed);
+	} while (true);
 }
 
 int receivePickupableUpdateMessage(SOCKET socket)
@@ -829,13 +1118,33 @@ int receivePickupableUpdateMessage(SOCKET socket)
 		return result;
 	}
 	messagePickupableUpdate curPickupable = messagePickupableUpdate(inputMessage);
-	pickupableData curData = curPickupable.data;
-	RValue instance = pickupableArr[curData.pickupableID];
-	setInstanceVariable(instance, GML_x, RValue(curData.xPos));
-	setInstanceVariable(instance, GML_y, RValue(curData.yPos));
-	setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
-	setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
+	updatePickupableMessageQueueLock.acquire();
+	updatePickupableMessageQueue.push(curPickupable);
+	updatePickupableMessageQueueLock.release();
 	return curMessageLen;
+}
+
+void handlePickupableUpdateMessage()
+{
+	do
+	{
+		updatePickupableMessageQueueLock.acquire();
+		if (updatePickupableMessageQueue.empty())
+		{
+			updatePickupableMessageQueueLock.release();
+			break;
+		}
+		messagePickupableUpdate curPickupable = updatePickupableMessageQueue.front();
+		updatePickupableMessageQueue.pop();
+		updatePickupableMessageQueueLock.release();
+
+		pickupableData curData = curPickupable.data;
+		RValue instance = pickupableArr[curData.pickupableID];
+		setInstanceVariable(instance, GML_x, RValue(curData.xPos));
+		setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+		setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
+		setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
+	} while (true);
 }
 
 int receivePickupableDeleteMessage(SOCKET socket)
@@ -849,10 +1158,30 @@ int receivePickupableDeleteMessage(SOCKET socket)
 		return result;
 	}
 	messagePickupableDelete curPickupable = messagePickupableDelete(inputMessage);
-	int instanceID = curPickupable.pickupableID;
-	// TODO: Could probably cache the instance or deactivate it instead of destroying it
-	g_ModuleInterface->CallBuiltin("instance_destroy", { pickupableArr[instanceID] });
+	deletePickupableMessageQueueLock.acquire();
+	deletePickupableMessageQueue.push(curPickupable);
+	deletePickupableMessageQueueLock.release();
 	return curMessageLen;
+}
+
+void handlePickupableDeleteMessage()
+{
+	do
+	{
+		deletePickupableMessageQueueLock.acquire();
+		if (deletePickupableMessageQueue.empty())
+		{
+			deletePickupableMessageQueueLock.release();
+			break;
+		}
+		messagePickupableDelete curPickupable = deletePickupableMessageQueue.front();
+		deletePickupableMessageQueue.pop();
+		deletePickupableMessageQueueLock.release();
+
+		int instanceID = curPickupable.pickupableID;
+		// TODO: Could probably cache the instance or deactivate it instead of destroying it
+		g_ModuleInterface->CallBuiltin("instance_destroy", { pickupableArr[instanceID] });
+	} while (true);
 }
 
 uint32_t timeNum = 0;
@@ -868,92 +1197,128 @@ int receiveGameDataMessage(SOCKET socket)
 		return result;
 	}
 	messageGameData curMessage = messageGameData(inputMessage);
-	
-	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", static_cast<double>(curMessage.coinCount) });
-	g_ModuleInterface->CallBuiltin("variable_global_set", { "enemyDefeated", static_cast<double>(curMessage.enemyDefeated) });
-	g_ModuleInterface->CallBuiltin("variable_global_set", { "PLAYERLEVEL", static_cast<double>(curMessage.playerLevel) });
-	g_ModuleInterface->CallBuiltin("variable_global_set", { "experience", static_cast<double>(curMessage.experience) });
-	setInstanceVariable(playerManagerInstanceVar, GML_toNextLevel, RValue(curMessage.toNextLevel));
-	
-	timeNum = curMessage.frameNum;
-	int numFrames = timeNum % 60;
-	timeNum /= 60;
-	int numSeconds = timeNum % 60;
-	timeNum /= 60;
-	int numMinutes = timeNum % 60;
-	timeNum /= 60;
-	int numHours = timeNum;
-	RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
-	timeArr[3] = numFrames;
-	timeArr[2] = numSeconds;
-	timeArr[1] = numMinutes;
-	timeArr[0] = numHours;
-	timeNum = curMessage.frameNum;
-
+	gameDataMessageQueueLock.acquire();
+	gameDataMessageQueue.push(curMessage);
+	gameDataMessageQueueLock.release();
 	return curMessageLen;
+}
+
+void handleGameDataMessage()
+{
+	do
+	{
+		gameDataMessageQueueLock.acquire();
+		if (gameDataMessageQueue.empty())
+		{
+			gameDataMessageQueueLock.release();
+			break;
+		}
+		messageGameData curMessage = gameDataMessageQueue.front();
+		gameDataMessageQueue.pop();
+		gameDataMessageQueueLock.release();
+
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", static_cast<double>(curMessage.coinCount) });
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "enemyDefeated", static_cast<double>(curMessage.enemyDefeated) });
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "PLAYERLEVEL", static_cast<double>(curMessage.playerLevel) });
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "experience", static_cast<double>(curMessage.experience) });
+		setInstanceVariable(playerManagerInstanceVar, GML_toNextLevel, RValue(curMessage.toNextLevel));
+
+		timeNum = curMessage.frameNum;
+		int numFrames = timeNum % 60;
+		timeNum /= 60;
+		int numSeconds = timeNum % 60;
+		timeNum /= 60;
+		int numMinutes = timeNum % 60;
+		timeNum /= 60;
+		int numHours = timeNum;
+		RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
+		timeArr[3] = numFrames;
+		timeArr[2] = numSeconds;
+		timeArr[1] = numMinutes;
+		timeArr[0] = numHours;
+		timeNum = curMessage.frameNum;
+	} while (true);
 }
 
 int receiveLevelUpOptionsMessage(SOCKET socket)
 {
 	messageLevelUpOptions curMessage = messageLevelUpOptions();
 	int curMessageLen = curMessage.receiveMessage(socket);
+	levelUpOptionsMessageQueueLock.acquire();
+	levelUpOptionsMessageQueue.push(curMessage);
+	levelUpOptionsMessageQueueLock.release();
+	return curMessageLen;
+}
 
-	RValue playerManager = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 });
-	setInstanceVariable(playerManager, GML_paused, RValue(true));
-	setInstanceVariable(playerManager, GML_leveled, RValue(true));
-	setInstanceVariable(playerManager, GML_controlsFree, RValue(true));
-	setInstanceVariable(playerMap[clientID], GML_canControl, RValue(false));
-	isClientPaused = true;
-	RValue options = getInstanceVariable(playerManager, GML_options);
-	for (int i = 0; i < 4; i++)
+void handleLevelUpOptionsMessage(CInstance* playerManager)
+{
+	do
 	{
-		levelUpOption curOption = curMessage.optionArr[i];
-		setInstanceVariable(options[i], GML_optionIcon, RValue(curOption.optionIcon));
-		setInstanceVariable(options[i], GML_optionType, RValue(curOption.optionType));
-		setInstanceVariable(options[i], GML_optionName, RValue(curOption.optionName));
-		setInstanceVariable(options[i], GML_optionID, RValue(curOption.optionID));
-		if (curOption.optionDescription.size() == 1)
+		levelUpOptionsMessageQueueLock.acquire();
+		if (levelUpOptionsMessageQueue.empty())
 		{
-			setInstanceVariable(options[i], GML_optionDescription, RValue(curOption.optionDescription[0]));
+			levelUpOptionsMessageQueueLock.release();
+			break;
 		}
-		else
+		messageLevelUpOptions curMessage = levelUpOptionsMessageQueue.front();
+		levelUpOptionsMessageQueue.pop();
+		levelUpOptionsMessageQueueLock.release();
+
+		setInstanceVariable(playerManager, GML_paused, RValue(true));
+		setInstanceVariable(playerManager, GML_leveled, RValue(true));
+		setInstanceVariable(playerManager, GML_controlsFree, RValue(true));
+		setInstanceVariable(playerMap[clientID], GML_canControl, RValue(false));
+		isClientPaused = true;
+		RValue options = getInstanceVariable(playerManager, GML_options);
+		for (int i = 0; i < 4; i++)
 		{
-			int optionDescriptionSize = static_cast<int>(curOption.optionDescription.size());
-			RValue optionDescriptionArr = g_ModuleInterface->CallBuiltin("array_create", { optionDescriptionSize });
-			for (int i = 0; i < optionDescriptionSize; i++)
+			levelUpOption curOption = curMessage.optionArr[i];
+			setInstanceVariable(options[i], GML_optionIcon, RValue(curOption.optionIcon));
+			setInstanceVariable(options[i], GML_optionType, RValue(curOption.optionType));
+			setInstanceVariable(options[i], GML_optionName, RValue(curOption.optionName));
+			setInstanceVariable(options[i], GML_optionID, RValue(curOption.optionID));
+			if (curOption.optionDescription.size() == 1)
 			{
-				optionDescriptionArr[i] = curOption.optionDescription[i];
+				setInstanceVariable(options[i], GML_optionDescription, RValue(curOption.optionDescription[0]));
 			}
-			setInstanceVariable(options[i], GML_optionDescription, optionDescriptionArr);
-		}
-		if (!curOption.modsList.empty())
-		{
-			if (curOption.isModsListNew == 0)
+			else
 			{
-				int modsListSize = static_cast<int>(curOption.modsList.size());
-				RValue gainedModsArr = g_ModuleInterface->CallBuiltin("array_create", { modsListSize });
-				for (int i = 0; i < modsListSize; i++)
+				int optionDescriptionSize = static_cast<int>(curOption.optionDescription.size());
+				RValue optionDescriptionArr = g_ModuleInterface->CallBuiltin("array_create", { optionDescriptionSize });
+				for (int i = 0; i < optionDescriptionSize; i++)
 				{
-					gainedModsArr[i] = curOption.modsList[i];
+					optionDescriptionArr[i] = curOption.optionDescription[i];
 				}
-				setInstanceVariable(options[i], GML_gainedMods, gainedModsArr);
+				setInstanceVariable(options[i], GML_optionDescription, optionDescriptionArr);
 			}
-			else if (curOption.isModsListNew == 1)
+			if (!curOption.modsList.empty())
 			{
-				setInstanceVariable(options[i], GML_offeredMod, curOption.modsList[0]);
+				if (curOption.isModsListNew == 0)
+				{
+					int modsListSize = static_cast<int>(curOption.modsList.size());
+					RValue gainedModsArr = g_ModuleInterface->CallBuiltin("array_create", { modsListSize });
+					for (int i = 0; i < modsListSize; i++)
+					{
+						gainedModsArr[i] = curOption.modsList[i];
+					}
+					setInstanceVariable(options[i], GML_gainedMods, gainedModsArr);
+				}
+				else if (curOption.isModsListNew == 1)
+				{
+					setInstanceVariable(options[i], GML_offeredMod, curOption.modsList[0]);
+				}
 			}
-		}
-		else
-		{
-			// Clears out any previous enchants
-			setInstanceVariable(options[i], GML_gainedMods, RValue(-1));
-			setInstanceVariable(options[i], GML_offeredMod, RValue(-1));
-		}
-		// TODO: Add mods option as well
-		if (curOption.optionType.compare("Weapon") == 0)
-		{
-			switch (curOption.weaponAndItemType)
+			else
 			{
+				// Clears out any previous enchants
+				setInstanceVariable(options[i], GML_gainedMods, RValue(-1));
+				setInstanceVariable(options[i], GML_offeredMod, RValue(-1));
+			}
+			// TODO: Add mods option as well
+			if (curOption.optionType.compare("Weapon") == 0)
+			{
+				switch (curOption.weaponAndItemType)
+				{
 				case 0:
 				{
 					setInstanceVariable(options[i], GML_weaponType, RValue("Melee"));
@@ -969,12 +1334,12 @@ int receiveLevelUpOptionsMessage(SOCKET socket)
 					setInstanceVariable(options[i], GML_weaponType, RValue("MultiShot"));
 					break;
 				}
+				}
 			}
-		}
-		else if (curOption.optionType.compare("Item") == 0)
-		{
-			switch (curOption.weaponAndItemType)
+			else if (curOption.optionType.compare("Item") == 0)
 			{
+				switch (curOption.weaponAndItemType)
+				{
 				case 0:
 				{
 					setInstanceVariable(options[i], GML_itemType, RValue("Healing"));
@@ -990,11 +1355,10 @@ int receiveLevelUpOptionsMessage(SOCKET socket)
 					setInstanceVariable(options[i], GML_itemType, RValue("Utility"));
 					break;
 				}
+				}
 			}
 		}
-	}
-
-	return curMessageLen;
+	} while (true);
 }
 
 std::vector<levelUpPausedData> levelUpPausedList;
@@ -1003,97 +1367,118 @@ int receiveLevelUpClientChoiceMessage(SOCKET socket, uint32_t playerID)
 {
 	messageLevelUpClientChoice curMessage = messageLevelUpClientChoice();
 	int curMessageLen = curMessage.receiveMessage(socket);
+	curMessage.playerID = playerID;
+	levelUpClientChoiceMessageQueueLock.acquire();
+	levelUpClientChoiceMessageQueue.push(curMessage);
+	levelUpClientChoiceMessageQueueLock.release();
 
-	int levelUpOption = curMessage.levelUpOption;
-
-	// Chose an upgrade option
-	if (levelUpOption < 4)
-	{
-		RValue playerManager = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 });
-		RValue options = getInstanceVariable(playerManager, GML_options);
-		levelUpPausedList.push_back(levelUpPausedData(playerID, levelUpOptionNamesMap[playerID].optionArr[levelUpOption].first, levelUpOptionNamesMap[playerID].optionArr[levelUpOption].second));
-		clientUnpausedMap[playerID] = true;
-		if (isHostWaitingForClientUnpause)
-		{
-			// TODO: Can probably just count the number of client players left paused. Not too important though
-			bool isAnyClientPaused = false;
-			for (auto& clientUnpausedData : clientUnpausedMap)
-			{
-				bool isClientUnpaused = clientUnpausedData.second;
-				if (!isClientUnpaused)
-				{
-					isAnyClientPaused = true;
-					break;
-				}
-			}
-			if (!isAnyClientPaused)
-			{
-				isHostWaitingForClientUnpause = false;
-				unpauseHost();
-			}
-		}
-	}
-	else if (levelUpOption == 4) // Chose reroll
-	{
-		RValue result;
-		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-		RValue options = getInstanceVariable(playerManagerInstanceVar, GML_options);
-		RValue prevOptions[4];
-		for (int i = 0; i < 4; i++)
-		{
-			prevOptions[i] = options[i];
-		}
-		swapPlayerData(playerManagerInstanceVar, attackController, playerID);
-
-		// Add to reroll container to decrease the chance of skipped upgrades
-		for (int i = 0; i < 4; i++)
-		{
-			optionType levelUpType = levelUpOptionNamesMap[playerID].optionArr[i].first;
-			if (levelUpType == optionType_Weapon || levelUpType == optionType_Item || levelUpType == optionType_Skill)
-			{
-				RValue rerollContainer = getInstanceVariable(playerManagerInstanceVar, GML_rerollContainer);
-				RValue rerollContainerOptionCount = g_ModuleInterface->CallBuiltin("variable_instance_get", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second });
-				if (rerollContainerOptionCount.m_Kind == VALUE_UNDEFINED || rerollContainerOptionCount.m_Kind == VALUE_UNSET)
-				{
-					// For some reason, this doesn't work properly if an int is passed in and needs a real number instead. Probably something weird with GML
-					g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second, 1.0 });
-				}
-				else
-				{
-					g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second, rerollContainerOptionCount.m_Real + 1 });
-				}
-			}
-		}
-
-		origGeneratePossibleOptionsScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-		origOptionOneScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-		options[0] = result;
-		origOptionTwoScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-		options[1] = result;
-		origOptionThreeScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-		options[2] = result;
-		origOptionFourScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-		options[3] = result;
-		sendClientLevelUpOptionsMessage(clientSocketMap[playerID], playerID);
-		optionType optionType0 = convertStringOptionTypeToEnum(getInstanceVariable(options[0], GML_optionType));
-		optionType optionType1 = convertStringOptionTypeToEnum(getInstanceVariable(options[1], GML_optionType));
-		optionType optionType2 = convertStringOptionTypeToEnum(getInstanceVariable(options[2], GML_optionType));
-		optionType optionType3 = convertStringOptionTypeToEnum(getInstanceVariable(options[3], GML_optionType));
-		levelUpOptionNamesMap[playerID] = levelUpOptionNames(
-			std::make_pair(optionType0, std::string(getInstanceVariable(options[0], GML_optionID).AsString())),
-			std::make_pair(optionType1, std::string(getInstanceVariable(options[1], GML_optionID).AsString())),
-			std::make_pair(optionType2, std::string(getInstanceVariable(options[2], GML_optionID).AsString())),
-			std::make_pair(optionType3, std::string(getInstanceVariable(options[3], GML_optionID).AsString()))
-		);
-
-		for (int i = 0; i < 4; i++)
-		{
-			options[i] = prevOptions[i];
-		}
-		swapPlayerData(playerManagerInstanceVar, attackController, 0);
-	}
-	
 	return curMessageLen;
+}
+
+void handleLevelUpClientChoiceMessage()
+{
+	do
+	{
+		levelUpClientChoiceMessageQueueLock.acquire();
+		if (levelUpClientChoiceMessageQueue.empty())
+		{
+			levelUpClientChoiceMessageQueueLock.release();
+			break;
+		}
+		messageLevelUpClientChoice curMessage = levelUpClientChoiceMessageQueue.front();
+		levelUpClientChoiceMessageQueue.pop();
+		levelUpClientChoiceMessageQueueLock.release();
+
+		int levelUpOption = curMessage.levelUpOption;
+		uint32_t playerID = curMessage.playerID;
+
+		// Chose an upgrade option
+		if (levelUpOption < 4)
+		{
+			RValue playerManager = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 });
+			RValue options = getInstanceVariable(playerManager, GML_options);
+			levelUpPausedList.push_back(levelUpPausedData(playerID, levelUpOptionNamesMap[playerID].optionArr[levelUpOption].first, levelUpOptionNamesMap[playerID].optionArr[levelUpOption].second));
+			clientUnpausedMap[playerID] = true;
+			if (isHostWaitingForClientUnpause)
+			{
+				// TODO: Can probably just count the number of client players left paused. Not too important though
+				bool isAnyClientPaused = false;
+				for (auto& clientUnpausedData : clientUnpausedMap)
+				{
+					bool isClientUnpaused = clientUnpausedData.second;
+					if (!isClientUnpaused)
+					{
+						isAnyClientPaused = true;
+						break;
+					}
+				}
+				if (!isAnyClientPaused)
+				{
+					isHostWaitingForClientUnpause = false;
+					unpauseHost();
+				}
+			}
+		}
+		else if (levelUpOption == 4) // Chose reroll
+		{
+			RValue result;
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			RValue options = getInstanceVariable(playerManagerInstanceVar, GML_options);
+			RValue prevOptions[4];
+			for (int i = 0; i < 4; i++)
+			{
+				prevOptions[i] = options[i];
+			}
+			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+
+			// Add to reroll container to decrease the chance of skipped upgrades
+			for (int i = 0; i < 4; i++)
+			{
+				optionType levelUpType = levelUpOptionNamesMap[playerID].optionArr[i].first;
+				if (levelUpType == optionType_Weapon || levelUpType == optionType_Item || levelUpType == optionType_Skill)
+				{
+					RValue rerollContainer = getInstanceVariable(playerManagerInstanceVar, GML_rerollContainer);
+					RValue rerollContainerOptionCount = g_ModuleInterface->CallBuiltin("variable_instance_get", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second });
+					if (rerollContainerOptionCount.m_Kind == VALUE_UNDEFINED || rerollContainerOptionCount.m_Kind == VALUE_UNSET)
+					{
+						// For some reason, this doesn't work properly if an int is passed in and needs a real number instead. Probably something weird with GML
+						g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second, 1.0 });
+					}
+					else
+					{
+						g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second, rerollContainerOptionCount.m_Real + 1 });
+					}
+				}
+			}
+
+			origGeneratePossibleOptionsScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
+			origOptionOneScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
+			options[0] = result;
+			origOptionTwoScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
+			options[1] = result;
+			origOptionThreeScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
+			options[2] = result;
+			origOptionFourScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
+			options[3] = result;
+			sendClientLevelUpOptionsMessage(clientSocketMap[playerID], playerID);
+			optionType optionType0 = convertStringOptionTypeToEnum(getInstanceVariable(options[0], GML_optionType));
+			optionType optionType1 = convertStringOptionTypeToEnum(getInstanceVariable(options[1], GML_optionType));
+			optionType optionType2 = convertStringOptionTypeToEnum(getInstanceVariable(options[2], GML_optionType));
+			optionType optionType3 = convertStringOptionTypeToEnum(getInstanceVariable(options[3], GML_optionType));
+			levelUpOptionNamesMap[playerID] = levelUpOptionNames(
+				std::make_pair(optionType0, std::string(getInstanceVariable(options[0], GML_optionID).AsString())),
+				std::make_pair(optionType1, std::string(getInstanceVariable(options[1], GML_optionID).AsString())),
+				std::make_pair(optionType2, std::string(getInstanceVariable(options[2], GML_optionID).AsString())),
+				std::make_pair(optionType3, std::string(getInstanceVariable(options[3], GML_optionID).AsString()))
+			);
+
+			for (int i = 0; i < 4; i++)
+			{
+				options[i] = prevOptions[i];
+			}
+			swapPlayerData(playerManagerInstanceVar, attackController, 0);
+		}
+	} while (true);
 }
 
 std::chrono::high_resolution_clock::time_point startPingTime;
@@ -1116,20 +1501,40 @@ int receiveDestructableCreateMessage(SOCKET socket)
 	messageDestructableCreate curMessage = messageDestructableCreate();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	destructableData curData = curMessage.data;
-	RValue obstacleInstance = RValue();
-	if (curMessage.data.pillarType == 0)
-	{
-		obstacleInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, 12345, objDestructableIndex });
-	}
-	else if (curMessage.data.pillarType == 1)
-	{
-		obstacleInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, 12345, objYagooPillarIndex });
-	}
-	curData.destructableInstance = obstacleInstance;
-	destructableMap[curData.id] = curData;
+	destructableCreateMessageQueueLock.acquire();
+	destructableCreateMessageQueue.push(curMessage);
+	destructableCreateMessageQueueLock.release();
 
 	return curMessageLen;
+}
+
+void handleDestructableCreateMessage()
+{
+	do
+	{
+		destructableCreateMessageQueueLock.acquire();
+		if (destructableCreateMessageQueue.empty())
+		{
+			destructableCreateMessageQueueLock.release();
+			break;
+		}
+		messageDestructableCreate curMessage = destructableCreateMessageQueue.front();
+		destructableCreateMessageQueue.pop();
+		destructableCreateMessageQueueLock.release();
+
+		destructableData curData = curMessage.data;
+		RValue obstacleInstance = RValue();
+		if (curMessage.data.pillarType == 0)
+		{
+			obstacleInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, 12345, objDestructableIndex });
+		}
+		else if (curMessage.data.pillarType == 1)
+		{
+			obstacleInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, 12345, objYagooPillarIndex });
+		}
+		curData.destructableInstance = obstacleInstance;
+		destructableMap[curData.id] = curData;
+	} while (true);
 }
 
 int receiveDestructableBreakMessage(SOCKET socket)
@@ -1137,35 +1542,77 @@ int receiveDestructableBreakMessage(SOCKET socket)
 	messageDestructableBreak curMessage = messageDestructableBreak();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	auto destructablePair = destructableMap.find(curMessage.data.id);
-	if (destructablePair == destructableMap.end())
-	{
-		g_ModuleInterface->Print(CM_RED, "Couldn't find broken destructable in map");
-	}
-	else
-	{
-		RValue curDestructable = destructablePair->second.destructableInstance;
-		g_ModuleInterface->CallBuiltin("variable_instance_set", { curDestructable, "broken", true });
-	}
+	destructableBreakMessageQueueLock.acquire();
+	destructableBreakMessageQueue.push(curMessage);
+	destructableBreakMessageQueueLock.release();
 
 	return curMessageLen;
+}
+
+void handleDestructableBreakMessage()
+{
+	do
+	{
+		destructableBreakMessageQueueLock.acquire();
+		if (destructableBreakMessageQueue.empty())
+		{
+			destructableBreakMessageQueueLock.release();
+			break;
+		}
+		messageDestructableBreak curMessage = destructableBreakMessageQueue.front();
+		destructableBreakMessageQueue.pop();
+		destructableBreakMessageQueueLock.release();
+
+		auto destructablePair = destructableMap.find(curMessage.data.id);
+		if (destructablePair == destructableMap.end())
+		{
+			g_ModuleInterface->Print(CM_RED, "Couldn't find broken destructable in map");
+		}
+		else
+		{
+			RValue curDestructable = destructablePair->second.destructableInstance;
+			g_ModuleInterface->CallBuiltin("variable_instance_set", { curDestructable, "broken", true });
+		}
+	} while (true);
 }
 
 int receiveEliminateLevelUpClientChoiceMessage(SOCKET socket, uint32_t playerID)
 {
 	messageEliminateLevelUpClientChoice curMessage = messageEliminateLevelUpClientChoice();
+	curMessage.playerID = playerID;
 	int curMessageLen = curMessage.receiveMessage(socket);
+	eliminateLevelUpClientChoiceMessageQueueLock.acquire();
+	eliminateLevelUpClientChoiceMessageQueue.push(curMessage);
+	eliminateLevelUpClientChoiceMessageQueueLock.release();
 
-	int levelUpOption = curMessage.levelUpOption;
-	RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+	return curMessageLen;
+}
 
-	swapPlayerData(playerManagerInstanceVar, attackController, playerID);
-	
-	RValue returnVal;
-	RValue optionName(levelUpOptionNamesMap[playerID].optionArr[levelUpOption].second);
-
-	switch (levelUpOptionNamesMap[playerID].optionArr[levelUpOption].first)
+void handleEliminateLevelUpClientChoiceMessage()
+{
+	do
 	{
+		eliminateLevelUpClientChoiceMessageQueueLock.acquire();
+		if (eliminateLevelUpClientChoiceMessageQueue.empty())
+		{
+			eliminateLevelUpClientChoiceMessageQueueLock.release();
+			break;
+		}
+		messageEliminateLevelUpClientChoice curMessage = eliminateLevelUpClientChoiceMessageQueue.front();
+		eliminateLevelUpClientChoiceMessageQueue.pop();
+		eliminateLevelUpClientChoiceMessageQueueLock.release();
+
+		uint32_t playerID = curMessage.playerID;
+		int levelUpOption = curMessage.levelUpOption;
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+
+		swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+
+		RValue returnVal;
+		RValue optionName(levelUpOptionNamesMap[playerID].optionArr[levelUpOption].second);
+
+		switch (levelUpOptionNamesMap[playerID].optionArr[levelUpOption].first)
+		{
 		case optionType_Weapon:
 		{
 			RValue** args = new RValue*[1];
@@ -1191,28 +1638,48 @@ int receiveEliminateLevelUpClientChoiceMessage(SOCKET socket, uint32_t playerID)
 		{
 			g_ModuleInterface->Print(CM_RED, "Error while eliminating - Unknown level up type");
 		}
-	}
+		}
 
-	swapPlayerData(playerManagerInstanceVar, attackController, 0);
-	return curMessageLen;
+		swapPlayerData(playerManagerInstanceVar, attackController, 0);
+	} while (true);
 }
 
 int receiveClientSpecialAttackMessage(SOCKET socket, uint32_t playerID)
 {
-	RValue returnVal;
-	RValue paused = getInstanceVariable(playerManagerInstanceVar, GML_paused);
-	if (!paused.AsBool())
-	{
-		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-		swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+	clientSpecialAttackMessageQueueLock.acquire();
+	clientSpecialAttackMessageQueue.push(playerID);
+	clientSpecialAttackMessageQueueLock.release();
 
-		// Seems like it's okay even if the Self variable is the playerManager
-		origExecuteSpecialAttackScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
-
-		swapPlayerData(playerManagerInstanceVar, attackController, 0);
-	}
-	
 	return 1;
+}
+
+void handleClientSpecialAttackMessage()
+{
+	do
+	{
+		clientSpecialAttackMessageQueueLock.acquire();
+		if (clientSpecialAttackMessageQueue.empty())
+		{
+			clientSpecialAttackMessageQueueLock.release();
+			break;
+		}
+		uint32_t playerID = clientSpecialAttackMessageQueue.front();
+		clientSpecialAttackMessageQueue.pop();
+		clientSpecialAttackMessageQueueLock.release();
+
+		RValue returnVal;
+		RValue paused = getInstanceVariable(playerManagerInstanceVar, GML_paused);
+		if (!paused.AsBool())
+		{
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+
+			// Seems like it's okay even if the Self variable is the playerManager
+			origExecuteSpecialAttackScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
+
+			swapPlayerData(playerManagerInstanceVar, attackController, 0);
+		}
+	} while (true);
 }
 
 int receiveCautionCreateMessage(SOCKET socket)
@@ -1221,25 +1688,45 @@ int receiveCautionCreateMessage(SOCKET socket)
 	messageCautionCreate curMessage = messageCautionCreate();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	cautionData data = curMessage.data;
-
-	int objIndex = -1;
-
-	if (data.cautionType == 0)
-	{
-		// Caution
-		objIndex = objCautionIndex;
-	}
-	else if (data.cautionType == 1)
-	{
-		// Caution attack
-		objIndex = objCautionAttackIndex;
-	}
-
-	RValue cautionInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { data.xPos, data.yPos, -15000, objIndex });
-	setInstanceVariable(cautionInstance, GML_dir, RValue(data.dir));
+	cautionCreateMessageQueueLock.acquire();
+	cautionCreateMessageQueue.push(curMessage);
+	cautionCreateMessageQueueLock.release();
 
 	return curMessageLen;
+}
+
+void handleCautionCreateMessage()
+{
+	do
+	{
+		cautionCreateMessageQueueLock.acquire();
+		if (cautionCreateMessageQueue.empty())
+		{
+			cautionCreateMessageQueueLock.release();
+			break;
+		}
+		messageCautionCreate curMessage = cautionCreateMessageQueue.front();
+		cautionCreateMessageQueue.pop();
+		cautionCreateMessageQueueLock.release();
+
+		cautionData data = curMessage.data;
+
+		int objIndex = -1;
+
+		if (data.cautionType == 0)
+		{
+			// Caution
+			objIndex = objCautionIndex;
+		}
+		else if (data.cautionType == 1)
+		{
+			// Caution attack
+			objIndex = objCautionAttackIndex;
+		}
+
+		RValue cautionInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { data.xPos, data.yPos, -15000, objIndex });
+		setInstanceVariable(cautionInstance, GML_dir, RValue(data.dir));
+	} while (true);
 }
 
 int receivePreCreateUpdateMessage(SOCKET socket)
@@ -1248,25 +1735,45 @@ int receivePreCreateUpdateMessage(SOCKET socket)
 	messagePreCreateUpdate curMessage = messagePreCreateUpdate();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	preCreateData data = curMessage.data;
-
-	if (preCreateMap.find(data.id) == preCreateMap.end())
-	{
-		RValue cautionInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { data.xPos, data.yPos, -15000, objPreCreateIndex });
-		preCreateMap[data.id] = cautionInstance;
-		setInstanceVariable(cautionInstance, GML_waitSpawn, RValue(data.waitSpawn));
-	}
-	else
-	{
-		setInstanceVariable(preCreateMap[data.id], GML_waitSpawn, RValue(data.waitSpawn));
-		if (data.waitSpawn == 1)
-		{
-			g_ModuleInterface->CallBuiltin("instance_destroy", { preCreateMap[data.id] });
-			preCreateMap.erase(data.id);
-		}
-	}
+	preCreateUpdateMessageQueueLock.acquire();
+	preCreateUpdateMessageQueue.push(curMessage);
+	preCreateUpdateMessageQueueLock.release();
 
 	return curMessageLen;
+}
+
+void handlePreCreateUpdateMessage()
+{
+	do
+	{
+		preCreateUpdateMessageQueueLock.acquire();
+		if (preCreateUpdateMessageQueue.empty())
+		{
+			preCreateUpdateMessageQueueLock.release();
+			break;
+		}
+		messagePreCreateUpdate curMessage = preCreateUpdateMessageQueue.front();
+		preCreateUpdateMessageQueue.pop();
+		preCreateUpdateMessageQueueLock.release();
+
+		preCreateData data = curMessage.data;
+
+		if (preCreateMap.find(data.id) == preCreateMap.end())
+		{
+			RValue cautionInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { data.xPos, data.yPos, -15000, objPreCreateIndex });
+			preCreateMap[data.id] = cautionInstance;
+			setInstanceVariable(cautionInstance, GML_waitSpawn, RValue(data.waitSpawn));
+		}
+		else
+		{
+			setInstanceVariable(preCreateMap[data.id], GML_waitSpawn, RValue(data.waitSpawn));
+			if (data.waitSpawn == 1)
+			{
+				g_ModuleInterface->CallBuiltin("instance_destroy", { preCreateMap[data.id] });
+				preCreateMap.erase(data.id);
+			}
+		}
+	} while (true);
 }
 
 int receiveVFXUpdateMessage(SOCKET socket)
@@ -1275,82 +1782,102 @@ int receiveVFXUpdateMessage(SOCKET socket)
 	messageVfxUpdate curMessage = messageVfxUpdate();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	vfxData data = curMessage.data;
-
-	if (data.type == 0)
-	{
-		// obj_vfx
-		if (vfxMap.find(data.id) == vfxMap.end())
-		{
-			RValue vfxInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { data.xPos, data.yPos, -15000, objVFXIndex });
-			vfxMap[data.id] = vfxInstance;
-			setInstanceVariable(vfxInstance, GML_image_xscale, RValue(data.imageXScale));
-			setInstanceVariable(vfxInstance, GML_image_yscale, RValue(data.imageYScale));
-			setInstanceVariable(vfxInstance, GML_image_angle, RValue(data.imageAngle));
-			setInstanceVariable(vfxInstance, GML_image_alpha, RValue(data.imageAlpha));
-			setInstanceVariable(vfxInstance, GML_sprite_index, RValue(data.spriteIndex));
-			setInstanceVariable(vfxInstance, GML_image_index, RValue(data.imageIndex));
-			setInstanceVariable(vfxInstance, GML_image_speed, RValue(0));
-			setInstanceVariable(vfxInstance, GML_spriteColor, RValue(static_cast<int>(data.color)));
-		}
-		else
-		{
-			RValue vfxInstance = vfxMap[data.id];
-			setInstanceVariable(vfxInstance, GML_x, RValue(data.xPos));
-			setInstanceVariable(vfxInstance, GML_y, RValue(data.yPos));
-			setInstanceVariable(vfxInstance, GML_image_xscale, RValue(data.imageXScale));
-			setInstanceVariable(vfxInstance, GML_image_yscale, RValue(data.imageYScale));
-			setInstanceVariable(vfxInstance, GML_image_angle, RValue(data.imageAngle));
-			setInstanceVariable(vfxInstance, GML_image_alpha, RValue(data.imageAlpha));
-			setInstanceVariable(vfxInstance, GML_sprite_index, RValue(data.spriteIndex));
-			setInstanceVariable(vfxInstance, GML_image_index, RValue(data.imageIndex));
-			setInstanceVariable(vfxInstance, GML_image_speed, RValue(0));
-			setInstanceVariable(vfxInstance, GML_spriteColor, RValue(static_cast<int>(data.color)));
-			if (data.imageAlpha < 0)
-			{
-				g_ModuleInterface->CallBuiltin("instance_destroy", { vfxMap[data.id] });
-				vfxMap.erase(data.id);
-			}
-		}
-	}
-	else if (data.type == 1)
-	{
-		// obj_afterimage
-		if (vfxMap.find(data.id) == vfxMap.end())
-		{
-			RValue vfxInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { data.xPos, data.yPos, -15000, objAfterImageIndex });
-			vfxMap[data.id] = vfxInstance;
-			setInstanceVariable(vfxInstance, GML_image_xscale, RValue(data.imageXScale));
-			setInstanceVariable(vfxInstance, GML_image_yscale, RValue(data.imageYScale));
-			setInstanceVariable(vfxInstance, GML_image_angle, RValue(data.imageAngle));
-			setInstanceVariable(vfxInstance, GML_image_alpha, RValue(data.imageAlpha));
-			setInstanceVariable(vfxInstance, GML_sprite_index, RValue(data.spriteIndex));
-			setInstanceVariable(vfxInstance, GML_image_index, RValue(data.imageIndex));
-			setInstanceVariable(vfxInstance, GML_image_speed, RValue(0));
-			setInstanceVariable(vfxInstance, GML_afterimage_color, RValue(static_cast<int>(data.color)));
-		}
-		else
-		{
-			RValue vfxInstance = vfxMap[data.id];
-			setInstanceVariable(vfxInstance, GML_x, RValue(data.xPos));
-			setInstanceVariable(vfxInstance, GML_y, RValue(data.yPos));
-			setInstanceVariable(vfxInstance, GML_image_xscale, RValue(data.imageXScale));
-			setInstanceVariable(vfxInstance, GML_image_yscale, RValue(data.imageYScale));
-			setInstanceVariable(vfxInstance, GML_image_angle, RValue(data.imageAngle));
-			setInstanceVariable(vfxInstance, GML_image_alpha, RValue(data.imageAlpha));
-			setInstanceVariable(vfxInstance, GML_sprite_index, RValue(data.spriteIndex));
-			setInstanceVariable(vfxInstance, GML_image_index, RValue(data.imageIndex));
-			setInstanceVariable(vfxInstance, GML_image_speed, RValue(0));
-			setInstanceVariable(vfxInstance, GML_afterimage_color, RValue(static_cast<int>(data.color)));
-			if (data.imageAlpha < -100000)
-			{
-				g_ModuleInterface->CallBuiltin("instance_destroy", { vfxMap[data.id] });
-				vfxMap.erase(data.id);
-			}
-		}
-	}
+	vfxUpdateMessageQueueLock.acquire();
+	vfxUpdateMessageQueue.push(curMessage);
+	vfxUpdateMessageQueueLock.release();
 
 	return curMessageLen;
+}
+
+void handleVFXUpdateMessage()
+{
+	do
+	{
+		vfxUpdateMessageQueueLock.acquire();
+		if (vfxUpdateMessageQueue.empty())
+		{
+			vfxUpdateMessageQueueLock.release();
+			break;
+		}
+		messageVfxUpdate curMessage = vfxUpdateMessageQueue.front();
+		vfxUpdateMessageQueue.pop();
+		vfxUpdateMessageQueueLock.release();
+
+		vfxData data = curMessage.data;
+
+		if (data.type == 0)
+		{
+			// obj_vfx
+			if (vfxMap.find(data.id) == vfxMap.end())
+			{
+				RValue vfxInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { data.xPos, data.yPos, -15000, objVFXIndex });
+				vfxMap[data.id] = vfxInstance;
+				setInstanceVariable(vfxInstance, GML_image_xscale, RValue(data.imageXScale));
+				setInstanceVariable(vfxInstance, GML_image_yscale, RValue(data.imageYScale));
+				setInstanceVariable(vfxInstance, GML_image_angle, RValue(data.imageAngle));
+				setInstanceVariable(vfxInstance, GML_image_alpha, RValue(data.imageAlpha));
+				setInstanceVariable(vfxInstance, GML_sprite_index, RValue(data.spriteIndex));
+				setInstanceVariable(vfxInstance, GML_image_index, RValue(data.imageIndex));
+				setInstanceVariable(vfxInstance, GML_image_speed, RValue(0));
+				setInstanceVariable(vfxInstance, GML_spriteColor, RValue(static_cast<int>(data.color)));
+			}
+			else
+			{
+				RValue vfxInstance = vfxMap[data.id];
+				setInstanceVariable(vfxInstance, GML_x, RValue(data.xPos));
+				setInstanceVariable(vfxInstance, GML_y, RValue(data.yPos));
+				setInstanceVariable(vfxInstance, GML_image_xscale, RValue(data.imageXScale));
+				setInstanceVariable(vfxInstance, GML_image_yscale, RValue(data.imageYScale));
+				setInstanceVariable(vfxInstance, GML_image_angle, RValue(data.imageAngle));
+				setInstanceVariable(vfxInstance, GML_image_alpha, RValue(data.imageAlpha));
+				setInstanceVariable(vfxInstance, GML_sprite_index, RValue(data.spriteIndex));
+				setInstanceVariable(vfxInstance, GML_image_index, RValue(data.imageIndex));
+				setInstanceVariable(vfxInstance, GML_image_speed, RValue(0));
+				setInstanceVariable(vfxInstance, GML_spriteColor, RValue(static_cast<int>(data.color)));
+				if (data.imageAlpha < 0)
+				{
+					g_ModuleInterface->CallBuiltin("instance_destroy", { vfxMap[data.id] });
+					vfxMap.erase(data.id);
+				}
+			}
+		}
+		else if (data.type == 1)
+		{
+			// obj_afterimage
+			if (vfxMap.find(data.id) == vfxMap.end())
+			{
+				RValue vfxInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { data.xPos, data.yPos, -15000, objAfterImageIndex });
+				vfxMap[data.id] = vfxInstance;
+				setInstanceVariable(vfxInstance, GML_image_xscale, RValue(data.imageXScale));
+				setInstanceVariable(vfxInstance, GML_image_yscale, RValue(data.imageYScale));
+				setInstanceVariable(vfxInstance, GML_image_angle, RValue(data.imageAngle));
+				setInstanceVariable(vfxInstance, GML_image_alpha, RValue(data.imageAlpha));
+				setInstanceVariable(vfxInstance, GML_sprite_index, RValue(data.spriteIndex));
+				setInstanceVariable(vfxInstance, GML_image_index, RValue(data.imageIndex));
+				setInstanceVariable(vfxInstance, GML_image_speed, RValue(0));
+				setInstanceVariable(vfxInstance, GML_afterimage_color, RValue(static_cast<int>(data.color)));
+			}
+			else
+			{
+				RValue vfxInstance = vfxMap[data.id];
+				setInstanceVariable(vfxInstance, GML_x, RValue(data.xPos));
+				setInstanceVariable(vfxInstance, GML_y, RValue(data.yPos));
+				setInstanceVariable(vfxInstance, GML_image_xscale, RValue(data.imageXScale));
+				setInstanceVariable(vfxInstance, GML_image_yscale, RValue(data.imageYScale));
+				setInstanceVariable(vfxInstance, GML_image_angle, RValue(data.imageAngle));
+				setInstanceVariable(vfxInstance, GML_image_alpha, RValue(data.imageAlpha));
+				setInstanceVariable(vfxInstance, GML_sprite_index, RValue(data.spriteIndex));
+				setInstanceVariable(vfxInstance, GML_image_index, RValue(data.imageIndex));
+				setInstanceVariable(vfxInstance, GML_image_speed, RValue(0));
+				setInstanceVariable(vfxInstance, GML_afterimage_color, RValue(static_cast<int>(data.color)));
+				if (data.imageAlpha < -100000)
+				{
+					g_ModuleInterface->CallBuiltin("instance_destroy", { vfxMap[data.id] });
+					vfxMap.erase(data.id);
+				}
+			}
+		}
+	} while (true);
 }
 
 int receiveInteractableCreateMessage(SOCKET socket)
@@ -1359,10 +1886,31 @@ int receiveInteractableCreateMessage(SOCKET socket)
 	messageInteractableCreate curMessage = messageInteractableCreate();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	interactableData data = curMessage.data;
-	
-	switch (data.type)
+	interactableCreateMessageQueueLock.acquire();
+	interactableCreateMessageQueue.push(curMessage);
+	interactableCreateMessageQueueLock.release();
+
+	return curMessageLen;
+}
+
+void handleInteractableCreateMessage()
+{
+	do
 	{
+		interactableCreateMessageQueueLock.acquire();
+		if (interactableCreateMessageQueue.empty())
+		{
+			interactableCreateMessageQueueLock.release();
+			break;
+		}
+		messageInteractableCreate curMessage = interactableCreateMessageQueue.front();
+		interactableCreateMessageQueue.pop();
+		interactableCreateMessageQueueLock.release();
+
+		interactableData data = curMessage.data;
+
+		switch (data.type)
+		{
 		case 0: // holoBox
 		{
 			interactableMap[data.id] = g_ModuleInterface->CallBuiltin("instance_create_depth", { data.xPos, data.yPos, -15000, objHoloBoxIndex });
@@ -1392,9 +1940,8 @@ int receiveInteractableCreateMessage(SOCKET socket)
 			setInstanceVariable(stickerInstance, GML_stickerData, RValue(0.0));
 			break;
 		}
-	}
-
-	return curMessageLen;
+		}
+	} while (true);
 }
 
 int receiveInteractableDeleteMessage(SOCKET socket)
@@ -1403,8 +1950,29 @@ int receiveInteractableDeleteMessage(SOCKET socket)
 	messageInteractableDelete curMessage = messageInteractableDelete();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	switch (curMessage.type)
+	interactableDeleteMessageQueueLock.acquire();
+	interactableDeleteMessageQueue.push(curMessage);
+	interactableDeleteMessageQueueLock.release();
+
+	return curMessageLen;
+}
+
+void handleInteractableDeleteMessage()
+{
+	do
 	{
+		interactableDeleteMessageQueueLock.acquire();
+		if (interactableDeleteMessageQueue.empty())
+		{
+			interactableDeleteMessageQueueLock.release();
+			break;
+		}
+		messageInteractableDelete curMessage = interactableDeleteMessageQueue.front();
+		interactableDeleteMessageQueue.pop();
+		interactableDeleteMessageQueueLock.release();
+
+		switch (curMessage.type)
+		{
 		case 0: // holoBox
 		{
 			g_ModuleInterface->CallBuiltin("instance_destroy", { interactableMap[curMessage.id] });
@@ -1421,9 +1989,8 @@ int receiveInteractableDeleteMessage(SOCKET socket)
 			g_ModuleInterface->CallBuiltin("method_call", { destroyMethod, destroyArr });
 			break;
 		}
-	}
-
-	return curMessageLen;
+		}
+	} while (true);
 }
 
 bool isClientUsingBox = false;
@@ -1435,17 +2002,38 @@ std::vector<std::string_view> currentAnvilRolledMods;
 
 int receiveInteractablePlayerInteractedMessage(SOCKET socket)
 {
-	RValue returnVal;
 	messageInteractablePlayerInteracted curMessage = messageInteractablePlayerInteracted();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	// Can probably skip pausing the clients since the host will be paused anyways
-	if (curMessage.playerID == clientID)
+	interactablePlayerInteractedMessageQueueLock.acquire();
+	interactablePlayerInteractedMessageQueue.push(curMessage);
+	interactablePlayerInteractedMessageQueueLock.release();
+
+	return curMessageLen;
+}
+
+void handleInteractablePlayerInteractedMessage()
+{
+	do
 	{
-		setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
-		unsetPauseMenu();
-		switch (curMessage.type)
+		interactablePlayerInteractedMessageQueueLock.acquire();
+		if (interactablePlayerInteractedMessageQueue.empty())
 		{
+			interactablePlayerInteractedMessageQueueLock.release();
+			break;
+		}
+		messageInteractablePlayerInteracted curMessage = interactablePlayerInteractedMessageQueue.front();
+		interactablePlayerInteractedMessageQueue.pop();
+		interactablePlayerInteractedMessageQueueLock.release();
+
+		// Can probably skip pausing the clients since the host will be paused anyways
+		if (curMessage.playerID == clientID)
+		{
+			RValue returnVal;
+			setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
+			unsetPauseMenu();
+			switch (curMessage.type)
+			{
 			case 1: // holoAnvil
 			{
 				currentAnvilRolledMods.clear();
@@ -1467,117 +2055,117 @@ int receiveInteractablePlayerInteractedMessage(SOCKET socket)
 				setInstanceVariable(playerManagerInstanceVar, GML_anvilID, RValue(-1));
 				break;
 			}
+			}
 		}
-	}
-
-	return curMessageLen;
+	} while (true);
 }
 
 int receiveStickerPlayerInteractedMessage(SOCKET socket)
 {
-	RValue returnVal;
 	messageStickerPlayerInteracted curMessage = messageStickerPlayerInteracted();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	// Can probably skip pausing the clients since the host will be paused anyways
-	if (curMessage.playerID == clientID)
-	{
-		setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
-		unsetPauseMenu();
-		isClientUsingStamp = true;
-		RValue stickerInstance = interactableMap[curMessage.id];
-		setInstanceVariable(stickerInstance, GML_stickerID, RValue(curMessage.stickerID));
-		RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
-		RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, curMessage.stickerID });
-		setInstanceVariable(stickerInstance, GML_stickerData, stickerData);
-		g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", stickerData });
-		RValue** args = new RValue*[1];
-		args[0] = &stickerInstance;
-		origGetStickerScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
-	}
+	stickerPlayerInteractedMessageQueueLock.acquire();
+	stickerPlayerInteractedMessageQueue.push(curMessage);
+	stickerPlayerInteractedMessageQueueLock.release();
 
 	return curMessageLen;
 }
 
+void handleStickerPlayerInteractedMessage()
+{
+	do
+	{
+		stickerPlayerInteractedMessageQueueLock.acquire();
+		if (stickerPlayerInteractedMessageQueue.empty())
+		{
+			stickerPlayerInteractedMessageQueueLock.release();
+			break;
+		}
+		messageStickerPlayerInteracted curMessage = stickerPlayerInteractedMessageQueue.front();
+		stickerPlayerInteractedMessageQueue.pop();
+		stickerPlayerInteractedMessageQueueLock.release();
+
+		// Can probably skip pausing the clients since the host will be paused anyways
+		if (curMessage.playerID == clientID)
+		{
+			RValue returnVal;
+			setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
+			unsetPauseMenu();
+			isClientUsingStamp = true;
+			RValue stickerInstance = interactableMap[curMessage.id];
+			setInstanceVariable(stickerInstance, GML_stickerID, RValue(curMessage.stickerID));
+			RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
+			RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, curMessage.stickerID });
+			setInstanceVariable(stickerInstance, GML_stickerData, stickerData);
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", stickerData });
+			RValue** args = new RValue*[1];
+			args[0] = &stickerInstance;
+			origGetStickerScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
+		}
+	} while (true);
+}
+
 int receiveBoxPlayerInteractedMessage(SOCKET socket)
 {
-	RValue returnVal;
 	messageBoxPlayerInteracted curMessage = messageBoxPlayerInteracted();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	g_ModuleInterface->CallBuiltin("instance_destroy", { interactableMap[curMessage.id] });
-	interactableMap.erase(curMessage.id);
+	boxPlayerInteractedMessageQueueLock.acquire();
+	boxPlayerInteractedMessageQueue.push(curMessage);
+	boxPlayerInteractedMessageQueueLock.release();
 
-	// Can probably skip pausing the clients since the host will be paused anyways
-	if (curMessage.playerID == clientID)
+	return curMessageLen;
+}
+
+void handleBoxPlayerInteractedMessage()
+{
+	do
 	{
-		setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
-		unsetPauseMenu();
-		isClientUsingBox = true;
-		origGetBoxScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
-		if (curMessage.isSuperBox == 1)
+		boxPlayerInteractedMessageQueueLock.acquire();
+		if (boxPlayerInteractedMessageQueue.empty())
 		{
-			RValue randomWeaponArr = g_ModuleInterface->CallBuiltin("array_create", { 1 });
-			setInstanceVariable(playerManagerInstanceVar, GML_superBox, RValue(true));
-			setInstanceVariable(playerManagerInstanceVar, GML_boxItemAmount, RValue(1.0));
-
-			RValue optionStruct;
-			g_RunnerInterface.StructCreate(&optionStruct);
-			levelUpOption superItem = curMessage.randomWeapons[0];
-			
-			// Need to do this since the super item check only checks from the items map
-			RValue itemsMap = getInstanceVariable(playerManagerInstanceVar, GML_ITEMS);
-			RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, superItem.optionID });
-			setInstanceVariable(curItem, GML_becomeSuper, RValue(true));
-			setInstanceVariable(curItem, GML_optionIcon_Normal, RValue(superItem.optionIcon));
-			setInstanceVariable(curItem, GML_optionIcon, RValue(superItem.optionIcon_Super));
-
-			setInstanceVariable(optionStruct, GML_optionIcon, RValue(superItem.optionIcon_Super));
-			setInstanceVariable(optionStruct, GML_optionIcon_Normal, RValue(superItem.optionIcon));
-			setInstanceVariable(optionStruct, GML_optionType, RValue(superItem.optionType));
-			setInstanceVariable(optionStruct, GML_optionName, RValue(superItem.optionName));
-			setInstanceVariable(optionStruct, GML_optionID, RValue(superItem.optionID));
-			setInstanceVariable(optionStruct, GML_optionIcon_Super, RValue(superItem.optionIcon_Super));
-			if (superItem.optionDescription.size() == 1)
-			{
-				setInstanceVariable(optionStruct, GML_optionDescription, RValue(superItem.optionDescription[0]));
-			}
-			else
-			{
-				int optionDescriptionSize = static_cast<int>(superItem.optionDescription.size());
-				RValue optionDescriptionArr = g_ModuleInterface->CallBuiltin("array_create", { optionDescriptionSize });
-				for (int i = 0; i < optionDescriptionSize; i++)
-				{
-					optionDescriptionArr[i] = superItem.optionDescription[i];
-				}
-				setInstanceVariable(optionStruct, GML_optionDescription, optionDescriptionArr);
-			}
-			setInstanceVariable(optionStruct, GML_attackID, RValue(""));
-			setInstanceVariable(optionStruct, GML_becomeSuper, RValue(true));
-			setInstanceVariable(optionStruct, GML_itemType, RValue(""));
-			setInstanceVariable(optionStruct, GML_weaponType, RValue(""));
-			// TODO: Check if this is correct in all cases. Not really sure if there is a difference between id and optionID
-			setInstanceVariable(optionStruct, GML_id, RValue(superItem.optionID));
-			randomWeaponArr[0] = optionStruct;
-
-			setInstanceVariable(playerManagerInstanceVar, GML_randomWeapon, randomWeaponArr);
+			boxPlayerInteractedMessageQueueLock.release();
+			break;
 		}
-		else
-		{
-			setInstanceVariable(playerManagerInstanceVar, GML_superBox, RValue(false));
-			int boxItemAmount = static_cast<int>(curMessage.boxItemAmount);
-			setInstanceVariable(playerManagerInstanceVar, GML_boxItemAmount, RValue(static_cast<double>(boxItemAmount)));
-			RValue randomWeaponArr = g_ModuleInterface->CallBuiltin("array_create", { boxItemAmount });
+		messageBoxPlayerInteracted curMessage = boxPlayerInteractedMessageQueue.front();
+		boxPlayerInteractedMessageQueue.pop();
+		boxPlayerInteractedMessageQueueLock.release();
 
-			for (int i = 0; i < boxItemAmount; i++)
+		g_ModuleInterface->CallBuiltin("instance_destroy", { interactableMap[curMessage.id] });
+		interactableMap.erase(curMessage.id);
+
+		// Can probably skip pausing the clients since the host will be paused anyways
+		if (curMessage.playerID == clientID)
+		{
+			RValue returnVal;
+			setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
+			unsetPauseMenu();
+			isClientUsingBox = true;
+			origGetBoxScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
+			if (curMessage.isSuperBox == 1)
 			{
+				RValue randomWeaponArr = g_ModuleInterface->CallBuiltin("array_create", { 1 });
+				setInstanceVariable(playerManagerInstanceVar, GML_superBox, RValue(true));
+				setInstanceVariable(playerManagerInstanceVar, GML_boxItemAmount, RValue(1.0));
+
 				RValue optionStruct;
 				g_RunnerInterface.StructCreate(&optionStruct);
-				levelUpOption superItem = curMessage.randomWeapons[i];
-				setInstanceVariable(optionStruct, GML_optionIcon, RValue(superItem.optionIcon));
+				levelUpOption superItem = curMessage.randomWeapons[0];
+
+				// Need to do this since the super item check only checks from the items map
+				RValue itemsMap = getInstanceVariable(playerManagerInstanceVar, GML_ITEMS);
+				RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, superItem.optionID });
+				setInstanceVariable(curItem, GML_becomeSuper, RValue(true));
+				setInstanceVariable(curItem, GML_optionIcon_Normal, RValue(superItem.optionIcon));
+				setInstanceVariable(curItem, GML_optionIcon, RValue(superItem.optionIcon_Super));
+
+				setInstanceVariable(optionStruct, GML_optionIcon, RValue(superItem.optionIcon_Super));
+				setInstanceVariable(optionStruct, GML_optionIcon_Normal, RValue(superItem.optionIcon));
 				setInstanceVariable(optionStruct, GML_optionType, RValue(superItem.optionType));
 				setInstanceVariable(optionStruct, GML_optionName, RValue(superItem.optionName));
 				setInstanceVariable(optionStruct, GML_optionID, RValue(superItem.optionID));
+				setInstanceVariable(optionStruct, GML_optionIcon_Super, RValue(superItem.optionIcon_Super));
 				if (superItem.optionDescription.size() == 1)
 				{
 					setInstanceVariable(optionStruct, GML_optionDescription, RValue(superItem.optionDescription[0]));
@@ -1593,30 +2181,88 @@ int receiveBoxPlayerInteractedMessage(SOCKET socket)
 					setInstanceVariable(optionStruct, GML_optionDescription, optionDescriptionArr);
 				}
 				setInstanceVariable(optionStruct, GML_attackID, RValue(""));
-				setInstanceVariable(optionStruct, GML_becomeSuper, RValue(false));
+				setInstanceVariable(optionStruct, GML_becomeSuper, RValue(true));
 				setInstanceVariable(optionStruct, GML_itemType, RValue(""));
 				setInstanceVariable(optionStruct, GML_weaponType, RValue(""));
-				randomWeaponArr[i] = optionStruct;
+				// TODO: Check if this is correct in all cases. Not really sure if there is a difference between id and optionID
+				setInstanceVariable(optionStruct, GML_id, RValue(superItem.optionID));
+				randomWeaponArr[0] = optionStruct;
+
+				setInstanceVariable(playerManagerInstanceVar, GML_randomWeapon, randomWeaponArr);
 			}
+			else
+			{
+				setInstanceVariable(playerManagerInstanceVar, GML_superBox, RValue(false));
+				int boxItemAmount = static_cast<int>(curMessage.boxItemAmount);
+				setInstanceVariable(playerManagerInstanceVar, GML_boxItemAmount, RValue(static_cast<double>(boxItemAmount)));
+				RValue randomWeaponArr = g_ModuleInterface->CallBuiltin("array_create", { boxItemAmount });
 
-			setInstanceVariable(playerManagerInstanceVar, GML_randomWeapon, randomWeaponArr);
+				for (int i = 0; i < boxItemAmount; i++)
+				{
+					RValue optionStruct;
+					g_RunnerInterface.StructCreate(&optionStruct);
+					levelUpOption superItem = curMessage.randomWeapons[i];
+					setInstanceVariable(optionStruct, GML_optionIcon, RValue(superItem.optionIcon));
+					setInstanceVariable(optionStruct, GML_optionType, RValue(superItem.optionType));
+					setInstanceVariable(optionStruct, GML_optionName, RValue(superItem.optionName));
+					setInstanceVariable(optionStruct, GML_optionID, RValue(superItem.optionID));
+					if (superItem.optionDescription.size() == 1)
+					{
+						setInstanceVariable(optionStruct, GML_optionDescription, RValue(superItem.optionDescription[0]));
+					}
+					else
+					{
+						int optionDescriptionSize = static_cast<int>(superItem.optionDescription.size());
+						RValue optionDescriptionArr = g_ModuleInterface->CallBuiltin("array_create", { optionDescriptionSize });
+						for (int i = 0; i < optionDescriptionSize; i++)
+						{
+							optionDescriptionArr[i] = superItem.optionDescription[i];
+						}
+						setInstanceVariable(optionStruct, GML_optionDescription, optionDescriptionArr);
+					}
+					setInstanceVariable(optionStruct, GML_attackID, RValue(""));
+					setInstanceVariable(optionStruct, GML_becomeSuper, RValue(false));
+					setInstanceVariable(optionStruct, GML_itemType, RValue(""));
+					setInstanceVariable(optionStruct, GML_weaponType, RValue(""));
+					randomWeaponArr[i] = optionStruct;
+				}
+
+				setInstanceVariable(playerManagerInstanceVar, GML_randomWeapon, randomWeaponArr);
+			}
 		}
-	}
-
-	return curMessageLen;
+	} while (true);
 }
 
 int receiveInteractFinishedMessage(SOCKET socket)
 {
-	hasClientFinishedInteracting = true;
-	unpauseHost();
-	
-	// TODO: Check to make sure this doesn't cause any issues
-	if (isClientUsingStamp)
-	{
-		setInstanceVariable(playerManagerInstanceVar, GML_usedSticker, RValue(true));
-	}
+	interactFinishedMessageQueueLock.acquire();
+	hasInteractFinishedMessage = true;
+	interactFinishedMessageQueueLock.release();
 	return 1;
+}
+
+void handleInteractFinishedMessage()
+{
+	do
+	{
+		interactFinishedMessageQueueLock.acquire();
+		if (!hasInteractFinishedMessage)
+		{
+			interactFinishedMessageQueueLock.release();
+			break;
+		}
+		hasInteractFinishedMessage = false;
+		interactFinishedMessageQueueLock.release();
+
+		hasClientFinishedInteracting = true;
+		unpauseHost();
+
+		// TODO: Check to make sure this doesn't cause any issues
+		if (isClientUsingStamp)
+		{
+			setInstanceVariable(playerManagerInstanceVar, GML_usedSticker, RValue(true));
+		}
+	} while (true);
 }
 
 int receiveBoxTakeOptionMessage(SOCKET socket, uint32_t playerID)
@@ -1624,23 +2270,45 @@ int receiveBoxTakeOptionMessage(SOCKET socket, uint32_t playerID)
 	RValue returnVal;
 	messageBoxTakeOption curMessage = messageBoxTakeOption();
 	int curMessageLen = curMessage.receiveMessage(socket);
+	curMessage.playerID = playerID;
 
-	RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-
-	// Special case if the client drops a super weapon to unset the super flag for the item
-	if (curMessage.boxItemNum == 100)
-	{
-		RValue itemsMap = playerItemsMapMap[playerID];
-		RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, randomWeaponArr[0].optionID });
-		setInstanceVariable(curItem, GML_becomeSuper, RValue(false));
-		setInstanceVariable(curItem, GML_optionIcon, getInstanceVariable(curItem, GML_optionIcon_Normal));
-		return curMessageLen;
-	}
-
-	levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(randomWeaponArr[curMessage.boxItemNum].optionType), randomWeaponArr[curMessage.boxItemNum].optionID);
-	levelUpPausedList.push_back(curPausedData);
+	boxTakeOptionMessageQueueLock.acquire();
+	boxTakeOptionMessageQueue.push(curMessage);
+	boxTakeOptionMessageQueueLock.release();
 
 	return curMessageLen;
+}
+
+void handleBoxTakeOptionMessage()
+{
+	do
+	{
+		boxTakeOptionMessageQueueLock.acquire();
+		if (boxTakeOptionMessageQueue.empty())
+		{
+			boxTakeOptionMessageQueueLock.release();
+			break;
+		}
+		messageBoxTakeOption curMessage = boxTakeOptionMessageQueue.front();
+		boxTakeOptionMessageQueue.pop();
+		boxTakeOptionMessageQueueLock.release();
+
+		uint32_t playerID = curMessage.playerID;
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+
+		// Special case if the client drops a super weapon to unset the super flag for the item
+		if (curMessage.boxItemNum == 100)
+		{
+			RValue itemsMap = playerItemsMapMap[playerID];
+			RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, randomWeaponArr[0].optionID });
+			setInstanceVariable(curItem, GML_becomeSuper, RValue(false));
+			setInstanceVariable(curItem, GML_optionIcon, getInstanceVariable(curItem, GML_optionIcon_Normal));
+			return;
+		}
+
+		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(randomWeaponArr[curMessage.boxItemNum].optionType), randomWeaponArr[curMessage.boxItemNum].optionID);
+		levelUpPausedList.push_back(curPausedData);
+	} while (true);
 }
 
 int receiveAnvilChooseOptionMessage(SOCKET socket, uint32_t playerID)
@@ -1648,34 +2316,76 @@ int receiveAnvilChooseOptionMessage(SOCKET socket, uint32_t playerID)
 	RValue returnVal;
 	messageAnvilChooseOption curMessage = messageAnvilChooseOption();
 	int curMessageLen = curMessage.receiveMessage(socket);
+	curMessage.playerID = playerID;
 
-	if (curMessage.anvilOptionType == 0)
-	{
-		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curMessage.optionType), curMessage.optionID);
-		levelUpPausedList.push_back(curPausedData);
-	}
-	else if (curMessage.anvilOptionType == 1)
-	{
-		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curMessage.optionType), curMessage.optionID);
-		levelUpPausedList.push_back(curPausedData);
-		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real - curMessage.coinCost;
-		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
-	}
-	setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
+	anvilChooseOptionMessageQueueLock.acquire();
+	anvilChooseOptionMessageQueue.push(curMessage);
+	anvilChooseOptionMessageQueueLock.release();
 
 	return curMessageLen;
 }
 
+void handleAnvilChooseOptionMessage()
+{
+	do
+	{
+		anvilChooseOptionMessageQueueLock.acquire();
+		if (anvilChooseOptionMessageQueue.empty())
+		{
+			anvilChooseOptionMessageQueueLock.release();
+			break;
+		}
+		messageAnvilChooseOption curMessage = anvilChooseOptionMessageQueue.front();
+		anvilChooseOptionMessageQueue.pop();
+		anvilChooseOptionMessageQueueLock.release();
+		uint32_t playerID = curMessage.playerID;
+
+		if (curMessage.anvilOptionType == 0)
+		{
+			levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curMessage.optionType), curMessage.optionID);
+			levelUpPausedList.push_back(curPausedData);
+		}
+		else if (curMessage.anvilOptionType == 1)
+		{
+			levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curMessage.optionType), curMessage.optionID);
+			levelUpPausedList.push_back(curPausedData);
+			double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real - curMessage.coinCost;
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
+		}
+		setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
+	} while (true);
+}
+
 int receiveClientGainMoneyMessage(SOCKET socket)
 {
-	RValue returnVal;
 	messageClientGainMoney curMessage = messageClientGainMoney();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real + curMessage.money;
-	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
+	clientGainMoneyMessageQueueLock.acquire();
+	clientGainMoneyMessageQueue.push(curMessage);
+	clientGainMoneyMessageQueueLock.release();
 
 	return curMessageLen;
+}
+
+void handleClientGainMoneyMessage()
+{
+	do
+	{
+		clientGainMoneyMessageQueueLock.acquire();
+		if (clientGainMoneyMessageQueue.empty())
+		{
+			clientGainMoneyMessageQueueLock.release();
+			break;
+		}
+		messageClientGainMoney curMessage = clientGainMoneyMessageQueue.front();
+		clientGainMoneyMessageQueue.pop();
+		clientGainMoneyMessageQueueLock.release();
+
+		RValue returnVal;
+		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real + curMessage.money;
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
+	} while (true);
 }
 
 int receiveClientAnvilEnchantMessage(SOCKET socket, uint32_t playerID)
@@ -1683,16 +2393,38 @@ int receiveClientAnvilEnchantMessage(SOCKET socket, uint32_t playerID)
 	RValue returnVal;
 	messageClientAnvilEnchant curMessage = messageClientAnvilEnchant();
 	int curMessageLen = curMessage.receiveMessage(socket);
+	curMessage.playerID = playerID;
 
-	levelUpPausedData curPausedData = levelUpPausedData(playerID, optionType_Enchant, curMessage.optionID, curMessage.gainedMods);
-	levelUpPausedList.push_back(curPausedData);
-
-	double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real - curMessage.coinCost;
-	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
-
-	setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
+	clientAnvilEnchantMessageQueueLock.acquire();
+	clientAnvilEnchantMessageQueue.push(curMessage);
+	clientAnvilEnchantMessageQueueLock.release();
 
 	return curMessageLen;
+}
+
+void handleClientAnvilEnchantMessage()
+{
+	do
+	{
+		clientAnvilEnchantMessageQueueLock.acquire();
+		if (clientAnvilEnchantMessageQueue.empty())
+		{
+			clientAnvilEnchantMessageQueueLock.release();
+			break;
+		}
+		messageClientAnvilEnchant curMessage = clientAnvilEnchantMessageQueue.front();
+		clientAnvilEnchantMessageQueue.pop();
+		clientAnvilEnchantMessageQueueLock.release();
+
+		uint32_t playerID = curMessage.playerID;
+		levelUpPausedData curPausedData = levelUpPausedData(playerID, optionType_Enchant, curMessage.optionID, curMessage.gainedMods);
+		levelUpPausedList.push_back(curPausedData);
+
+		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real - curMessage.coinCost;
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
+
+		setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
+	} while (true);
 }
 
 int receiveStickerChooseOptionMessage(SOCKET socket, uint32_t playerID)
@@ -1700,9 +2432,32 @@ int receiveStickerChooseOptionMessage(SOCKET socket, uint32_t playerID)
 	RValue returnVal;
 	messageStickerChooseOption curMessage = messageStickerChooseOption();
 	int curMessageLen = curMessage.receiveMessage(socket);
+	curMessage.playerID = playerID;
 
-	switch (curMessage.stickerOptionType)
+	stickerChooseOptionMessageQueueLock.acquire();
+	stickerChooseOptionMessageQueue.push(curMessage);
+	stickerChooseOptionMessageQueueLock.release();
+
+	return curMessageLen;
+}
+
+void handleStickerChooseOptionMessage()
+{
+	do
 	{
+		stickerChooseOptionMessageQueueLock.acquire();
+		if (stickerChooseOptionMessageQueue.empty())
+		{
+			stickerChooseOptionMessageQueueLock.release();
+			break;
+		}
+		messageStickerChooseOption curMessage = stickerChooseOptionMessageQueue.front();
+		stickerChooseOptionMessageQueue.pop();
+		stickerChooseOptionMessageQueueLock.release();
+
+		uint32_t playerID = curMessage.playerID;
+		switch (curMessage.stickerOptionType)
+		{
 		case 0:
 		{
 			// take stamp/level up
@@ -1788,20 +2543,43 @@ int receiveStickerChooseOptionMessage(SOCKET socket, uint32_t playerID)
 			g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", static_cast<double>(coinCount) });
 			break;
 		}
-	}
-	return curMessageLen;
+		}
+	} while (true);
 }
 
 int receiveChooseCollabMessage(SOCKET socket, uint32_t playerID)
 {
 	messageChooseCollab curMessage = messageChooseCollab();
 	int curMessageLen = curMessage.receiveMessage(socket);
+	curMessage.playerID = playerID;
 
-	levelUpOption curOption = curMessage.collab;
+	chooseCollabMessageQueueLock.acquire();
+	chooseCollabMessageQueue.push(curMessage);
+	chooseCollabMessageQueueLock.release();
 
-	levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curOption.optionType), curOption.optionID);
-	levelUpPausedList.push_back(curPausedData);
 	return curMessageLen;
+}
+
+void handleChooseCollabMessage()
+{
+	do
+	{
+		chooseCollabMessageQueueLock.acquire();
+		if (chooseCollabMessageQueue.empty())
+		{
+			chooseCollabMessageQueueLock.release();
+			break;
+		}
+		messageChooseCollab curMessage = chooseCollabMessageQueue.front();
+		chooseCollabMessageQueue.pop();
+		chooseCollabMessageQueueLock.release();
+
+		uint32_t playerID = curMessage.playerID;
+		levelUpOption curOption = curMessage.collab;
+
+		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curOption.optionType), curOption.optionID);
+		levelUpPausedList.push_back(curPausedData);
+	} while (true);
 }
 
 int receiveBuffDataMessage(SOCKET socket)
@@ -1809,28 +2587,48 @@ int receiveBuffDataMessage(SOCKET socket)
 	messageBuffData curMessage = messageBuffData();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	// TODO: Switch from replacing the buffs struct to only replacing buffs that have been added or removed. Will need to rewrite how/when buffs are sent to implement this
-	RValue buffStruct;
-	g_RunnerInterface.StructCreate(&buffStruct);
-	std::vector<buffData> buffDataList = curMessage.buffDataList;
-	for (int i = 0; i < buffDataList.size(); i++)
-	{
-		buffData curBuffData = buffDataList[i];
-		RValue buff;
-		g_RunnerInterface.StructCreate(&buff);
-		setInstanceVariable(buff, GML_timer, static_cast<double>(curBuffData.timer));
-		RValue config;
-		g_RunnerInterface.StructCreate(&config);
-		if (curBuffData.stacks >= 0)
-		{
-			setInstanceVariable(config, GML_stacks, static_cast<double>(curBuffData.stacks));
-		}
-		setInstanceVariable(buff, GML_config, config);
-		g_ModuleInterface->CallBuiltin("variable_instance_set", { buffStruct, curBuffData.buffName, buff });
-	}
-	setInstanceVariable(playerMap[clientID], GML_buffs, buffStruct);
+	buffDataMessageQueueLock.acquire();
+	buffDataMessageQueue.push(curMessage);
+	buffDataMessageQueueLock.release();
 
 	return curMessageLen;
+}
+
+void handleBuffDataMessage()
+{
+	do
+	{
+		buffDataMessageQueueLock.acquire();
+		if (buffDataMessageQueue.empty())
+		{
+			buffDataMessageQueueLock.release();
+			break;
+		}
+		messageBuffData curMessage = buffDataMessageQueue.front();
+		buffDataMessageQueue.pop();
+		buffDataMessageQueueLock.release();
+
+		// TODO: Switch from replacing the buffs struct to only replacing buffs that have been added or removed. Will need to rewrite how/when buffs are sent to implement this
+		RValue buffStruct;
+		g_RunnerInterface.StructCreate(&buffStruct);
+		std::vector<buffData> buffDataList = curMessage.buffDataList;
+		for (int i = 0; i < buffDataList.size(); i++)
+		{
+			buffData curBuffData = buffDataList[i];
+			RValue buff;
+			g_RunnerInterface.StructCreate(&buff);
+			setInstanceVariable(buff, GML_timer, static_cast<double>(curBuffData.timer));
+			RValue config;
+			g_RunnerInterface.StructCreate(&config);
+			if (curBuffData.stacks >= 0)
+			{
+				setInstanceVariable(config, GML_stacks, static_cast<double>(curBuffData.stacks));
+			}
+			setInstanceVariable(buff, GML_config, config);
+			g_ModuleInterface->CallBuiltin("variable_instance_set", { buffStruct, curBuffData.buffName, buff });
+		}
+		setInstanceVariable(playerMap[clientID], GML_buffs, buffStruct);
+	} while (true);
 }
 
 int receiveCharDataMessage(SOCKET socket)
@@ -1838,20 +2636,53 @@ int receiveCharDataMessage(SOCKET socket)
 	messageCharData curMessage = messageCharData();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	lobbyPlayerDataMap[curMessage.playerID] = curMessage.playerData;
+	charDataMessageQueueLock.acquire();
+	charDataMessageQueue.push(curMessage);
+	charDataMessageQueueLock.release();
 
 	return curMessageLen;
 }
 
+void handleCharDataMessage()
+{
+	do
+	{
+		charDataMessageQueueLock.acquire();
+		if (charDataMessageQueue.empty())
+		{
+			charDataMessageQueueLock.release();
+			break;
+		}
+		messageCharData curMessage = charDataMessageQueue.front();
+		charDataMessageQueue.pop();
+		charDataMessageQueueLock.release();
+
+		lobbyPlayerDataMap[curMessage.playerID] = curMessage.playerData;
+	} while (true);
+}
+
 int receiveReturnToLobby(SOCKET socket)
 {
-	isInLobby = true;
-	g_ModuleInterface->CallBuiltin("room_restart", {});
-	g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });
-	g_ModuleInterface->CallBuiltin("instance_destroy", { playerManagerInstanceVar });
-	g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
-	cleanupPlayerGameData();
+	ReturnToLobbyQueueLock.acquire();
+	hasReturnToLobby = true;
+	ReturnToLobbyQueueLock.release();
 	return 1;
+}
+
+void handleReturnToLobby()
+{
+	ReturnToLobbyQueueLock.acquire();
+	if (hasReturnToLobby)
+	{
+		isInLobby = true;
+		g_ModuleInterface->CallBuiltin("room_restart", {});
+		g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });
+		g_ModuleInterface->CallBuiltin("instance_destroy", { playerManagerInstanceVar });
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
+		cleanupPlayerGameData();
+	}
+	hasReturnToLobby = false;
+	ReturnToLobbyQueueLock.release();
 }
 
 int receiveLobbyPlayerDisconnected(SOCKET socket)
@@ -1859,25 +2690,73 @@ int receiveLobbyPlayerDisconnected(SOCKET socket)
 	messageLobbyPlayerDisconnected curMessage = messageLobbyPlayerDisconnected();
 	int curMessageLen = curMessage.receiveMessage(socket);
 
-	playerPingMap.erase(curMessage.playerID);
-	clientUnpausedMap.erase(curMessage.playerID);
-	clientSocketMap.erase(curMessage.playerID);
-	lobbyPlayerDataMap.erase(curMessage.playerID);
-	hasClientPlayerDisconnected.erase(curMessage.playerID);
+	lobbyPlayerDisconnectedQueueLock.acquire();
+	lobbyPlayerDisconnectedQueue.push(curMessage);
+	lobbyPlayerDisconnectedQueueLock.release();
 
 	return curMessageLen;
 }
 
+void handleLobbyPlayerDisconnected()
+{
+	do
+	{
+		lobbyPlayerDisconnectedQueueLock.acquire();
+		if (lobbyPlayerDisconnectedQueue.empty())
+		{
+			lobbyPlayerDisconnectedQueueLock.release();
+			break;
+		}
+		messageLobbyPlayerDisconnected curMessage = lobbyPlayerDisconnectedQueue.front();
+		lobbyPlayerDisconnectedQueue.pop();
+		lobbyPlayerDisconnectedQueueLock.release();
+
+		playerPingMap.erase(curMessage.playerID);
+		clientUnpausedMap.erase(curMessage.playerID);
+		clientSocketMap.erase(curMessage.playerID);
+		lobbyPlayerDataMap.erase(curMessage.playerID);
+		hasClientPlayerDisconnected.erase(curMessage.playerID);
+	} while (true);
+}
+
 int receiveHostHasPaused(SOCKET socket)
 {
-	hasHostPaused = true;
+	hostHasPausedQueueLock.acquire();
+	receivedHostHasPaused = true;
+	hostHasPausedQueueLock.release();
+
 	return 1;
+}
+
+void handleHostHasPaused()
+{
+	hostHasPausedQueueLock.acquire();
+	if (receivedHostHasPaused)
+	{
+		hasHostPaused = true;
+	}
+	receivedHostHasPaused = false;
+	hostHasPausedQueueLock.release();
 }
 
 int receiveHostHasUnpaused(SOCKET socket)
 {
-	hasHostPaused = false;
+	hostHasUnpausedQueueLock.acquire();
+	receivedHostHasUnpaused = true;
+	hostHasUnpausedQueueLock.release();
+
 	return 1;
+}
+
+void handleHostHasUnpaused()
+{
+	hostHasUnpausedQueueLock.acquire();
+	if (receivedHostHasUnpaused)
+	{
+		hasHostPaused = false;
+	}
+	receivedHostHasUnpaused = false;
+	hostHasUnpausedQueueLock.release();
 }
 
 int receiveMessage(SOCKET socket, uint32_t playerID)
@@ -1891,186 +2770,186 @@ int receiveMessage(SOCKET socket, uint32_t playerID)
 	}
 	switch (messageType[0])
 	{
-		case MESSAGE_INPUT_AIM:
-		{
-			return receiveInputMessage(socket, MESSAGE_INPUT_AIM, playerID);
-		}
-		case MESSAGE_INPUT_NO_AIM:
-		{
-			return receiveInputMessage(socket, MESSAGE_INPUT_NO_AIM, playerID);
-		}
-		case MESSAGE_INPUT_MOUSEFOLLOW:
-		{
-			return receiveInputMessage(socket, MESSAGE_INPUT_MOUSEFOLLOW, playerID);
-		}
-		case MESSAGE_ROOM:
-		{
-			return receiveRoomMessage(socket);
-		}
-		case MESSAGE_INSTANCES_CREATE:
-		{
-			return receiveInstanceCreateMessage(socket);
-		}
-		case MESSAGE_INSTANCES_UPDATE:
-		{
-			return receiveInstanceUpdateMessage(socket);
-		}
-		case MESSAGE_INSTANCES_DELETE:
-		{
-			return receiveInstanceDeleteMessage(socket);
-		}
-		case MESSAGE_CLIENT_PLAYER_DATA:
-		{
-			return receiveClientPlayerDataMessage(socket);
-		}
-		case MESSAGE_ATTACK_CREATE:
-		{
-			return receiveAttackCreateMessage(socket);
-		}
-		case MESSAGE_ATTACK_UPDATE:
-		{
-			return receiveAttackUpdateMessage(socket);
-		}
-		case MESSAGE_ATTACK_DELETE:
-		{
-			return receiveAttackDeleteMessage(socket);
-		}
-		case MESSAGE_CLIENT_ID:
-		{
-			return receiveClientIDMessage(socket);
-		}
-		case MESSAGE_PICKUPABLE_CREATE:
-		{
-			return receivePickupableCreateMessage(socket);
-		}
-		case MESSAGE_PICKUPABLE_UPDATE:
-		{
-			return receivePickupableUpdateMessage(socket);
-		}
-		case MESSAGE_PICKUPABLE_DELETE:
-		{
-			return receivePickupableDeleteMessage(socket);
-		}
-		case MESSAGE_GAME_DATA:
-		{
-			return receiveGameDataMessage(socket);
-		}
-		case MESSAGE_LEVEL_UP_OPTIONS:
-		{
-			return receiveLevelUpOptionsMessage(socket);
-		}
-		case MESSAGE_LEVEL_UP_CLIENT_CHOICE:
-		{
-			return receiveLevelUpClientChoiceMessage(socket, playerID);
-		}
-		case MESSAGE_PING:
-		{
-			return receivePing(socket);
-		}
-		case MESSAGE_PONG:
-		{
-			return receivePong(socket, playerID);
-		}
-		case MESSAGE_DESTRUCTABLE_CREATE:
-		{
-			return receiveDestructableCreateMessage(socket);
-		}
-		case MESSAGE_DESTRUCTABLE_BREAK:
-		{
-			return receiveDestructableBreakMessage(socket);
-		}
-		case MESSAGE_ELIMINATE_LEVEL_UP_CLIENT_CHOICE:
-		{
-			return receiveEliminateLevelUpClientChoiceMessage(socket, playerID);
-		}
-		case MESSAGE_CLIENT_SPECIAL_ATTACK:
-		{
-			return receiveClientSpecialAttackMessage(socket, playerID);
-		}
-		case MESSAGE_CAUTION_CREATE:
-		{
-			return receiveCautionCreateMessage(socket);
-		}
-		case MESSAGE_PRECREATE_UPDATE:
-		{
-			return receivePreCreateUpdateMessage(socket);
-		}
-		case MESSAGE_VFX_UPDATE:
-		{
-			return receiveVFXUpdateMessage(socket);
-		}
-		case MESSAGE_INTERACTABLE_CREATE:
-		{
-			return receiveInteractableCreateMessage(socket);
-		}
-		case MESSAGE_INTERACTABLE_DELETE:
-		{
-			return receiveInteractableDeleteMessage(socket);
-		}
-		case MESSAGE_INTERACTABLE_PLAYER_INTERACTED:
-		{
-			return receiveInteractablePlayerInteractedMessage(socket);
-		}
-		case MESSAGE_STICKER_PLAYER_INTERACTED:
-		{
-			return receiveStickerPlayerInteractedMessage(socket);
-		}
-		case MESSAGE_BOX_PLAYER_INTERACTED:
-		{
-			return receiveBoxPlayerInteractedMessage(socket);
-		}
-		case MESSAGE_INTERACT_FINISHED:
-		{
-			return receiveInteractFinishedMessage(socket);
-		}
-		case MESSAGE_BOX_TAKE_OPTION:
-		{
-			return receiveBoxTakeOptionMessage(socket, playerID);
-		}
-		case MESSAGE_ANVIL_CHOOSE_OPTION:
-		{
-			return receiveAnvilChooseOptionMessage(socket, playerID);
-		}
-		case MESSAGE_CLIENT_GAIN_MONEY:
-		{
-			return receiveClientGainMoneyMessage(socket);
-		}
-		case MESSAGE_CLIENT_ANVIL_ENCHANT:
-		{
-			return receiveClientAnvilEnchantMessage(socket, playerID);
-		}
-		case MESSAGE_STICKER_CHOOSE_OPTION:
-		{
-			return receiveStickerChooseOptionMessage(socket, playerID);
-		}
-		case MESSAGE_CHOOSE_COLLAB:
-		{
-			return receiveChooseCollabMessage(socket, playerID);
-		}
-		case MESSAGE_BUFF_DATA:
-		{
-			return receiveBuffDataMessage(socket);
-		}
-		case MESSAGE_CHAR_DATA:
-		{
-			return receiveCharDataMessage(socket);
-		}
-		case MESSAGE_RETURN_TO_LOBBY:
-		{
-			return receiveReturnToLobby(socket);
-		}
-		case MESSAGE_LOBBY_PLAYER_DISCONNECTED:
-		{
-			return receiveLobbyPlayerDisconnected(socket);
-		}
-		case MESSAGE_HOST_HAS_PAUSED:
-		{
-			return receiveHostHasPaused(socket);
-		}
-		case MESSAGE_HOST_HAS_UNPAUSED:
-		{
-			return receiveHostHasUnpaused(socket);
-		}
+	case MESSAGE_INPUT_AIM:
+	{
+		return receiveInputMessage(socket, MESSAGE_INPUT_AIM, playerID);
+	}
+	case MESSAGE_INPUT_NO_AIM:
+	{
+		return receiveInputMessage(socket, MESSAGE_INPUT_NO_AIM, playerID);
+	}
+	case MESSAGE_INPUT_MOUSEFOLLOW:
+	{
+		return receiveInputMessage(socket, MESSAGE_INPUT_MOUSEFOLLOW, playerID);
+	}
+	case MESSAGE_ROOM:
+	{
+		return receiveRoomMessage(socket);
+	}
+	case MESSAGE_INSTANCES_CREATE:
+	{
+		return receiveInstanceCreateMessage(socket);
+	}
+	case MESSAGE_INSTANCES_UPDATE:
+	{
+		return receiveInstanceUpdateMessage(socket);
+	}
+	case MESSAGE_INSTANCES_DELETE:
+	{
+		return receiveInstanceDeleteMessage(socket);
+	}
+	case MESSAGE_CLIENT_PLAYER_DATA:
+	{
+		return receiveClientPlayerDataMessage(socket);
+	}
+	case MESSAGE_ATTACK_CREATE:
+	{
+		return receiveAttackCreateMessage(socket);
+	}
+	case MESSAGE_ATTACK_UPDATE:
+	{
+		return receiveAttackUpdateMessage(socket);
+	}
+	case MESSAGE_ATTACK_DELETE:
+	{
+		return receiveAttackDeleteMessage(socket);
+	}
+	case MESSAGE_CLIENT_ID:
+	{
+		return receiveClientIDMessage(socket);
+	}
+	case MESSAGE_PICKUPABLE_CREATE:
+	{
+		return receivePickupableCreateMessage(socket);
+	}
+	case MESSAGE_PICKUPABLE_UPDATE:
+	{
+		return receivePickupableUpdateMessage(socket);
+	}
+	case MESSAGE_PICKUPABLE_DELETE:
+	{
+		return receivePickupableDeleteMessage(socket);
+	}
+	case MESSAGE_GAME_DATA:
+	{
+		return receiveGameDataMessage(socket);
+	}
+	case MESSAGE_LEVEL_UP_OPTIONS:
+	{
+		return receiveLevelUpOptionsMessage(socket);
+	}
+	case MESSAGE_LEVEL_UP_CLIENT_CHOICE:
+	{
+		return receiveLevelUpClientChoiceMessage(socket, playerID);
+	}
+	case MESSAGE_PING:
+	{
+		return receivePing(socket);
+	}
+	case MESSAGE_PONG:
+	{
+		return receivePong(socket, playerID);
+	}
+	case MESSAGE_DESTRUCTABLE_CREATE:
+	{
+		return receiveDestructableCreateMessage(socket);
+	}
+	case MESSAGE_DESTRUCTABLE_BREAK:
+	{
+		return receiveDestructableBreakMessage(socket);
+	}
+	case MESSAGE_ELIMINATE_LEVEL_UP_CLIENT_CHOICE:
+	{
+		return receiveEliminateLevelUpClientChoiceMessage(socket, playerID);
+	}
+	case MESSAGE_CLIENT_SPECIAL_ATTACK:
+	{
+		return receiveClientSpecialAttackMessage(socket, playerID);
+	}
+	case MESSAGE_CAUTION_CREATE:
+	{
+		return receiveCautionCreateMessage(socket);
+	}
+	case MESSAGE_PRECREATE_UPDATE:
+	{
+		return receivePreCreateUpdateMessage(socket);
+	}
+	case MESSAGE_VFX_UPDATE:
+	{
+		return receiveVFXUpdateMessage(socket);
+	}
+	case MESSAGE_INTERACTABLE_CREATE:
+	{
+		return receiveInteractableCreateMessage(socket);
+	}
+	case MESSAGE_INTERACTABLE_DELETE:
+	{
+		return receiveInteractableDeleteMessage(socket);
+	}
+	case MESSAGE_INTERACTABLE_PLAYER_INTERACTED:
+	{
+		return receiveInteractablePlayerInteractedMessage(socket);
+	}
+	case MESSAGE_STICKER_PLAYER_INTERACTED:
+	{
+		return receiveStickerPlayerInteractedMessage(socket);
+	}
+	case MESSAGE_BOX_PLAYER_INTERACTED:
+	{
+		return receiveBoxPlayerInteractedMessage(socket);
+	}
+	case MESSAGE_INTERACT_FINISHED:
+	{
+		return receiveInteractFinishedMessage(socket);
+	}
+	case MESSAGE_BOX_TAKE_OPTION:
+	{
+		return receiveBoxTakeOptionMessage(socket, playerID);
+	}
+	case MESSAGE_ANVIL_CHOOSE_OPTION:
+	{
+		return receiveAnvilChooseOptionMessage(socket, playerID);
+	}
+	case MESSAGE_CLIENT_GAIN_MONEY:
+	{
+		return receiveClientGainMoneyMessage(socket);
+	}
+	case MESSAGE_CLIENT_ANVIL_ENCHANT:
+	{
+		return receiveClientAnvilEnchantMessage(socket, playerID);
+	}
+	case MESSAGE_STICKER_CHOOSE_OPTION:
+	{
+		return receiveStickerChooseOptionMessage(socket, playerID);
+	}
+	case MESSAGE_CHOOSE_COLLAB:
+	{
+		return receiveChooseCollabMessage(socket, playerID);
+	}
+	case MESSAGE_BUFF_DATA:
+	{
+		return receiveBuffDataMessage(socket);
+	}
+	case MESSAGE_CHAR_DATA:
+	{
+		return receiveCharDataMessage(socket);
+	}
+	case MESSAGE_RETURN_TO_LOBBY:
+	{
+		return receiveReturnToLobby(socket);
+	}
+	case MESSAGE_LOBBY_PLAYER_DISCONNECTED:
+	{
+		return receiveLobbyPlayerDisconnected(socket);
+	}
+	case MESSAGE_HOST_HAS_PAUSED:
+	{
+		return receiveHostHasPaused(socket);
+	}
+	case MESSAGE_HOST_HAS_UNPAUSED:
+	{
+		return receiveHostHasUnpaused(socket);
+	}
 	}
 	g_ModuleInterface->Print(CM_RED, "Unknown message type received %d", messageType[0]);
 	return -1;
@@ -2173,7 +3052,7 @@ int sendAllInstanceCreateMessage()
 	const int inputMessageLen = sizeof(messageInstancesCreate) + 1;
 	char inputMessage[inputMessageLen];
 	instancesCreateMessage.serialize(inputMessage);
-	
+
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& clientSocket : clientSocketMap)
 	{
@@ -2266,7 +3145,7 @@ int sendAllClientPlayerDataMessage()
 			sendBytes(clientSocket.second, inputMessage, inputMessageLen);
 		}
 	}
-	
+
 	return inputMessageLen;
 }
 
@@ -2298,7 +3177,7 @@ int sendAllAttackUpdateMessage()
 	int inputMessageLen = static_cast<int>(attackUpdateMessage.getMessageSize());
 	char* inputMessage = new char[inputMessageLen];
 	attackUpdateMessage.serialize(inputMessage);
-	
+
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& clientSocket : clientSocketMap)
 	{
@@ -2318,7 +3197,7 @@ int sendAllAttackDeleteMessage()
 	const int inputMessageLen = sizeof(messageAttackDelete) + 1;
 	char inputMessage[inputMessageLen];
 	attackDeleteMessage.serialize(inputMessage);
-	
+
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& clientSocket : clientSocketMap)
 	{
@@ -2504,10 +3383,10 @@ int sendClientLevelUpOptionsMessage(SOCKET socket, uint32_t playerID)
 	size_t inputMessageLen = clientNumberMessage.getMessageSize();
 	char* inputMessage = new char[inputMessageLen];
 
-	
+
 	clientNumberMessage.serialize(inputMessage);
 	int sentLen = sendBytes(socket, inputMessage, static_cast<int>(inputMessageLen));
-	
+
 	delete[] inputMessage;
 
 	return sentLen;
@@ -2516,10 +3395,11 @@ int sendClientLevelUpOptionsMessage(SOCKET socket, uint32_t playerID)
 int sendLevelUpClientChoiceMessage(SOCKET socket, char levelUpOption)
 {
 	messageLevelUpClientChoice curMessage = messageLevelUpClientChoice(levelUpOption);
-	const int messageBufferLen = sizeof(messageLevelUpClientChoice) + 1;
-	char messageBuffer[messageBufferLen];
+	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
+	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	delete[] messageBuffer;
 	return sentLen;
 }
 
@@ -2580,10 +3460,11 @@ int sendAllDestructableBreakMessage(destructableData data)
 int sendEliminateLevelUpClientChoiceMessage(SOCKET socket, char levelUpOption)
 {
 	messageEliminateLevelUpClientChoice curMessage = messageEliminateLevelUpClientChoice(levelUpOption);
-	const int messageBufferLen = sizeof(messageEliminateLevelUpClientChoice) + 1;
-	char messageBuffer[messageBufferLen];
+	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
+	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	delete[] messageBuffer;
 	return sentLen;
 }
 
@@ -2724,10 +3605,11 @@ int sendInteractFinishedMessage(SOCKET socket)
 int sendBoxTakeOptionMessage(SOCKET socket, char boxItemNum)
 {
 	messageBoxTakeOption curMessage = messageBoxTakeOption(boxItemNum);
-	const int messageBufferLen = static_cast<int>(sizeof(messageBoxTakeOption) + 1);
-	char messageBuffer[messageBufferLen];
+	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
+	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	delete[] messageBuffer;
 	return sentLen;
 }
 
@@ -2766,10 +3648,11 @@ int sendClientAnvilEnchantMessage(SOCKET socket, std::string_view optionID, std:
 int sendStickerChooseOptionMessage(SOCKET socket, char stickerOption, char stickerOptionType)
 {
 	messageStickerChooseOption curMessage = messageStickerChooseOption(stickerOption, stickerOptionType);
-	const int messageBufferLen = static_cast<int>(sizeof(messageStickerChooseOption) + 1);
-	char messageBuffer[messageBufferLen];
+	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
+	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	delete[] messageBuffer;
 	return sentLen;
 }
 

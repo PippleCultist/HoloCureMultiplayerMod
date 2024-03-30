@@ -245,7 +245,7 @@ struct messageInstancesUpdate
 		size_t curMessageSize = 0;
 		curMessageSize++;
 		curMessageSize++;
-		
+
 		size_t instanceDataSize = 0;
 		instanceDataSize += 4;
 		instanceDataSize += 4;
@@ -790,13 +790,14 @@ struct messageLevelUpOptions
 
 struct messageLevelUpClientChoice
 {
+	uint32_t playerID;
 	char levelUpOption;
 
-	messageLevelUpClientChoice() : levelUpOption(0)
+	messageLevelUpClientChoice() : playerID(0), levelUpOption(0)
 	{
 	}
 
-	messageLevelUpClientChoice(char levelUpOption) : levelUpOption(levelUpOption)
+	messageLevelUpClientChoice(char levelUpOption) : playerID(0), levelUpOption(levelUpOption)
 	{
 	}
 
@@ -935,13 +936,14 @@ struct messageDestructableBreak
 
 struct messageEliminateLevelUpClientChoice
 {
+	uint32_t playerID;
 	char levelUpOption;
 
-	messageEliminateLevelUpClientChoice() : levelUpOption(0)
+	messageEliminateLevelUpClientChoice() : playerID(0), levelUpOption(0)
 	{
 	}
 
-	messageEliminateLevelUpClientChoice(char levelUpOption) : levelUpOption(levelUpOption)
+	messageEliminateLevelUpClientChoice(char levelUpOption) : playerID(0), levelUpOption(levelUpOption)
 	{
 	}
 
@@ -1381,13 +1383,14 @@ struct messageInteractFinished
 
 struct messageBoxTakeOption
 {
+	uint32_t playerID;
 	char boxItemNum;
 
-	messageBoxTakeOption() : boxItemNum(0)
+	messageBoxTakeOption() : playerID(0), boxItemNum(0)
 	{
 	}
 
-	messageBoxTakeOption(char boxItemNum) : boxItemNum(boxItemNum)
+	messageBoxTakeOption(char boxItemNum) : playerID(0), boxItemNum(boxItemNum)
 	{
 	}
 
@@ -1411,16 +1414,17 @@ struct messageBoxTakeOption
 
 struct messageAnvilChooseOption
 {
+	uint32_t playerID;
 	std::string_view optionID;
 	std::string_view optionType;
 	uint32_t coinCost;
 	char anvilOptionType; // 0 is level up, 1 is enhance
 
-	messageAnvilChooseOption() : coinCost(0), anvilOptionType(0)
+	messageAnvilChooseOption() : playerID(0), coinCost(0), anvilOptionType(0)
 	{
 	}
 
-	messageAnvilChooseOption(std::string_view optionID, std::string_view optionType, uint32_t coinCost, char anvilOptionType) : optionID(optionID), optionType(optionType), coinCost(coinCost), anvilOptionType(anvilOptionType)
+	messageAnvilChooseOption(std::string_view optionID, std::string_view optionType, uint32_t coinCost, char anvilOptionType) : playerID(0), optionID(optionID), optionType(optionType), coinCost(coinCost), anvilOptionType(anvilOptionType)
 	{
 	}
 
@@ -1480,15 +1484,16 @@ struct messageClientGainMoney
 
 struct messageClientAnvilEnchant
 {
+	uint32_t playerID;
 	std::vector<std::string_view> gainedMods;
 	std::string_view optionID;
 	uint32_t coinCost;
 
-	messageClientAnvilEnchant() : coinCost(0)
+	messageClientAnvilEnchant() : playerID(0), coinCost(0)
 	{
 	}
 
-	messageClientAnvilEnchant(std::string_view optionID, std::vector<std::string_view> gainedMods, uint32_t coinCost) : optionID(optionID), gainedMods(gainedMods), coinCost(coinCost)
+	messageClientAnvilEnchant(std::string_view optionID, std::vector<std::string_view> gainedMods, uint32_t coinCost) : playerID(0), optionID(optionID), gainedMods(gainedMods), coinCost(coinCost)
 	{
 	}
 
@@ -1528,14 +1533,15 @@ struct messageClientAnvilEnchant
 
 struct messageStickerChooseOption
 {
+	uint32_t playerID;
 	char stickerOption;
 	char stickerOptionType; // 0 is take stamp, 1 is remove stamp, 2 is sell stamp
 
-	messageStickerChooseOption() : stickerOption(0), stickerOptionType(0)
+	messageStickerChooseOption() : playerID(0), stickerOption(0), stickerOptionType(0)
 	{
 	}
 
-	messageStickerChooseOption(char stickerOption, char stickerOptionType) : stickerOption(stickerOption), stickerOptionType(stickerOptionType)
+	messageStickerChooseOption(char stickerOption, char stickerOptionType) : playerID(0), stickerOption(stickerOption), stickerOptionType(stickerOptionType)
 	{
 	}
 
@@ -1562,12 +1568,13 @@ struct messageStickerChooseOption
 struct messageChooseCollab
 {
 	levelUpOption collab;
+	uint32_t playerID;
 
-	messageChooseCollab()
+	messageChooseCollab() : playerID(0)
 	{
 	}
 
-	messageChooseCollab(levelUpOption collab) : collab(collab)
+	messageChooseCollab(levelUpOption collab) : playerID(0), collab(collab)
 	{
 	}
 

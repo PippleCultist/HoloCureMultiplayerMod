@@ -7,6 +7,7 @@
 
 struct clientMovementData
 {
+	MessageTypes messageType;
 	float direction;
 	bool isPlayerMoving;
 	bool isDownHeld;
@@ -14,13 +15,42 @@ struct clientMovementData
 	bool isLeftHeld;
 	bool isRightHeld;
 
-	clientMovementData() : direction(0), isPlayerMoving(false), isDownHeld(false), isUpHeld(false), isLeftHeld(false), isRightHeld(false)
+	clientMovementData() : messageType(MESSAGE_INVALID), direction(0), isPlayerMoving(false), isDownHeld(false), isUpHeld(false), isLeftHeld(false), isRightHeld(false)
 	{
 	}
 
-	clientMovementData(float direction, bool isPlayerMoving, bool isDownHeld, bool isUpHeld, bool isLeftHeld, bool isRightHeld) :
-		direction(direction), isPlayerMoving(isPlayerMoving), isDownHeld(isDownHeld), isUpHeld(isUpHeld), isLeftHeld(isLeftHeld), isRightHeld(isRightHeld)
+	clientMovementData(MessageTypes messageType, float direction, bool isPlayerMoving, bool isDownHeld, bool isUpHeld, bool isLeftHeld, bool isRightHeld) :
+		messageType(messageType), direction(direction), isPlayerMoving(isPlayerMoving), isDownHeld(isDownHeld), isUpHeld(isUpHeld), isLeftHeld(isLeftHeld), isRightHeld(isRightHeld)
 	{
+	}
+};
+
+struct messageRoom
+{
+	char roomNum;
+	char gameMode;
+
+	messageRoom() : roomNum(0), gameMode(0)
+	{
+	}
+
+	messageRoom(char roomNum, char gameMode) : roomNum(roomNum), gameMode(gameMode)
+	{
+	}
+
+	messageRoom(char* messageBuffer)
+	{
+		int startBufferPos = 0;
+		readByteBufferToChar(&roomNum, messageBuffer, startBufferPos);
+		readByteBufferToChar(&gameMode, messageBuffer, startBufferPos);
+	}
+
+	void serialize(char* messageBuffer)
+	{
+		int startBufferPos = 0;
+		writeCharToByteBuffer(messageBuffer, MESSAGE_ROOM, startBufferPos);
+		writeCharToByteBuffer(messageBuffer, roomNum, startBufferPos);
+		writeCharToByteBuffer(messageBuffer, gameMode, startBufferPos);
 	}
 };
 
@@ -36,6 +66,59 @@ struct clientMovementQueueData
 
 	clientMovementQueueData(uint32_t lastTimeNumUpdated, int numEarlyUpdates) : lastTimeNumUpdated(lastTimeNumUpdated), numEarlyUpdates(numEarlyUpdates)
 	{
+	}
+};
+
+// TODO: Fix padding causing these structs to be larger than necessary
+struct messageClientPlayerData
+{
+	playerData data;
+
+	messageClientPlayerData(playerData data) : data(data)
+	{
+	}
+
+	messageClientPlayerData(char* messageBuffer)
+	{
+		int startBufferPos = 0;
+		readByteBufferToLong(&data.playerID, messageBuffer, startBufferPos);
+		readByteBufferToFloat(&data.xPos, messageBuffer, startBufferPos);
+		readByteBufferToFloat(&data.yPos, messageBuffer, startBufferPos);
+		readByteBufferToFloat(&data.imageXScale, messageBuffer, startBufferPos);
+		readByteBufferToFloat(&data.imageYScale, messageBuffer, startBufferPos);
+		readByteBufferToFloat(&data.direction, messageBuffer, startBufferPos);
+		readByteBufferToFloat(&data.curAttack, messageBuffer, startBufferPos);
+		readByteBufferToFloat(&data.curSpeed, messageBuffer, startBufferPos);
+		readByteBufferToShort(&data.spriteIndex, messageBuffer, startBufferPos);
+		readByteBufferToShort(&data.curHP, messageBuffer, startBufferPos);
+		readByteBufferToShort(&data.maxHP, messageBuffer, startBufferPos);
+		readByteBufferToShort(&data.curCrit, messageBuffer, startBufferPos);
+		readByteBufferToShort(&data.curHaste, messageBuffer, startBufferPos);
+		readByteBufferToShort(&data.curPickupRange, messageBuffer, startBufferPos);
+		readByteBufferToShort(&data.specialMeter, messageBuffer, startBufferPos);
+		readByteBufferToChar(&data.truncatedImageIndex, messageBuffer, startBufferPos);
+	}
+
+	void serialize(char* messageBuffer)
+	{
+		int startBufferPos = 0;
+		writeCharToByteBuffer(messageBuffer, MESSAGE_CLIENT_PLAYER_DATA, startBufferPos);
+		writeLongToByteBuffer(messageBuffer, data.playerID, startBufferPos);
+		writeFloatToByteBuffer(messageBuffer, data.xPos, startBufferPos);
+		writeFloatToByteBuffer(messageBuffer, data.yPos, startBufferPos);
+		writeFloatToByteBuffer(messageBuffer, data.imageXScale, startBufferPos);
+		writeFloatToByteBuffer(messageBuffer, data.imageYScale, startBufferPos);
+		writeFloatToByteBuffer(messageBuffer, data.direction, startBufferPos);
+		writeFloatToByteBuffer(messageBuffer, data.curAttack, startBufferPos);
+		writeFloatToByteBuffer(messageBuffer, data.curSpeed, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, data.spriteIndex, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, data.curHP, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, data.maxHP, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, data.curCrit, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, data.curHaste, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, data.curPickupRange, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, data.specialMeter, startBufferPos);
+		writeCharToByteBuffer(messageBuffer, data.truncatedImageIndex, startBufferPos);
 	}
 };
 
@@ -55,6 +138,9 @@ struct levelUpPausedData
 	{
 	}
 };
+
+void clientReceiveMessageHandler();
+void hostReceiveMessageHandler();
 
 void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInstance);
 
@@ -97,6 +183,47 @@ extern bool isClientUsingStamp;
 
 extern bool hasObtainedClientID;
 
+void handleInputMessage(CInstance* Self);
+void handleRoomMessage();
+void handleInstanceCreateMessage();
+void handleInstanceUpdateMessage();
+void handleInstanceDeleteMessage();
+void handleClientPlayerDataMessage();
+void handleAttackCreateMessage();
+void handleAttackUpdateMessage();
+void handleAttackDeleteMessage();
+void handleClientIDMessage();
+void handlePickupableCreateMessage();
+void handlePickupableUpdateMessage();
+void handlePickupableDeleteMessage();
+void handleGameDataMessage();
+void handleLevelUpOptionsMessage(CInstance* playerManager);
+void handleLevelUpClientChoiceMessage();
+void handleDestructableCreateMessage();
+void handleDestructableBreakMessage();
+void handleEliminateLevelUpClientChoiceMessage();
+void handleClientSpecialAttackMessage();
+void handleCautionCreateMessage();
+void handlePreCreateUpdateMessage();
+void handleVFXUpdateMessage();
+void handleInteractableCreateMessage();
+void handleInteractableDeleteMessage();
+void handleInteractablePlayerInteractedMessage();
+void handleStickerPlayerInteractedMessage();
+void handleBoxPlayerInteractedMessage();
+void handleInteractFinishedMessage();
+void handleBoxTakeOptionMessage();
+void handleAnvilChooseOptionMessage();
+void handleClientGainMoneyMessage();
+void handleClientAnvilEnchantMessage();
+void handleStickerChooseOptionMessage();
+void handleChooseCollabMessage();
+void handleBuffDataMessage();
+void handleCharDataMessage();
+void handleReturnToLobby();
+void handleLobbyPlayerDisconnected();
+void handleHostHasPaused();
+void handleHostHasUnpaused();
 int receiveBytes(SOCKET socket, char* outputBuffer, int length, bool loopUntilDone = true);
 int sendBytes(SOCKET socket, char* outputBuffer, int length, bool loopUntilDone = true);
 int receiveMessage(SOCKET socket, uint32_t playerID = 0);

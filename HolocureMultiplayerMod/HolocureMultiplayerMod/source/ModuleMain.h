@@ -2,6 +2,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
+#define MODNAME "Holocure Multiplayer Mod v1.0.5"
 #define BROADCAST_PORT "27015"
 #define GAME_PORT "27016"
 

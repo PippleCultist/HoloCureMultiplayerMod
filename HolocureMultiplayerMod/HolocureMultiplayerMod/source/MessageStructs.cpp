@@ -159,7 +159,7 @@ int messageLevelUpOptions::receiveMessage(SOCKET socket)
 
 int messageLevelUpClientChoice::receiveMessage(SOCKET socket)
 {
-	int curMessageSize = sizeof(messageLevelUpClientChoice);
+	int curMessageSize = sizeof(levelUpOption);
 	int result = -1;
 	char receivedLevelUpOption = 0;
 	if ((result = receiveBytes(socket, &receivedLevelUpOption, curMessageSize)) <= 0)
@@ -242,7 +242,7 @@ int messageDestructableBreak::receiveMessage(SOCKET socket)
 
 int messageEliminateLevelUpClientChoice::receiveMessage(SOCKET socket)
 {
-	int curMessageSize = sizeof(messageEliminateLevelUpClientChoice);
+	int curMessageSize = sizeof(levelUpOption);
 	int result = -1;
 	char receivedLevelUpOption = 0;
 	if ((result = receiveBytes(socket, &receivedLevelUpOption, curMessageSize)) <= 0)
@@ -435,7 +435,7 @@ int messageBoxPlayerInteracted::receiveMessage(SOCKET socket)
 
 int messageBoxTakeOption::receiveMessage(SOCKET socket)
 {
-	const int curMessageSize = sizeof(messageBoxTakeOption);
+	const int curMessageSize = sizeof(boxItemNum);
 	int result = -1;
 	char messageBuffer[curMessageSize];
 	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
@@ -606,7 +606,7 @@ int messageBuffData::receiveMessage(SOCKET socket)
 		buffDataList.push_back(curBuffData);
 		messageLen += result;
 	}
-	
+
 	return messageLen;
 }
 

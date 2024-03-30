@@ -9,6 +9,7 @@
 #include "NetworkFunctions.h"
 #include <fstream>
 #include <iphlpapi.h>
+#include <semaphore>
 
 std::vector<destructableData> createDestructableMessagesList;
 std::unordered_map<uint32_t, bool> hasClientPlayerDisconnected;
@@ -52,6 +53,13 @@ extern IP_ADAPTER_ADDRESSES* adapterAddresses;
 // TODO: Improve this to assign better IDs
 uint32_t curUnusedPlayerID = 1;
 
+std::thread messageHandlerThread;
+
+extern std::binary_semaphore lastTimeReceivedMoveDataMapLock;
+extern std::unordered_map<uint32_t, clientMovementQueueData> lastTimeReceivedMoveDataMap;
+
+extern RValue instanceArr[maxNumAvailableInstanceIDs];
+
 // TODO: Make sure that the additional players will teleport accordingly on the infinite maps when crossing the border
 
 void drawTextOutline(CInstance* Self, double xPos, double yPos, std::string text, double outlineWidth, int outlineColor, double numOutline, double linePixelSeparation, double pixelsBeforeLineBreak, int textColor, double alpha)
@@ -88,11 +96,11 @@ void InputManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 
 inline uint32_t getPlayerID(CInstance* currentPlayerPtr)
 {
-	for (auto& curPlayerData: playerMap)
+	for (auto& curPlayerData : playerMap)
 	{
 		uint32_t playerID = curPlayerData.first;
 		RValue playerInstance = curPlayerData.second;
-//		printf("%p %p\n", currentPlayerPtr, playerList[playerIndex].m_Object);
+		//		printf("%p %p\n", currentPlayerPtr, playerList[playerIndex].m_Object);
 		if (currentPlayerPtr == playerInstance.m_Object)
 		{
 			return playerID;
@@ -118,7 +126,7 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 		CInstance* Other = std::get<1>(Args);
 		RValue returnVal;
 		uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
-		
+
 		if (playerID == 100000)
 		{
 			return;
@@ -144,7 +152,7 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 			double halfScreenHeight = 180;
 			double edgeX = 300;
 			double edgeY = 160;
-			for (auto& curPlayerData: playerMap)
+			for (auto& curPlayerData : playerMap)
 			{
 				uint32_t curPlayerID = curPlayerData.first;
 				RValue curPlayerInstance = curPlayerData.second;
@@ -295,37 +303,19 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 	RValue returnVal;
 	if (hasConnected)
 	{
+		handleCharDataMessage();
 		if (isHost)
 		{
-			// TODO: Make this work when the level resets. (Should honestly probably move this into the initialize player function)
-			if (availableInstanceIDs.empty())
-			{
-				for (int i = 0; i < maxNumAvailableInstanceIDs; i++)
-				{
-					availableInstanceIDs.push(static_cast<uint16_t>(i));
-				}
-				for (int i = 0; i < maxNumAvailableAttackIDs; i++)
-				{
-					availableAttackIDs.push(static_cast<uint16_t>(i));
-				}
-				for (int i = 0; i < maxNumAvailablePickupableIDs; i++)
-				{
-					availablePickupableIDs.push(static_cast<uint16_t>(i));
-				}
-				for (int i = 0; i < maxNumAvailablePreCreateIDs; i++)
-				{
-					availablePreCreateIDs.push(static_cast<uint16_t>(i));
-				}
-				for (int i = 0; i < maxNumAvailableVFXIDs; i++)
-				{
-					availableVFXIDs.push(static_cast<uint16_t>(i));
-				}
-				for (int i = 0; i < maxNumAvailableInteractableIDs; i++)
-				{
-					availableInteractableIDs.push(static_cast<uint16_t>(i));
-				}
-			}
-			std::vector<uint32_t> playerDisconnectedList;
+			handleEliminateLevelUpClientChoiceMessage();
+			handleClientSpecialAttackMessage();
+			handleInteractFinishedMessage();
+			handleBoxTakeOptionMessage();
+			handleAnvilChooseOptionMessage();
+			handleClientGainMoneyMessage();
+			handleClientAnvilEnchantMessage();
+			handleStickerChooseOptionMessage();
+			handleChooseCollabMessage();
+			handleLevelUpClientChoiceMessage();
 			for (auto& curClientSocket : clientSocketMap)
 			{
 				uint32_t clientPlayerID = curClientSocket.first;
@@ -334,32 +324,6 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 				{
 					sendPing(clientSocket);
 				}
-				int result = -1;
-				do
-				{
-					result = receiveMessage(clientSocket, clientPlayerID);
-					if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
-					{
-						g_ModuleInterface->Print(CM_RED, "Client disconnected");
-						playerDisconnectedList.push_back(clientPlayerID);
-					}
-				} while (result > 0);
-			}
-			if (isInLobby || isSelectingCharacter || isSelectingMap)
-			{
-				for (uint32_t disconnectedPlayerID : playerDisconnectedList)
-				{
-					playerPingMap.erase(disconnectedPlayerID);
-					clientUnpausedMap.erase(disconnectedPlayerID);
-					clientSocketMap.erase(disconnectedPlayerID);
-					lobbyPlayerDataMap.erase(disconnectedPlayerID);
-					hasClientPlayerDisconnected.erase(disconnectedPlayerID);
-					sendAllLobbyPlayerDisconnectedMessage(disconnectedPlayerID);
-				}
-			}
-			else
-			{
-				// TODO: Do something if the client disconnects during a game
 			}
 			if (lastSentPingMessage != timeNum && timeNum % 60 == 0)
 			{
@@ -396,23 +360,41 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 		}
 		else
 		{
-			int result = -1;
-			do
-			{
-				result = receiveMessage(serverSocket);
-				if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
-				{
-					g_ModuleInterface->Print(CM_RED, "Server disconnected");
-					serverDisconnected();
-				}
-			} while (result > 0);
+			handleRoomMessage();
+			handleInstanceCreateMessage();
+			handleInstanceUpdateMessage();
+			handleInstanceDeleteMessage();
+			handleClientPlayerDataMessage();
+			handleAttackCreateMessage();
+			handleAttackUpdateMessage();
+			handleAttackDeleteMessage();
+			handleClientIDMessage();
+			handlePickupableCreateMessage();
+			handlePickupableUpdateMessage();
+			handlePickupableDeleteMessage();
+			handleGameDataMessage();
+			handleDestructableCreateMessage();
+			handleDestructableBreakMessage();
+			handleCautionCreateMessage();
+			handlePreCreateUpdateMessage();
+			handleVFXUpdateMessage();
+			handleInteractableCreateMessage();
+			handleInteractableDeleteMessage();
+			handleInteractablePlayerInteractedMessage();
+			handleStickerPlayerInteractedMessage();
+			handleBoxPlayerInteractedMessage();
+			handleBuffDataMessage();
+			handleReturnToLobby();
+			handleLobbyPlayerDisconnected();
+			handleHostHasPaused();
+			handleHostHasUnpaused();
 
 			if (lastSentPingMessage != timeNum && timeNum % 60 == 0)
 			{
 				sendPing(serverSocket);
 				lastSentPingMessage = timeNum;
 			}
-			result = sendInputMessage(serverSocket);
+			sendInputMessage(serverSocket);
 		}
 	}
 }
@@ -519,6 +501,7 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 		playerManagerInstanceVar = Self;
 		if (!isHost)
 		{
+			handleLevelUpOptionsMessage(Self);
 			// TODO: send correct player data, box data?, ...
 			// TODO: send over messages for coins, boxes, and stamps to the client side
 			g_ModuleInterface->CallBuiltin("variable_instance_set", { Self, "blackFlash", 0 });
@@ -799,18 +782,23 @@ void AttackDestroyBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 		if (isHost)
 		{
 			CInstance* Self = std::get<0>(Args);
-			uint16_t attackID = attackToIDMap[Self];
-			attackToIDMap.erase(Self);
-			attackSpriteIndexMap.erase(attackID);
-			attackImageScaleMap.erase(attackID);
-
-			attackDeleteMessage.addAttack(attackID);
-			if (attackDeleteMessage.numAttacks >= attackDeleteDataLen)
+			auto attackFind = attackToIDMap.find(Self);
+			if (attackFind != attackToIDMap.end())
 			{
-				sendAllAttackDeleteMessage();
-			}
+				uint16_t attackID = attackFind->second;
 
-			availableAttackIDs.push(attackID);
+				attackToIDMap.erase(Self);
+				attackSpriteIndexMap.erase(attackID);
+				attackImageScaleMap.erase(attackID);
+
+				attackDeleteMessage.addAttack(attackID);
+				if (attackDeleteMessage.numAttacks >= attackDeleteDataLen)
+				{
+					sendAllAttackDeleteMessage();
+				}
+
+				availableAttackIDs.push(attackID);
+			}
 		}
 	}
 }
@@ -868,6 +856,8 @@ void PlayerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 	// Pretty hacky way of making sure the global hp is set to the host player
 	if (hasConnected && isHost)
 	{
+		CInstance* Self = std::get<0>(Args);
+		handleInputMessage(Self);
 		RValue hostCurHP = getInstanceVariable(playerMap[0], GML_currentHP);
 		RValue hostMaxHP = getInstanceVariable(playerMap[0], GML_HP);
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentHP", hostCurHP });
@@ -1148,7 +1138,7 @@ void DestructableCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			setInstanceVariable(Self, GML_destructableID, RValue(destructableIndex));
 			createDestructableMessagesList.push_back(data);
 		}
-	}	
+	}
 }
 
 void ObstacleStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
@@ -1249,7 +1239,7 @@ void PreCreateStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 					// Could technically cause issues, but it would require all the IDs to be used which is unlikely
 					availablePreCreateIDs.push(preCreateMapIndexVal);
 				}
-				
+
 				sendAllPreCreateUpdateMessage(preCreateData(xPos, yPos, waitSpawn, preCreateMapIndexVal));
 			}
 		}
@@ -1582,7 +1572,7 @@ void HoloBoxCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 				RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 				RValue playerSnapshot = getInstanceVariable(playerManagerInstanceVar, GML_playerSnapshot);
 				swapPlayerData(playerManagerInstanceVar, attackController, playerID);
-				
+
 				RValue returnVal;
 				origGetBoxScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
 				setInstanceVariable(playerManagerInstanceVar, GML_gotBox, RValue(false));
@@ -1752,7 +1742,7 @@ void StickerCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 			return;
 		}
-		
+
 		CInstance* Self = std::get<0>(Args);
 		RValue canCollide = getInstanceVariable(Self, GML_canCollide);
 		RValue gotBox = getInstanceVariable(playerManagerInstanceVar, GML_gotBox);
@@ -1993,7 +1983,7 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 		{
 			g_ModuleInterface->CallBuiltin("draw_sprite", { lobbyPlayerDataMap[0].stageSprite, 0, 455, 10 });
 		}
-		std::vector<std::string> CoopOptionMenuTextList { "Choose Character", "Ready" };
+		std::vector<std::string> CoopOptionMenuTextList{ "Choose Character", "Ready" };
 		if (lobbyPlayerDataMap[clientID].isReady)
 		{
 			CoopOptionMenuTextList[1] = "Unready";
@@ -2116,7 +2106,11 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 						playerPingMap[newClientID] = 0;
 						hasClientPlayerDisconnected[newClientID] = false;
 						lobbyPlayerDataMap[newClientID] = lobbyPlayerData();
-						hasConnected = true;
+						if (!hasConnected)
+						{
+							hasConnected = true;
+							messageHandlerThread = std::thread(hostReceiveMessageHandler);
+						}
 					}
 				}
 			}
@@ -2193,6 +2187,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 
 							numTimesFailedToConnect = 0;
 							hasConnected = true;
+							messageHandlerThread = std::thread(clientReceiveMessageHandler);
 						}
 						freeaddrinfo(result);
 					}
@@ -2224,6 +2219,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 
 						numTimesFailedToConnect = 0;
 						hasConnected = true;
+						messageHandlerThread = std::thread(clientReceiveMessageHandler);
 						return;
 					}
 				}
@@ -2252,7 +2248,7 @@ void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 	}
 	g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharacterDataIndex });
 	RValue strVersion = getInstanceVariable(Self, GML_version);
-	RValue newStrVersion = g_ModuleInterface->CallBuiltin("string_concat", { strVersion, " Multiplayer Mod v1.0.4" });
+	RValue newStrVersion = g_ModuleInterface->CallBuiltin("string_concat", { strVersion, " ", MODNAME });
 	setInstanceVariable(Self, GML_version, newStrVersion);
 }
 

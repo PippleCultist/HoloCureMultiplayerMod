@@ -14,8 +14,6 @@
 using namespace Aurie;
 using namespace YYTK;
 
-#define MODNAME "Holocure Multiplayer Mod"
-
 RValue GMLVarIndexMapGMLHash[1001];
 
 TRoutine origStructGetFromHashFunc;
@@ -467,8 +465,8 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_TitleScreen_Mouse_53");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	
-	
+
+
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_input_binding_set", nullptr, nullptr, &origInputBindingSetScript)))
 	{
@@ -947,7 +945,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		GMLVarIndexMapGMLHash[i] = std::move(g_ModuleInterface->CallBuiltin("variable_get_hash", { VariableNamesStringsArr[i] }));
 	}
 	printf("Finished hook\n");
-	
+
 	WSADATA wsaData;
 	int iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != 0)

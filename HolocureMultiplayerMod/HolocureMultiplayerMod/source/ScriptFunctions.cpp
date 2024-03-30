@@ -185,7 +185,7 @@ void addCollabData(RValue& weapons, RValue& attacks)
 		RValue attackObjConfigOptionType = g_ModuleInterface->CallBuiltin("variable_instance_get", { attackObjConfig, "optionType" });
 		RValue attackObjConfigCombos = g_ModuleInterface->CallBuiltin("variable_instance_get", { attackObjConfig, "combos" });
 		RValue attackObjAttackID = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackObj, "attackID" });
-		
+
 		if (attackObjConfigOptionType.AsString().compare("Collab") == 0)
 		{
 			// TODO: Make a new weaponCollabs struct and add to it
@@ -229,7 +229,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 	{
 		// TODO: Make sure the lists are cleared and all the gml variables are cleaned up every time a new game starts
 		// 
-		
+
 		// Seems like the level reset at the beginning may cause the initialize character to run twice, so might have to just clear the lists.
 		// TODO: Maybe check if the reset level flag is true and skip all this?
 		playerItemsMapMap.clear();
@@ -246,6 +246,34 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 		playerPerksMap.clear();
 		playerPerksMapMap.clear();
 		playerStatUpsMap.clear();
+
+		if (availableInstanceIDs.empty())
+		{
+			for (int i = 0; i < maxNumAvailableInstanceIDs; i++)
+			{
+				availableInstanceIDs.push(static_cast<uint16_t>(i));
+			}
+			for (int i = 0; i < maxNumAvailableAttackIDs; i++)
+			{
+				availableAttackIDs.push(static_cast<uint16_t>(i));
+			}
+			for (int i = 0; i < maxNumAvailablePickupableIDs; i++)
+			{
+				availablePickupableIDs.push(static_cast<uint16_t>(i));
+			}
+			for (int i = 0; i < maxNumAvailablePreCreateIDs; i++)
+			{
+				availablePreCreateIDs.push(static_cast<uint16_t>(i));
+			}
+			for (int i = 0; i < maxNumAvailableVFXIDs; i++)
+			{
+				availableVFXIDs.push(static_cast<uint16_t>(i));
+			}
+			for (int i = 0; i < maxNumAvailableInteractableIDs; i++)
+			{
+				availableInteractableIDs.push(static_cast<uint16_t>(i));
+			}
+		}
 
 		// Array to prevent variables from being garbage collected
 		// TODO: Should probably create a second list just for maps to easily clean them up when the game ends
@@ -324,7 +352,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 		RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
 
 		// initialize player data for each client
-		for (auto& curClientSocket: clientSocketMap)
+		for (auto& curClientSocket : clientSocketMap)
 		{
 			uint32_t clientID = curClientSocket.first;
 			RValue newItemsMap = deepCopyMap(Self, itemsMap);
@@ -432,7 +460,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			addCollabData(weapons, newAttackIndexMap);
 
 			// TODO: Make this scalable for more players
-			RValue clientMainWeaponStruct = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerAttackIndexMapMap[clientID], attackID});
+			RValue clientMainWeaponStruct = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerAttackIndexMapMap[clientID], attackID });
 			RValue clientMainWeaponConfig = getInstanceVariable(clientMainWeaponStruct, GML_config);
 			setInstanceVariable(clientMainWeaponConfig, GML_optionType, RValue("Weapon"));
 
@@ -484,13 +512,13 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			clientUnpausedMap[clientID] = true;
 		}
 
-		for (auto& curPlayer: playerMap)
+		for (auto& curPlayer : playerMap)
 		{
 			uint32_t playerID = curPlayer.first;
 			RValue playerInstance = curPlayer.second;
 			attacksCopyMap[playerID] = getInstanceVariable(playerInstance, GML_attacks);
 		}
-		
+
 		for (auto& curClientSocket : clientSocketMap)
 		{
 			uint32_t playerID = curClientSocket.first;
@@ -1067,7 +1095,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					}
 					else if (pauseOption == 2)
 					{
-						for (auto& clientSocket: clientSocketMap)
+						for (auto& clientSocket : clientSocketMap)
 						{
 							closesocket(clientSocket.second);
 						}
@@ -1793,7 +1821,7 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 				inFile.close();
 				return ReturnValue;
 			}
-			
+
 			IP_ADAPTER_ADDRESSES* adapter(NULL);
 
 			DWORD adapterAddressesBufferSize = 16 * 1024;
@@ -1901,7 +1929,7 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
 	}
-	
+
 	return ReturnValue;
 }
 
@@ -2015,7 +2043,7 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 	{
 		if (isHost)
 		{
-			for (auto& curClientSocket: clientSocketMap)
+			for (auto& curClientSocket : clientSocketMap)
 			{
 				closesocket(curClientSocket.second);
 			}
