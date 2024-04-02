@@ -2458,91 +2458,91 @@ void handleStickerChooseOptionMessage()
 		uint32_t playerID = curMessage.playerID;
 		switch (curMessage.stickerOptionType)
 		{
-		case 0:
-		{
-			// take stamp/level up
-			RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
-			RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, collidedStickerID });
-			RValue currentStickersArr = currentStickersMap[playerID];
-			if (curMessage.stickerOption == 0)
+			case 0:
 			{
-				if (currentStickersArr[curMessage.stickerOption - 1].m_Kind == VALUE_OBJECT)
+				// take stamp/level up
+				RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
+				RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, collidedStickerID });
+				RValue currentStickersArr = currentStickersMap[playerID];
+				if (curMessage.stickerOption == 0)
 				{
-					RValue levelUpMethod = getInstanceVariable(currentStickersArr[curMessage.stickerOption - 1], GML_LevelUp);
-					RValue levelUpArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
-					g_ModuleInterface->CallBuiltin("method_call", { levelUpMethod, levelUpArr });
+					if (currentStickersArr[curMessage.stickerOption - 1].m_Kind == VALUE_OBJECT)
+					{
+						RValue levelUpMethod = getInstanceVariable(currentStickersArr[curMessage.stickerOption - 1], GML_LevelUp);
+						RValue levelUpArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
+						g_ModuleInterface->CallBuiltin("method_call", { levelUpMethod, levelUpArr });
+					}
+					else
+					{
+						currentStickersArr[curMessage.stickerOption - 1] = stickerData;
+					}
 				}
 				else
 				{
-					currentStickersArr[curMessage.stickerOption - 1] = stickerData;
-				}
-			}
-			else
-			{
-				for (int i = 0; i < 3; i++)
-				{
-					if (currentStickersArr[i].m_Kind != VALUE_OBJECT)
+					for (int i = 0; i < 3; i++)
 					{
-						currentStickersArr[i] = stickerData;
-						break;
+						if (currentStickersArr[i].m_Kind != VALUE_OBJECT)
+						{
+							currentStickersArr[i] = stickerData;
+							break;
+						}
 					}
 				}
-			}
-			collidedStickerID = "";
-			g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", -1.0 });
-			break;
-		}
-		case 1:
-		{
-			// remove stamp
-			RValue stickerData(-1);
-			if (!collidedStickerID.empty())
-			{
-				RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
-				stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, collidedStickerID });
-			}
-			RValue currentStickersArr = currentStickersMap[playerID];
-			RValue currentSticker = currentStickersArr[curMessage.stickerOption - 1];
-			if (currentSticker.m_Kind == VALUE_OBJECT)
-			{
-				// Hopefully this stays the same as the key value in the map
-				RValue stickerID = getInstanceVariable(currentSticker, GML_optionID);
-				collidedStickerID = stickerID.AsString();
-			}
-			else
-			{
-				collidedStickerID = "";
-			}
-			g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", currentSticker });
-			currentStickersArr[curMessage.stickerOption - 1] = stickerData;
-
-			break;
-		}
-		case 2:
-		{
-			// sell stamp
-			int stickerLevel = 0;
-			if (curMessage.stickerOption == 0)
-			{
-				RValue collectedSticker = g_ModuleInterface->CallBuiltin("variable_global_get", { "collectedSticker" });
-				stickerLevel = static_cast<int>(lround(getInstanceVariable(collectedSticker, GML_level).m_Real));
 				collidedStickerID = "";
 				g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", -1.0 });
+				break;
 			}
-			else
+			case 1:
 			{
+				// remove stamp
+				RValue stickerData(-1);
+				if (!collidedStickerID.empty())
+				{
+					RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
+					stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, collidedStickerID });
+				}
 				RValue currentStickersArr = currentStickersMap[playerID];
 				RValue currentSticker = currentStickersArr[curMessage.stickerOption - 1];
-				stickerLevel = static_cast<int>(lround(getInstanceVariable(currentSticker, GML_level).m_Real));
+				if (currentSticker.m_Kind == VALUE_OBJECT)
+				{
+					// Hopefully this stays the same as the key value in the map
+					RValue stickerID = getInstanceVariable(currentSticker, GML_optionID);
+					collidedStickerID = stickerID.AsString();
+				}
+				else
+				{
+					collidedStickerID = "";
+				}
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", currentSticker });
+				currentStickersArr[curMessage.stickerOption - 1] = stickerData;
 
-				currentStickersArr[curMessage.stickerOption - 1] = -1.0;
+				break;
 			}
-			int coinCount = static_cast<int>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real);
-			double stageCoinBonus = g_ModuleInterface->CallBuiltin("variable_global_get", { "stageCoinBonus" }).m_Real;
-			coinCount += static_cast<int>(floor(stageCoinBonus * 100 * (1 + moneyGainMultiplier)) * (stickerLevel + 1));
-			g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", static_cast<double>(coinCount) });
-			break;
-		}
+			case 2:
+			{
+				// sell stamp
+				int stickerLevel = 0;
+				if (curMessage.stickerOption == 0)
+				{
+					RValue collectedSticker = g_ModuleInterface->CallBuiltin("variable_global_get", { "collectedSticker" });
+					stickerLevel = static_cast<int>(lround(getInstanceVariable(collectedSticker, GML_level).m_Real));
+					collidedStickerID = "";
+					g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", -1.0 });
+				}
+				else
+				{
+					RValue currentStickersArr = currentStickersMap[playerID];
+					RValue currentSticker = currentStickersArr[curMessage.stickerOption - 1];
+					stickerLevel = static_cast<int>(lround(getInstanceVariable(currentSticker, GML_level).m_Real));
+
+					currentStickersArr[curMessage.stickerOption - 1] = -1.0;
+				}
+				int coinCount = static_cast<int>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real);
+				double stageCoinBonus = g_ModuleInterface->CallBuiltin("variable_global_get", { "stageCoinBonus" }).m_Real;
+				coinCount += static_cast<int>(floor(stageCoinBonus * 100 * (1 + moneyGainMultiplier)) * (stickerLevel + 1));
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", static_cast<double>(coinCount) });
+				break;
+			}
 		}
 	} while (true);
 }
@@ -2770,186 +2770,186 @@ int receiveMessage(SOCKET socket, uint32_t playerID)
 	}
 	switch (messageType[0])
 	{
-	case MESSAGE_INPUT_AIM:
-	{
-		return receiveInputMessage(socket, MESSAGE_INPUT_AIM, playerID);
-	}
-	case MESSAGE_INPUT_NO_AIM:
-	{
-		return receiveInputMessage(socket, MESSAGE_INPUT_NO_AIM, playerID);
-	}
-	case MESSAGE_INPUT_MOUSEFOLLOW:
-	{
-		return receiveInputMessage(socket, MESSAGE_INPUT_MOUSEFOLLOW, playerID);
-	}
-	case MESSAGE_ROOM:
-	{
-		return receiveRoomMessage(socket);
-	}
-	case MESSAGE_INSTANCES_CREATE:
-	{
-		return receiveInstanceCreateMessage(socket);
-	}
-	case MESSAGE_INSTANCES_UPDATE:
-	{
-		return receiveInstanceUpdateMessage(socket);
-	}
-	case MESSAGE_INSTANCES_DELETE:
-	{
-		return receiveInstanceDeleteMessage(socket);
-	}
-	case MESSAGE_CLIENT_PLAYER_DATA:
-	{
-		return receiveClientPlayerDataMessage(socket);
-	}
-	case MESSAGE_ATTACK_CREATE:
-	{
-		return receiveAttackCreateMessage(socket);
-	}
-	case MESSAGE_ATTACK_UPDATE:
-	{
-		return receiveAttackUpdateMessage(socket);
-	}
-	case MESSAGE_ATTACK_DELETE:
-	{
-		return receiveAttackDeleteMessage(socket);
-	}
-	case MESSAGE_CLIENT_ID:
-	{
-		return receiveClientIDMessage(socket);
-	}
-	case MESSAGE_PICKUPABLE_CREATE:
-	{
-		return receivePickupableCreateMessage(socket);
-	}
-	case MESSAGE_PICKUPABLE_UPDATE:
-	{
-		return receivePickupableUpdateMessage(socket);
-	}
-	case MESSAGE_PICKUPABLE_DELETE:
-	{
-		return receivePickupableDeleteMessage(socket);
-	}
-	case MESSAGE_GAME_DATA:
-	{
-		return receiveGameDataMessage(socket);
-	}
-	case MESSAGE_LEVEL_UP_OPTIONS:
-	{
-		return receiveLevelUpOptionsMessage(socket);
-	}
-	case MESSAGE_LEVEL_UP_CLIENT_CHOICE:
-	{
-		return receiveLevelUpClientChoiceMessage(socket, playerID);
-	}
-	case MESSAGE_PING:
-	{
-		return receivePing(socket);
-	}
-	case MESSAGE_PONG:
-	{
-		return receivePong(socket, playerID);
-	}
-	case MESSAGE_DESTRUCTABLE_CREATE:
-	{
-		return receiveDestructableCreateMessage(socket);
-	}
-	case MESSAGE_DESTRUCTABLE_BREAK:
-	{
-		return receiveDestructableBreakMessage(socket);
-	}
-	case MESSAGE_ELIMINATE_LEVEL_UP_CLIENT_CHOICE:
-	{
-		return receiveEliminateLevelUpClientChoiceMessage(socket, playerID);
-	}
-	case MESSAGE_CLIENT_SPECIAL_ATTACK:
-	{
-		return receiveClientSpecialAttackMessage(socket, playerID);
-	}
-	case MESSAGE_CAUTION_CREATE:
-	{
-		return receiveCautionCreateMessage(socket);
-	}
-	case MESSAGE_PRECREATE_UPDATE:
-	{
-		return receivePreCreateUpdateMessage(socket);
-	}
-	case MESSAGE_VFX_UPDATE:
-	{
-		return receiveVFXUpdateMessage(socket);
-	}
-	case MESSAGE_INTERACTABLE_CREATE:
-	{
-		return receiveInteractableCreateMessage(socket);
-	}
-	case MESSAGE_INTERACTABLE_DELETE:
-	{
-		return receiveInteractableDeleteMessage(socket);
-	}
-	case MESSAGE_INTERACTABLE_PLAYER_INTERACTED:
-	{
-		return receiveInteractablePlayerInteractedMessage(socket);
-	}
-	case MESSAGE_STICKER_PLAYER_INTERACTED:
-	{
-		return receiveStickerPlayerInteractedMessage(socket);
-	}
-	case MESSAGE_BOX_PLAYER_INTERACTED:
-	{
-		return receiveBoxPlayerInteractedMessage(socket);
-	}
-	case MESSAGE_INTERACT_FINISHED:
-	{
-		return receiveInteractFinishedMessage(socket);
-	}
-	case MESSAGE_BOX_TAKE_OPTION:
-	{
-		return receiveBoxTakeOptionMessage(socket, playerID);
-	}
-	case MESSAGE_ANVIL_CHOOSE_OPTION:
-	{
-		return receiveAnvilChooseOptionMessage(socket, playerID);
-	}
-	case MESSAGE_CLIENT_GAIN_MONEY:
-	{
-		return receiveClientGainMoneyMessage(socket);
-	}
-	case MESSAGE_CLIENT_ANVIL_ENCHANT:
-	{
-		return receiveClientAnvilEnchantMessage(socket, playerID);
-	}
-	case MESSAGE_STICKER_CHOOSE_OPTION:
-	{
-		return receiveStickerChooseOptionMessage(socket, playerID);
-	}
-	case MESSAGE_CHOOSE_COLLAB:
-	{
-		return receiveChooseCollabMessage(socket, playerID);
-	}
-	case MESSAGE_BUFF_DATA:
-	{
-		return receiveBuffDataMessage(socket);
-	}
-	case MESSAGE_CHAR_DATA:
-	{
-		return receiveCharDataMessage(socket);
-	}
-	case MESSAGE_RETURN_TO_LOBBY:
-	{
-		return receiveReturnToLobby(socket);
-	}
-	case MESSAGE_LOBBY_PLAYER_DISCONNECTED:
-	{
-		return receiveLobbyPlayerDisconnected(socket);
-	}
-	case MESSAGE_HOST_HAS_PAUSED:
-	{
-		return receiveHostHasPaused(socket);
-	}
-	case MESSAGE_HOST_HAS_UNPAUSED:
-	{
-		return receiveHostHasUnpaused(socket);
-	}
+		case MESSAGE_INPUT_AIM:
+		{
+			return receiveInputMessage(socket, MESSAGE_INPUT_AIM, playerID);
+		}
+		case MESSAGE_INPUT_NO_AIM:
+		{
+			return receiveInputMessage(socket, MESSAGE_INPUT_NO_AIM, playerID);
+		}
+		case MESSAGE_INPUT_MOUSEFOLLOW:
+		{
+			return receiveInputMessage(socket, MESSAGE_INPUT_MOUSEFOLLOW, playerID);
+		}
+		case MESSAGE_ROOM:
+		{
+			return receiveRoomMessage(socket);
+		}
+		case MESSAGE_INSTANCES_CREATE:
+		{
+			return receiveInstanceCreateMessage(socket);
+		}
+		case MESSAGE_INSTANCES_UPDATE:
+		{
+			return receiveInstanceUpdateMessage(socket);
+		}
+		case MESSAGE_INSTANCES_DELETE:
+		{
+			return receiveInstanceDeleteMessage(socket);
+		}
+		case MESSAGE_CLIENT_PLAYER_DATA:
+		{
+			return receiveClientPlayerDataMessage(socket);
+		}
+		case MESSAGE_ATTACK_CREATE:
+		{
+			return receiveAttackCreateMessage(socket);
+		}
+		case MESSAGE_ATTACK_UPDATE:
+		{
+			return receiveAttackUpdateMessage(socket);
+		}
+		case MESSAGE_ATTACK_DELETE:
+		{
+			return receiveAttackDeleteMessage(socket);
+		}
+		case MESSAGE_CLIENT_ID:
+		{
+			return receiveClientIDMessage(socket);
+		}
+		case MESSAGE_PICKUPABLE_CREATE:
+		{
+			return receivePickupableCreateMessage(socket);
+		}
+		case MESSAGE_PICKUPABLE_UPDATE:
+		{
+			return receivePickupableUpdateMessage(socket);
+		}
+		case MESSAGE_PICKUPABLE_DELETE:
+		{
+			return receivePickupableDeleteMessage(socket);
+		}
+		case MESSAGE_GAME_DATA:
+		{
+			return receiveGameDataMessage(socket);
+		}
+		case MESSAGE_LEVEL_UP_OPTIONS:
+		{
+			return receiveLevelUpOptionsMessage(socket);
+		}
+		case MESSAGE_LEVEL_UP_CLIENT_CHOICE:
+		{
+			return receiveLevelUpClientChoiceMessage(socket, playerID);
+		}
+		case MESSAGE_PING:
+		{
+			return receivePing(socket);
+		}
+		case MESSAGE_PONG:
+		{
+			return receivePong(socket, playerID);
+		}
+		case MESSAGE_DESTRUCTABLE_CREATE:
+		{
+			return receiveDestructableCreateMessage(socket);
+		}
+		case MESSAGE_DESTRUCTABLE_BREAK:
+		{
+			return receiveDestructableBreakMessage(socket);
+		}
+		case MESSAGE_ELIMINATE_LEVEL_UP_CLIENT_CHOICE:
+		{
+			return receiveEliminateLevelUpClientChoiceMessage(socket, playerID);
+		}
+		case MESSAGE_CLIENT_SPECIAL_ATTACK:
+		{
+			return receiveClientSpecialAttackMessage(socket, playerID);
+		}
+		case MESSAGE_CAUTION_CREATE:
+		{
+			return receiveCautionCreateMessage(socket);
+		}
+		case MESSAGE_PRECREATE_UPDATE:
+		{
+			return receivePreCreateUpdateMessage(socket);
+		}
+		case MESSAGE_VFX_UPDATE:
+		{
+			return receiveVFXUpdateMessage(socket);
+		}
+		case MESSAGE_INTERACTABLE_CREATE:
+		{
+			return receiveInteractableCreateMessage(socket);
+		}
+		case MESSAGE_INTERACTABLE_DELETE:
+		{
+			return receiveInteractableDeleteMessage(socket);
+		}
+		case MESSAGE_INTERACTABLE_PLAYER_INTERACTED:
+		{
+			return receiveInteractablePlayerInteractedMessage(socket);
+		}
+		case MESSAGE_STICKER_PLAYER_INTERACTED:
+		{
+			return receiveStickerPlayerInteractedMessage(socket);
+		}
+		case MESSAGE_BOX_PLAYER_INTERACTED:
+		{
+			return receiveBoxPlayerInteractedMessage(socket);
+		}
+		case MESSAGE_INTERACT_FINISHED:
+		{
+			return receiveInteractFinishedMessage(socket);
+		}
+		case MESSAGE_BOX_TAKE_OPTION:
+		{
+			return receiveBoxTakeOptionMessage(socket, playerID);
+		}
+		case MESSAGE_ANVIL_CHOOSE_OPTION:
+		{
+			return receiveAnvilChooseOptionMessage(socket, playerID);
+		}
+		case MESSAGE_CLIENT_GAIN_MONEY:
+		{
+			return receiveClientGainMoneyMessage(socket);
+		}
+		case MESSAGE_CLIENT_ANVIL_ENCHANT:
+		{
+			return receiveClientAnvilEnchantMessage(socket, playerID);
+		}
+		case MESSAGE_STICKER_CHOOSE_OPTION:
+		{
+			return receiveStickerChooseOptionMessage(socket, playerID);
+		}
+		case MESSAGE_CHOOSE_COLLAB:
+		{
+			return receiveChooseCollabMessage(socket, playerID);
+		}
+		case MESSAGE_BUFF_DATA:
+		{
+			return receiveBuffDataMessage(socket);
+		}
+		case MESSAGE_CHAR_DATA:
+		{
+			return receiveCharDataMessage(socket);
+		}
+		case MESSAGE_RETURN_TO_LOBBY:
+		{
+			return receiveReturnToLobby(socket);
+		}
+		case MESSAGE_LOBBY_PLAYER_DISCONNECTED:
+		{
+			return receiveLobbyPlayerDisconnected(socket);
+		}
+		case MESSAGE_HOST_HAS_PAUSED:
+		{
+			return receiveHostHasPaused(socket);
+		}
+		case MESSAGE_HOST_HAS_UNPAUSED:
+		{
+			return receiveHostHasUnpaused(socket);
+		}
 	}
 	g_ModuleInterface->Print(CM_RED, "Unknown message type received %d", messageType[0]);
 	return -1;

@@ -530,7 +530,7 @@ int messageClientAnvilEnchant::receiveMessage(SOCKET socket)
 
 int messageStickerChooseOption::receiveMessage(SOCKET socket)
 {
-	const int curMessageSize = sizeof(messageStickerChooseOption);
+	const int curMessageSize = sizeof(stickerOption) + sizeof(stickerOptionType);
 	int result = -1;
 	char messageBuffer[curMessageSize];
 	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
