@@ -101,3 +101,5 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 void TitleCharacterDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void SummonCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void SummonStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

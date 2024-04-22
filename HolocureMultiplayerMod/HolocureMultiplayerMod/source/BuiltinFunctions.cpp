@@ -70,3 +70,28 @@ void SpriteDeleteBefore(RValue* Result, CInstance* Self, CInstance* Other, int n
 		}
 	}
 }
+
+void InstanceExistsBefore(RValue* Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			if (abs(Args[0].m_Real - objSummonIndex) < 1e-3)
+			{
+				// Apparently the instance_exists in the OnApply code for summoning stuff is there to prevent the summon from being summoned again if the perk remained at level 1
+				// Need to do a check to make sure it hasn't run before to prevent the summon from being created multiple times
+				auto curSummon = summonMap[curPlayerID];
+				if (curSummon.m_Kind == VALUE_UNDEFINED)
+				{
+					*Result = RValue(false);
+				}
+				else
+				{
+					*Result = RValue(true);
+				}
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+	}
+}

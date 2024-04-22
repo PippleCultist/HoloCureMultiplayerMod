@@ -59,6 +59,7 @@ std::unordered_map<uint32_t, RValue> eliminatedAttacksMap;
 std::unordered_map<uint32_t, RValue> rerollContainerMap;
 std::unordered_map<uint32_t, RValue> currentStickersMap;
 std::unordered_map<uint32_t, RValue> charSelectedMap;
+std::unordered_map<uint32_t, RValue> summonMap;
 std::unordered_map<uint32_t, int> playerPingMap;
 std::unordered_map<uint32_t, lobbyPlayerData> lobbyPlayerDataMap;
 std::unordered_map<uint32_t, bool> clientUnpausedMap;
@@ -68,6 +69,8 @@ std::unordered_map<uint32_t, levelUpOptionNames> levelUpOptionNamesMap;
 double moneyGainMultiplier = 0;
 
 int curPlayerID = 0;
+
+bool isClientInInitializeCharacter = false;
 
 RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructPtr);
 RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr);
@@ -223,318 +226,340 @@ RValue deepCopyMap(CInstance* Self, RValue& origMap)
 	return copiedMap;
 }
 
+RValue& InitializeCharacterPlayerManagerCreateFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected && !isHost)
+	{
+		isClientInInitializeCharacter = true;
+	}
+	return ReturnValue;
+}
+
 RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	if (hasConnected && isHost)
+	if (hasConnected)
 	{
-		// TODO: Make sure the lists are cleared and all the gml variables are cleaned up every time a new game starts
-		// 
-
-		// Seems like the level reset at the beginning may cause the initialize character to run twice, so might have to just clear the lists.
-		// TODO: Maybe check if the reset level flag is true and skip all this?
-		playerItemsMapMap.clear();
-		playerItemsMap.clear();
-		playerMap.clear();
-		eliminatedAttacksMap.clear();
-		removedItemsMap.clear();
-		rerollContainerMap.clear();
-		currentStickersMap.clear();
-		charSelectedMap.clear();
-		playerAttackIndexMapMap.clear();
-		playerWeaponMap.clear();
-		playerCharPerksMap.clear();
-		playerPerksMap.clear();
-		playerPerksMapMap.clear();
-		playerStatUpsMap.clear();
-
-		if (availableInstanceIDs.empty())
+		if (!isHost)
 		{
-			for (int i = 0; i < maxNumAvailableInstanceIDs; i++)
-			{
-				availableInstanceIDs.push(static_cast<uint16_t>(i));
-			}
-			for (int i = 0; i < maxNumAvailableAttackIDs; i++)
-			{
-				availableAttackIDs.push(static_cast<uint16_t>(i));
-			}
-			for (int i = 0; i < maxNumAvailablePickupableIDs; i++)
-			{
-				availablePickupableIDs.push(static_cast<uint16_t>(i));
-			}
-			for (int i = 0; i < maxNumAvailablePreCreateIDs; i++)
-			{
-				availablePreCreateIDs.push(static_cast<uint16_t>(i));
-			}
-			for (int i = 0; i < maxNumAvailableVFXIDs; i++)
-			{
-				availableVFXIDs.push(static_cast<uint16_t>(i));
-			}
-			for (int i = 0; i < maxNumAvailableInteractableIDs; i++)
-			{
-				availableInteractableIDs.push(static_cast<uint16_t>(i));
-			}
+			isClientInInitializeCharacter = false;
 		}
-
-		// Array to prevent variables from being garbage collected
-		// TODO: Should probably create a second list just for maps to easily clean them up when the game ends
-		RValue keepAliveArr = g_ModuleInterface->CallBuiltin("array_create", { 0 });
-		g_ModuleInterface->CallBuiltin("variable_global_set", { "keepAliveArr", keepAliveArr });
-
-		// get all the original host player data and put it in the keepalive array
-		RValue itemsMap = getInstanceVariable(Self, GML_ITEMS);
-		playerItemsMapMap[HOST_INDEX] = itemsMap;
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, itemsMap });
-
-		RValue globalPlayerAttacks = g_ModuleInterface->CallBuiltin("variable_global_get", { "playerAttacks" });
-
-		RValue items = getInstanceVariable(Self, GML_items);
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, items });
-		playerItemsMap[HOST_INDEX] = items;
-
-		RValue originalPlayer = getInstanceVariable(Self, GML_createdChar);
-		playerMap[HOST_INDEX] = originalPlayer;
-		RValue createdCharX = getInstanceVariable(originalPlayer, GML_x);
-		RValue createdCharY = getInstanceVariable(originalPlayer, GML_y);
-
-		// Initialize eliminatedAttacks list
-		RValue eliminatedAttacks = getInstanceVariable(Self, GML_eliminatedAttacks);
-		eliminatedAttacksMap[HOST_INDEX] = eliminatedAttacks;
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, eliminatedAttacks });
-
-		// Initialize removedItems list
-		RValue removedItems = getInstanceVariable(Self, GML_removedItems);
-		removedItemsMap[HOST_INDEX] = removedItems;
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, removedItems });
-
-		// Initialize rerollContainer list
-		RValue rerollContainer = getInstanceVariable(Self, GML_rerollContainer);
-		rerollContainerMap[HOST_INDEX] = rerollContainer;
-
-		// Initialize currentStickers list
-		RValue currentStickers = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentStickers" });
-		currentStickersMap[HOST_INDEX] = currentStickers;
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, currentStickers });
-
-		RValue prevCharData = getInstanceVariable(Self, GML_charData);
-		// Initialize charSelected list
-		charSelectedMap[HOST_INDEX] = prevCharData;
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevCharData });
-
-		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-		RValue attacks = getInstanceVariable(attackController, GML_attackIndex);
-		playerAttackIndexMapMap[HOST_INDEX] = attacks;
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, attacks });
-
-		RValue playerSave = g_ModuleInterface->CallBuiltin("variable_global_get", { "PlayerSave" });
-		RValue unlockedWeapons = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerSave, "unlockedWeapons" });
-		int unlockedWeaponsLength = static_cast<int>(g_ModuleInterface->CallBuiltin("array_length", { unlockedWeapons }).m_Real);
-
-		RValue prevWeapons = getInstanceVariable(Self, GML_weapons);
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevWeapons });
-		playerWeaponMap[HOST_INDEX] = prevWeapons;
-
-		RValue prevCharPerks = g_ModuleInterface->CallBuiltin("variable_clone", { getInstanceVariable(prevCharData, GML_perks) });
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevCharPerks });
-		playerCharPerksMap[HOST_INDEX] = prevCharPerks;
-
-		RValue perks = getInstanceVariable(Self, GML_perks);
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, perks });
-		playerPerksMap[HOST_INDEX] = perks;
-
-		RValue perksMap = getInstanceVariable(Self, GML_PERKS);
-		playerPerksMapMap[HOST_INDEX] = perksMap;
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, perksMap });
-
-		RValue playerStatUps = getInstanceVariable(Self, GML_playerStatUps);
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, playerStatUps });
-		playerStatUpsMap[HOST_INDEX] = playerStatUps;
-
-		RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
-
-		// initialize player data for each client
-		for (auto& curClientSocket : clientSocketMap)
+		else
 		{
-			uint32_t clientID = curClientSocket.first;
-			RValue newItemsMap = deepCopyMap(Self, itemsMap);
-			playerItemsMapMap[clientID] = newItemsMap;
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newItemsMap });
+			// TODO: Make sure the lists are cleared and all the gml variables are cleaned up every time a new game starts
+			// 
 
-			RValue newItems;
-			g_RunnerInterface.StructCreate(&newItems);
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newItems });
-			playerItemsMap[clientID] = newItems;
+			// Seems like the level reset at the beginning may cause the initialize character to run twice, so might have to just clear the lists.
+			// TODO: Maybe check if the reset level flag is true and skip all this?
+			playerItemsMapMap.clear();
+			playerItemsMap.clear();
+			playerMap.clear();
+			eliminatedAttacksMap.clear();
+			removedItemsMap.clear();
+			rerollContainerMap.clear();
+			currentStickersMap.clear();
+			charSelectedMap.clear();
+			playerAttackIndexMapMap.clear();
+			playerWeaponMap.clear();
+			playerCharPerksMap.clear();
+			playerPerksMap.clear();
+			playerPerksMapMap.clear();
+			playerStatUpsMap.clear();
+			summonMap.clear();
 
-			// set to an invalid index to make the player create not delete the already created attacks map
-			g_ModuleInterface->CallBuiltin("variable_global_set", { "playerAttacks", -1.0 });
-
-			RValue newCreatedChar = g_ModuleInterface->CallBuiltin("instance_create_layer", { createdCharX, createdCharY, "Instances", objPlayerIndex });
-			playerMap[clientID] = newCreatedChar;
-
-			RValue newEliminatedAttacks = g_ModuleInterface->CallBuiltin("array_create", { 0 });
-			eliminatedAttacksMap[clientID] = newEliminatedAttacks;
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newEliminatedAttacks });
-
-			RValue newRemovedItems = g_ModuleInterface->CallBuiltin("array_create", { 0 });
-			removedItemsMap[clientID] = newRemovedItems;
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newRemovedItems });
-
-			RValue newCurrentStickers = g_ModuleInterface->CallBuiltin("array_create", { 3, -1.0 });
-			currentStickersMap[clientID] = newCurrentStickers;
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newCurrentStickers });
-
-			RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
-			RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName });
-			charSelectedMap[clientID] = charData;
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, charData });
-
-			RValue charDataSprite1 = getInstanceVariable(charData, GML_sprite1);
-			RValue charDataSprite2 = getInstanceVariable(charData, GML_sprite2);
-			g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charData });
-			setInstanceVariable(newCreatedChar, GML_charName, getInstanceVariable(charData, GML_charName));
-			setInstanceVariable(newCreatedChar, GML_idleSprite, charDataSprite1);
-			setInstanceVariable(newCreatedChar, GML_runSprite, charDataSprite2);
-			RValue charDataSprite3 = getInstanceVariable(charData, GML_sprite3);
-			if (charDataSprite3.m_Kind != VALUE_UNDEFINED && charDataSprite3.m_Kind != VALUE_UNSET)
+			if (availableInstanceIDs.empty())
 			{
-				setInstanceVariable(newCreatedChar, GML_sprite3, charDataSprite3);
-			}
-			RValue charDataSprites = getInstanceVariable(charData, GML_sprites);
-			if (charDataSprites.m_Kind != VALUE_UNDEFINED && charDataSprites.m_Kind != VALUE_UNSET)
-			{
-				setInstanceVariable(newCreatedChar, GML_sprites, charDataSprites);
-			}
-			else
-			{
-				charDataSprites = g_ModuleInterface->CallBuiltin("array_create", { 1 });
-				RValue spritesStruct;
-				g_RunnerInterface.StructCreate(&spritesStruct);
-				setInstanceVariable(spritesStruct, GML_sprite1, charDataSprite1);
-				setInstanceVariable(spritesStruct, GML_sprite2, charDataSprite2);
-				charDataSprites[0] = spritesStruct;
-				setInstanceVariable(newCreatedChar, GML_sprites, charDataSprites);
-			}
-			// TODO: deal with apply progression stats for the client character
-			setInstanceVariable(newCreatedChar, GML_challenge, getInstanceVariable(charData, GML_challenge));
-			RValue baseStats = getInstanceVariable(Self, GML_baseStats);
-			moneyGainMultiplier = getInstanceVariable(baseStats, GML_moneyGain).m_Real;
-			setInstanceVariable(newCreatedChar, GML_HP, getInstanceVariable(baseStats, GML_HP));
-			setInstanceVariable(newCreatedChar, GML_currentHP, getInstanceVariable(baseStats, GML_HP));
-			setInstanceVariable(newCreatedChar, GML_ATK, getInstanceVariable(baseStats, GML_ATK));
-			setInstanceVariable(newCreatedChar, GML_SPD, getInstanceVariable(baseStats, GML_SPD));
-			setInstanceVariable(newCreatedChar, GML_crit, getInstanceVariable(baseStats, GML_crit));
-			setInstanceVariable(newCreatedChar, GML_haste, getInstanceVariable(baseStats, GML_haste));
-			setInstanceVariable(newCreatedChar, GML_pickupRange, getInstanceVariable(baseStats, GML_pickupRange));
-
-			RValue preBuffStats = getInstanceVariable(newCreatedChar, GML_prebuffStats);
-			RValue returnVal;
-			RValue** args = new RValue*[2];
-			args[0] = &baseStats;
-			args[1] = &preBuffStats;
-			getScriptFunction("gml_Script_variable_struct_copy")(Self, Other, returnVal, 2, args);
-			RValue snapshotPrebuffStatsMethod = getInstanceVariable(newCreatedChar, GML_SnapshotPrebuffStats);
-			RValue snapshotPrebuffStatsArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
-			g_ModuleInterface->CallBuiltin("method_call", { snapshotPrebuffStatsMethod, snapshotPrebuffStatsArr });
-			// deal with add attack (calls update player which sets up some stuff)
-
-			// swap the player character to the newly created to be able to utilize the code already set up for updating the player
-			setInstanceVariable(Self, GML_playerCharacter, newCreatedChar);
-
-			RValue attackID = getInstanceVariable(charData, GML_attackID);
-
-			// Copy over attackIndex to a different map
-			RValue newAttackIndexMap = deepCopyMap(Self, attacks);
-			playerAttackIndexMapMap[clientID] = newAttackIndexMap;
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newAttackIndexMap });
-
-			// Initialize weapons struct for client
-			RValue weapons;
-			g_RunnerInterface.StructCreate(&weapons);
-
-			addWeapon(weapons, newAttackIndexMap, attackID);
-
-			for (int i = 0; i < unlockedWeaponsLength; i++)
-			{
-				addWeapon(weapons, newAttackIndexMap, unlockedWeapons[i]);
+				for (int i = 0; i < maxNumAvailableInstanceIDs; i++)
+				{
+					availableInstanceIDs.push(static_cast<uint16_t>(i));
+				}
+				for (int i = 0; i < maxNumAvailableAttackIDs; i++)
+				{
+					availableAttackIDs.push(static_cast<uint16_t>(i));
+				}
+				for (int i = 0; i < maxNumAvailablePickupableIDs; i++)
+				{
+					availablePickupableIDs.push(static_cast<uint16_t>(i));
+				}
+				for (int i = 0; i < maxNumAvailablePreCreateIDs; i++)
+				{
+					availablePreCreateIDs.push(static_cast<uint16_t>(i));
+				}
+				for (int i = 0; i < maxNumAvailableVFXIDs; i++)
+				{
+					availableVFXIDs.push(static_cast<uint16_t>(i));
+				}
+				for (int i = 0; i < maxNumAvailableInteractableIDs; i++)
+				{
+					availableInteractableIDs.push(static_cast<uint16_t>(i));
+				}
 			}
 
-			addCollabData(weapons, newAttackIndexMap);
+			// Array to prevent variables from being garbage collected
+			// TODO: Should probably create a second list just for maps to easily clean them up when the game ends
+			RValue keepAliveArr = g_ModuleInterface->CallBuiltin("array_create", { 0 });
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "keepAliveArr", keepAliveArr });
 
-			// TODO: Make this scalable for more players
-			RValue clientMainWeaponStruct = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerAttackIndexMapMap[clientID], attackID });
-			RValue clientMainWeaponConfig = getInstanceVariable(clientMainWeaponStruct, GML_config);
-			setInstanceVariable(clientMainWeaponConfig, GML_optionType, RValue("Weapon"));
+			// get all the original host player data and put it in the keepalive array
+			RValue itemsMap = getInstanceVariable(Self, GML_ITEMS);
+			playerItemsMapMap[HOST_INDEX] = itemsMap;
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, itemsMap });
 
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, weapons });
-			playerWeaponMap[clientID] = weapons;
-			setInstanceVariable(Self, GML_weapons, weapons);
+			RValue globalPlayerAttacks = g_ModuleInterface->CallBuiltin("variable_global_get", { "playerAttacks" });
 
-			RValue charPerks = g_ModuleInterface->CallBuiltin("variable_clone", { getInstanceVariable(charData, GML_perks) });
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, charPerks });
-			playerCharPerksMap[clientID] = charPerks;
+			RValue items = getInstanceVariable(Self, GML_items);
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, items });
+			playerItemsMap[HOST_INDEX] = items;
 
-			RValue newPerks;
-			g_RunnerInterface.StructCreate(&newPerks);
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newPerks });
-			playerPerksMap[clientID] = newPerks;
+			RValue originalPlayer = getInstanceVariable(Self, GML_createdChar);
+			playerMap[HOST_INDEX] = originalPlayer;
+			RValue createdCharX = getInstanceVariable(originalPlayer, GML_x);
+			RValue createdCharY = getInstanceVariable(originalPlayer, GML_y);
 
-			RValue newPerksMap = deepCopyMap(Self, perksMap);
-			playerPerksMapMap[clientID] = newPerksMap;
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newPerksMap });
+			// Initialize eliminatedAttacks list
+			RValue eliminatedAttacks = getInstanceVariable(Self, GML_eliminatedAttacks);
+			eliminatedAttacksMap[HOST_INDEX] = eliminatedAttacks;
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, eliminatedAttacks });
 
-			RValue newPlayerStatUps = g_ModuleInterface->CallBuiltin("variable_clone", { playerStatUps });
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newPlayerStatUps });
-			playerStatUpsMap[clientID] = newPlayerStatUps;
+			// Initialize removedItems list
+			RValue removedItems = getInstanceVariable(Self, GML_removedItems);
+			removedItemsMap[HOST_INDEX] = removedItems;
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, removedItems });
 
-			// swap attackIndex for the client player
-			setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[clientID]);
-			args[0] = &attackID;
-			origAddAttackPlayerManagerOtherScript(Self, Other, returnVal, 1, args);
+			// Initialize rerollContainer list
+			RValue rerollContainer = getInstanceVariable(Self, GML_rerollContainer);
+			rerollContainerMap[HOST_INDEX] = rerollContainer;
 
-			setInstanceVariable(newCreatedChar, GML_specialid, getInstanceVariable(charData, GML_specID));
-			setInstanceVariable(newCreatedChar, GML_specCD, getInstanceVariable(charData, GML_specCD));
-			// temp code to set specUnlock
-			// TODO: replace with the actual unlock variable
-			setInstanceVariable(newCreatedChar, GML_specUnlock, RValue(true));
+			// Initialize currentStickers list
+			RValue currentStickers = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentStickers" });
+			currentStickersMap[HOST_INDEX] = currentStickers;
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, currentStickers });
 
-			// deal with outfit
-			// deal with attacks copy
-			// deal with playercharacter baseStats
-			// deal with onCreate
-			// deal with fandom
-			// deal with cooking
-			// deal with snapshot stats
-			// deal with player manager snapshot player
+			RValue prevCharData = getInstanceVariable(Self, GML_charData);
+			// Initialize charSelected list
+			charSelectedMap[HOST_INDEX] = prevCharData;
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevCharData });
 
-			// override canControl for new player
-			// TODO: Fix potential issue with iofi's ult overriding the canControl parameter
-			setInstanceVariable(newCreatedChar, GML_canControl, RValue(false));
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			RValue attacks = getInstanceVariable(attackController, GML_attackIndex);
+			playerAttackIndexMapMap[HOST_INDEX] = attacks;
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, attacks });
 
-			clientUnpausedMap[clientID] = true;
+			RValue playerSave = g_ModuleInterface->CallBuiltin("variable_global_get", { "PlayerSave" });
+			RValue unlockedWeapons = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerSave, "unlockedWeapons" });
+			int unlockedWeaponsLength = static_cast<int>(g_ModuleInterface->CallBuiltin("array_length", { unlockedWeapons }).m_Real);
+
+			RValue prevWeapons = getInstanceVariable(Self, GML_weapons);
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevWeapons });
+			playerWeaponMap[HOST_INDEX] = prevWeapons;
+
+			RValue prevCharPerks = g_ModuleInterface->CallBuiltin("variable_clone", { getInstanceVariable(prevCharData, GML_perks) });
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevCharPerks });
+			playerCharPerksMap[HOST_INDEX] = prevCharPerks;
+
+			RValue perks = getInstanceVariable(Self, GML_perks);
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, perks });
+			playerPerksMap[HOST_INDEX] = perks;
+
+			RValue perksMap = getInstanceVariable(Self, GML_PERKS);
+			playerPerksMapMap[HOST_INDEX] = perksMap;
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, perksMap });
+
+			RValue playerStatUps = getInstanceVariable(Self, GML_playerStatUps);
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, playerStatUps });
+			playerStatUpsMap[HOST_INDEX] = playerStatUps;
+
+			summonMap[HOST_INDEX] = RValue();
+
+			RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
+
+			// initialize player data for each client
+			for (auto& curClientSocket : clientSocketMap)
+			{
+				uint32_t clientID = curClientSocket.first;
+
+				summonMap[clientID] = RValue();
+
+				RValue newItemsMap = deepCopyMap(Self, itemsMap);
+				playerItemsMapMap[clientID] = newItemsMap;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newItemsMap });
+
+				RValue newItems;
+				g_RunnerInterface.StructCreate(&newItems);
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newItems });
+				playerItemsMap[clientID] = newItems;
+
+				// set to an invalid index to make the player create not delete the already created attacks map
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "playerAttacks", -1.0 });
+
+				RValue newCreatedChar = g_ModuleInterface->CallBuiltin("instance_create_layer", { createdCharX, createdCharY, "Instances", objPlayerIndex });
+				playerMap[clientID] = newCreatedChar;
+
+				RValue newEliminatedAttacks = g_ModuleInterface->CallBuiltin("array_create", { 0 });
+				eliminatedAttacksMap[clientID] = newEliminatedAttacks;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newEliminatedAttacks });
+
+				RValue newRemovedItems = g_ModuleInterface->CallBuiltin("array_create", { 0 });
+				removedItemsMap[clientID] = newRemovedItems;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newRemovedItems });
+
+				RValue newCurrentStickers = g_ModuleInterface->CallBuiltin("array_create", { 3, -1.0 });
+				currentStickersMap[clientID] = newCurrentStickers;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newCurrentStickers });
+
+				RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
+				RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName });
+				charSelectedMap[clientID] = charData;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, charData });
+
+				RValue charDataSprite1 = getInstanceVariable(charData, GML_sprite1);
+				RValue charDataSprite2 = getInstanceVariable(charData, GML_sprite2);
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charData });
+				setInstanceVariable(newCreatedChar, GML_charName, getInstanceVariable(charData, GML_charName));
+				setInstanceVariable(newCreatedChar, GML_idleSprite, charDataSprite1);
+				setInstanceVariable(newCreatedChar, GML_runSprite, charDataSprite2);
+				RValue charDataSprite3 = getInstanceVariable(charData, GML_sprite3);
+				if (charDataSprite3.m_Kind != VALUE_UNDEFINED && charDataSprite3.m_Kind != VALUE_UNSET)
+				{
+					setInstanceVariable(newCreatedChar, GML_sprite3, charDataSprite3);
+				}
+				RValue charDataSprites = getInstanceVariable(charData, GML_sprites);
+				if (charDataSprites.m_Kind != VALUE_UNDEFINED && charDataSprites.m_Kind != VALUE_UNSET)
+				{
+					setInstanceVariable(newCreatedChar, GML_sprites, charDataSprites);
+				}
+				else
+				{
+					charDataSprites = g_ModuleInterface->CallBuiltin("array_create", { 1 });
+					RValue spritesStruct;
+					g_RunnerInterface.StructCreate(&spritesStruct);
+					setInstanceVariable(spritesStruct, GML_sprite1, charDataSprite1);
+					setInstanceVariable(spritesStruct, GML_sprite2, charDataSprite2);
+					charDataSprites[0] = spritesStruct;
+					setInstanceVariable(newCreatedChar, GML_sprites, charDataSprites);
+				}
+				// TODO: deal with apply progression stats for the client character
+				setInstanceVariable(newCreatedChar, GML_challenge, getInstanceVariable(charData, GML_challenge));
+				RValue baseStats = getInstanceVariable(Self, GML_baseStats);
+				moneyGainMultiplier = getInstanceVariable(baseStats, GML_moneyGain).m_Real;
+				setInstanceVariable(newCreatedChar, GML_HP, getInstanceVariable(baseStats, GML_HP));
+				setInstanceVariable(newCreatedChar, GML_currentHP, getInstanceVariable(baseStats, GML_HP));
+				setInstanceVariable(newCreatedChar, GML_ATK, getInstanceVariable(baseStats, GML_ATK));
+				setInstanceVariable(newCreatedChar, GML_SPD, getInstanceVariable(baseStats, GML_SPD));
+				setInstanceVariable(newCreatedChar, GML_crit, getInstanceVariable(baseStats, GML_crit));
+				setInstanceVariable(newCreatedChar, GML_haste, getInstanceVariable(baseStats, GML_haste));
+				setInstanceVariable(newCreatedChar, GML_pickupRange, getInstanceVariable(baseStats, GML_pickupRange));
+
+				RValue preBuffStats = getInstanceVariable(newCreatedChar, GML_prebuffStats);
+				RValue returnVal;
+				RValue** args = new RValue*[2];
+				args[0] = &baseStats;
+				args[1] = &preBuffStats;
+				getScriptFunction("gml_Script_variable_struct_copy")(Self, Other, returnVal, 2, args);
+				RValue snapshotPrebuffStatsMethod = getInstanceVariable(newCreatedChar, GML_SnapshotPrebuffStats);
+				RValue snapshotPrebuffStatsArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
+				g_ModuleInterface->CallBuiltin("method_call", { snapshotPrebuffStatsMethod, snapshotPrebuffStatsArr });
+				// deal with add attack (calls update player which sets up some stuff)
+
+				// swap the player character to the newly created to be able to utilize the code already set up for updating the player
+				setInstanceVariable(Self, GML_playerCharacter, newCreatedChar);
+
+				RValue attackID = getInstanceVariable(charData, GML_attackID);
+
+				// Copy over attackIndex to a different map
+				RValue newAttackIndexMap = deepCopyMap(Self, attacks);
+				playerAttackIndexMapMap[clientID] = newAttackIndexMap;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newAttackIndexMap });
+
+				// Initialize weapons struct for client
+				RValue weapons;
+				g_RunnerInterface.StructCreate(&weapons);
+
+				addWeapon(weapons, newAttackIndexMap, attackID);
+
+				for (int i = 0; i < unlockedWeaponsLength; i++)
+				{
+					addWeapon(weapons, newAttackIndexMap, unlockedWeapons[i]);
+				}
+
+				addCollabData(weapons, newAttackIndexMap);
+
+				// TODO: Make this scalable for more players
+				RValue clientMainWeaponStruct = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerAttackIndexMapMap[clientID], attackID });
+				RValue clientMainWeaponConfig = getInstanceVariable(clientMainWeaponStruct, GML_config);
+				setInstanceVariable(clientMainWeaponConfig, GML_optionType, RValue("Weapon"));
+
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, weapons });
+				playerWeaponMap[clientID] = weapons;
+				setInstanceVariable(Self, GML_weapons, weapons);
+
+				RValue charPerks = g_ModuleInterface->CallBuiltin("variable_clone", { getInstanceVariable(charData, GML_perks) });
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, charPerks });
+				playerCharPerksMap[clientID] = charPerks;
+
+				RValue newPerks;
+				g_RunnerInterface.StructCreate(&newPerks);
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newPerks });
+				playerPerksMap[clientID] = newPerks;
+
+				RValue newPerksMap = deepCopyMap(Self, perksMap);
+				playerPerksMapMap[clientID] = newPerksMap;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newPerksMap });
+
+				RValue newPlayerStatUps = g_ModuleInterface->CallBuiltin("variable_clone", { playerStatUps });
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newPlayerStatUps });
+				playerStatUpsMap[clientID] = newPlayerStatUps;
+
+				// swap attackIndex for the client player
+				setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[clientID]);
+				args[0] = &attackID;
+				origAddAttackPlayerManagerOtherScript(Self, Other, returnVal, 1, args);
+
+				setInstanceVariable(newCreatedChar, GML_specialid, getInstanceVariable(charData, GML_specID));
+				setInstanceVariable(newCreatedChar, GML_specCD, getInstanceVariable(charData, GML_specCD));
+				// temp code to set specUnlock
+				// TODO: replace with the actual unlock variable
+				setInstanceVariable(newCreatedChar, GML_specUnlock, RValue(true));
+
+				// deal with outfit
+				// deal with attacks copy
+				// deal with playercharacter baseStats
+				// deal with onCreate
+				// deal with fandom
+				// deal with cooking
+				// deal with snapshot stats
+				// deal with player manager snapshot player
+
+				// override canControl for new player
+				// TODO: Fix potential issue with iofi's ult overriding the canControl parameter
+				setInstanceVariable(newCreatedChar, GML_canControl, RValue(false));
+
+				clientUnpausedMap[clientID] = true;
+			}
+
+			for (auto& curPlayer : playerMap)
+			{
+				uint32_t playerID = curPlayer.first;
+				RValue playerInstance = curPlayer.second;
+				attacksCopyMap[playerID] = getInstanceVariable(playerInstance, GML_attacks);
+			}
+
+			for (auto& curClientSocket : clientSocketMap)
+			{
+				uint32_t playerID = curClientSocket.first;
+				RValue newRerollContainer;
+				g_RunnerInterface.StructCreate(&newRerollContainer);
+				rerollContainerMap[playerID] = newRerollContainer;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newRerollContainer });
+			}
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, rerollContainer });
+
+			setInstanceVariable(Self, GML_playerCharacter, playerCharacter);
+
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "playerAttacks", globalPlayerAttacks });
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", prevCharData });
+			g_ModuleInterface->CallBuiltin("variable_instance_set", { Self, "weapons", prevWeapons });
+			setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[HOST_INDEX]);
 		}
-
-		for (auto& curPlayer : playerMap)
-		{
-			uint32_t playerID = curPlayer.first;
-			RValue playerInstance = curPlayer.second;
-			attacksCopyMap[playerID] = getInstanceVariable(playerInstance, GML_attacks);
-		}
-
-		for (auto& curClientSocket : clientSocketMap)
-		{
-			uint32_t playerID = curClientSocket.first;
-			RValue newRerollContainer;
-			g_RunnerInterface.StructCreate(&newRerollContainer);
-			rerollContainerMap[playerID] = newRerollContainer;
-			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newRerollContainer });
-		}
-		g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, rerollContainer });
-
-		setInstanceVariable(Self, GML_playerCharacter, playerCharacter);
-
-		g_ModuleInterface->CallBuiltin("variable_global_set", { "playerAttacks", globalPlayerAttacks });
-		g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", prevCharData });
-		g_ModuleInterface->CallBuiltin("variable_instance_set", { Self, "weapons", prevWeapons });
-		setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[HOST_INDEX]);
 	}
 	return ReturnValue;
 }
@@ -753,6 +778,7 @@ void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, u
 	setInstanceVariable(playerManagerInstance, GML_eliminatedAttacks, eliminatedAttacksMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_removedItems, removedItemsMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_rerollContainer, rerollContainerMap[playerID]);
+	setInstanceVariable(playerManagerInstance, GML_playerSummon, summonMap[playerID]);
 	setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[playerID]);
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentStickers", currentStickersMap[playerID] });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charSelectedMap[playerID] });
@@ -1955,6 +1981,7 @@ void cleanupPlayerGameData()
 	playerDataMap.clear();
 	isPlayerCreatedMap.clear();
 	lastTimeReceivedMoveDataMap.clear();
+	summonMap.clear();
 
 	instanceToIDMap.clear();
 	pickupableToIDMap.clear();
@@ -2168,5 +2195,62 @@ RValue& OnDeathBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue& Re
 RValue& OnDeathBaseMobCreateAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
 	isInBaseMobOnDeath = false;
+	return ReturnValue;
+}
+
+RValue& UpdatePlayerPlayerManagerOtherBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected)
+	{
+		if (!isHost)
+		{
+			callbackManagerInterfacePtr->CancelOriginalFunction();
+		}
+	}
+	return ReturnValue;
+}
+
+RValue& AddPerkPlayerManagerOtherAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			auto curSummon = summonMap[curPlayerID];
+			if (curSummon.m_Kind == VALUE_UNDEFINED)
+			{
+				RValue playerManager = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 });
+				RValue playerSummon = getInstanceVariable(playerManager, GML_playerSummon);
+				if (playerSummon.m_Kind == VALUE_OBJECT || playerSummon.m_Kind == VALUE_REF)
+				{
+					summonMap[curPlayerID] = playerSummon;
+				}
+				else if (playerSummon.m_Kind == VALUE_ARRAY)
+				{
+					// Add array to some keep alive array
+					RValue keepAliveArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "keepAliveArr" });
+					g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, playerSummon });
+					summonMap[curPlayerID] = playerSummon;
+				}
+				else
+				{
+					// Seems like the host couldn't find the summon?
+					g_ModuleInterface->Print(CM_RED, "Couldn't find player summon %d", playerSummon.m_Kind);
+				}
+			}
+		}
+	}
+	return ReturnValue;
+}
+
+RValue& ParseAndPushCommandTypePlayerManagerOtherBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected && !isHost)
+	{
+		if (isClientInInitializeCharacter)
+		{
+			callbackManagerInterfacePtr->CancelOriginalFunction();
+		}
+	}
 	return ReturnValue;
 }

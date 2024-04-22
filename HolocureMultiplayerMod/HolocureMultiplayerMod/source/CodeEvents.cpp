@@ -265,6 +265,7 @@ void resetAllData()
 	currentStickersMap.clear();
 	playerPingMap.clear();
 	lobbyPlayerDataMap.clear();
+	summonMap.clear();
 }
 
 void serverDisconnected()
@@ -2276,5 +2277,78 @@ void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			}
 		}
 		callbackManagerInterfacePtr->CancelOriginalFunction();
+	}
+}
+
+void SummonCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected && !isHost)
+	{
+		callbackManagerInterfacePtr->CancelOriginalFunction();
+	}
+}
+
+void SummonStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			// TODO: Use UDP in order to send these messages
+			CInstance* Self = std::get<0>(Args);
+			auto mapInstance = instanceToIDMap.find(Self);
+			if (mapInstance == instanceToIDMap.end())
+			{
+				int instanceID = availableInstanceIDs.front();
+				instanceToIDMap[Self] = instanceID;
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+				// Probably should change this to uint16_t
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				// seems like there's something that doesn't have a sprite at the beginning? Not sure what it is
+				// Maybe it's the additional player I created?
+				// temp code to just make it work for now
+				if (spriteIndex < 0)
+				{
+					spriteIndex = 0;
+				}
+				instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, instanceID, truncatedImageIndex);
+				//			if (spriteIndex >= 0)
+				{
+					instancesCreateMessage.addInstance(data);
+					if (instancesCreateMessage.numInstances >= instanceCreateDataLen)
+					{
+						sendAllInstanceCreateMessage();
+					}
+				}
+
+				availableInstanceIDs.pop();
+			}
+			else
+			{
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+				// Probably should change this to uint16_t
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, mapInstance->second, truncatedImageIndex);
+				instancesUpdateMessage.addInstance(data);
+				if (instancesUpdateMessage.numInstances >= instanceUpdateDataLen)
+				{
+					sendAllInstanceUpdateMessage();
+				}
+			}
+		}
+		else
+		{
+			CInstance* Self = std::get<0>(Args);
+			callbackManagerInterfacePtr->CancelOriginalFunction();
+			g_ModuleInterface->CallBuiltin("instance_destroy", { RValue(Self) });
+		}
 	}
 }

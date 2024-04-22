@@ -465,6 +465,16 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_TitleScreen_Mouse_53");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Summon_Create_0", SummonCreateBefore, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Summon_Create_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Summon_Step_0", SummonStepBefore, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Summon_Step_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 
 
 
@@ -493,7 +503,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_input_join_params_set");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_InitializeCharacter_gml_Object_obj_PlayerManager_Create_0", nullptr, InitializeCharacterPlayerManagerCreateFuncAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_InitializeCharacter_gml_Object_obj_PlayerManager_Create_0", InitializeCharacterPlayerManagerCreateFuncBefore, InitializeCharacterPlayerManagerCreateFuncAfter, nullptr)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_InitializeCharacter_gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
@@ -503,7 +513,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_SnapshotPrebuffStats_gml_Object_obj_Player_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_UpdatePlayer_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origUpdatePlayerPlayerManagerOtherScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_UpdatePlayer_gml_Object_obj_PlayerManager_Other_24", UpdatePlayerPlayerManagerOtherBefore, nullptr, &origUpdatePlayerPlayerManagerOtherScript)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_UpdatePlayer_gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
@@ -638,7 +648,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_ParseAndPushCommandType_gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddPerk_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddPerkScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddPerk_gml_Object_obj_PlayerManager_Other_24", nullptr, AddPerkPlayerManagerOtherAfter, &origAddPerkScript)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_AddPerk_gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
@@ -803,6 +813,12 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_OnDeath_gml_Object_obj_BaseMob_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ParseAndPushCommandType_gml_Object_obj_PlayerManager_Other_23", ParseAndPushCommandTypePlayerManagerOtherBefore, nullptr, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_ParseAndPushCommandType_gml_Object_obj_PlayerManager_Other_23");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "struct_get_from_hash", nullptr, nullptr, &origStructGetFromHashFunc)))
 	{
@@ -824,10 +840,15 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "sprite_delete");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "instance_exists", InstanceExistsBefore, nullptr, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "instance_exists");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 
 	// TODO: Fix various crashes
 	// TODO: Fix stage ending sometimes not actually pausing (Might be because a player picks up a box at the same time)
-	// TODO: Improve ping by changing the message handler to be in a separate thread and change some messages to be sent via UDP
+	// TODO: Improve ping by changing some messages to be sent via UDP
 	// TODO: Probably should reduce attack speed
 	// TODO: Need to prevent player from moving outside the map and actually collide with stuff (first need to rewrite the message handler)
 
@@ -843,12 +864,10 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Look into issue if the player picks up a box at the end of game screen and breaks the paused state
 	// TODO: Add better way of assigning ids to players
 	// TODO: Profile the mod to see if it's causing a significant increase in lag (show_debug_overlay as well)
-	// TODO: Have the messages be processed in a separate thread and sent to queues. Probably only need critical sections around just the queue stuff
 	// TODO: Sometimes random crashing when the game starts up. Investigate further
 	// TODO: Add player name selection in lobby
 	// TODO: Game crashes when trying to upgrade in addAttack after retrying the game
 	// TODO: Restarting a game after the game already restarted crashes
-	// TODO: Selecting bubba crashes
 	// TODO: Make the networking system more robust to disconnections/edge cases
 	// TODO: Figure out what to do if a client disconnects on the host side. Keep the player numbers the same, or try to rearrange the players? (Can maybe just mark certain players as disconnected. Might potentially allow for reconnecting to a game)
 	// TODO: Sending 255 as a char ended up being received as -1. Check to make sure this isn't causing issues anywhere
@@ -870,10 +889,8 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Check to make sure that multiple players can't use the same interactable if they collide with it on the same frame
 	// TODO: Seems like the holobox can move if they're out of bounds. Make sure to move it accordingly
 	// TODO: Should probably cache the attackcontroller rvalue
-	// TODO: Might be a potential issue where the client can move faster than normal if the host is lagging because it's still sending move messages. Not sure what's the best way to fix this
 	// TODO: Check RollMod if it has issues
 	// TODO: Fix the coin count fluctuating a bit after getting a holobox (only a minor visual bug)
-	// TODO: Fix coin sprite not rotating properly (minor visual bug)
 	// TODO: Send over the money gain multiplier to the client
 	// TODO: Do something if the host/client disconnects
 	// TODO: Fix enchants not carrying over for collabs
@@ -896,6 +913,7 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Seems like holobomb isn't being removed correctly?
 	// TODO: Fix rainbow exp size
 	// TODO: Fix korone's coronet and probably some other pickupables that I missed from not being deleted when picked up
+	// TODO: Fix bug with mumei's friend not using the correct player's weapon
 	// 
 	// TODO: Seems like there might be some minor issues with the hp stat not being calculated properly when upgraded?
 

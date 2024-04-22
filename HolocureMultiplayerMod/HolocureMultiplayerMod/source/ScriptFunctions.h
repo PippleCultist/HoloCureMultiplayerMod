@@ -11,9 +11,11 @@ extern std::unordered_map<uint32_t, RValue> playerItemsMapMap;
 extern std::unordered_map<uint32_t, RValue> playerItemsMap;
 extern std::unordered_map<uint32_t, RValue> playerAttackIndexMapMap;
 extern std::unordered_map<uint32_t, RValue> currentStickersMap;
+extern std::unordered_map<uint32_t, RValue> summonMap;
 extern std::unordered_map<uint32_t, int> playerPingMap;
 extern std::unordered_map<uint32_t, lobbyPlayerData> lobbyPlayerDataMap;
 extern std::unordered_map<uint32_t, bool> clientUnpausedMap;
+extern int curPlayerID;
 
 enum optionType
 {
@@ -71,11 +73,14 @@ extern SOCKET broadcastSocket;
 extern sockaddr* broadcastSocketAddr;
 extern size_t broadcastSocketLen;
 
+extern bool isClientInInitializeCharacter;
+
 void cleanupPlayerGameData();
 void cleanupPlayerClientData();
 void unsetPauseMenu();
 void unpauseHost();
 
+RValue& InitializeCharacterPlayerManagerCreateFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& CanSubmitScoreFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& StopPlayerCreateFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
@@ -112,3 +117,6 @@ RValue& ReturnCharSelectCreateBefore(CInstance* Self, CInstance* Other, RValue& 
 RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& OnDeathBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& OnDeathBaseMobCreateAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
+RValue& UpdatePlayerPlayerManagerOtherBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
+RValue& AddPerkPlayerManagerOtherAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
+RValue& ParseAndPushCommandTypePlayerManagerOtherBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);

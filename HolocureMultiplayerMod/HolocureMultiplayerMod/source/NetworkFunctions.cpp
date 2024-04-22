@@ -213,73 +213,96 @@ void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInst
 	RValue returnVal;
 	switch (levelUpData.levelUpType)
 	{
-	case optionType_Weapon:
-	{
-		RValue** args = new RValue*[1];
-		args[0] = &levelUpName;
-		origAddAttackPlayerManagerOtherScript(playerManagerInstance, nullptr, returnVal, 1, args);
-		break;
-	}
-	case optionType_Skill:
-	{
-		RValue** args = new RValue*[1];
-		args[0] = &levelUpName;
-		origAddPerkScript(playerManagerInstance, nullptr, returnVal, 1, args);
-		break;
-	}
-	case optionType_Item:
-	{
-		RValue** args = new RValue*[1];
-		args[0] = &levelUpName;
-		origAddItemScript(playerManagerInstance, nullptr, returnVal, 1, args);
-		break;
-	}
-	case optionType_Consumable:
-	{
-		RValue** args = new RValue*[1];
-		args[0] = &levelUpName;
-		origAddConsumableScript(playerManagerInstance, nullptr, returnVal, 1, args);
-		break;
-	}
-	case optionType_StatUp:
-	{
-		RValue** args = new RValue*[1];
-		args[0] = &levelUpName;
-		origAddStatScript(playerManagerInstance, nullptr, returnVal, 1, args);
-		break;
-	}
-	case optionType_Enchant:
-	{
-		RValue** args = new RValue*[2];
-		int gainedModsSize = static_cast<int>(levelUpData.gainedMods.size());
-		RValue gainedModsArr = g_ModuleInterface->CallBuiltin("array_create", { gainedModsSize });
-		for (int i = 0; i < gainedModsSize; i++)
+		case optionType_Weapon:
 		{
-			gainedModsArr[i] = levelUpData.gainedMods[i];
+			RValue** args = new RValue*[1];
+			args[0] = &levelUpName;
+			origAddAttackPlayerManagerOtherScript(playerManagerInstance, nullptr, returnVal, 1, args);
+			break;
 		}
-		args[0] = &levelUpName;
-		args[1] = &gainedModsArr;
-		origAddEnchantScript(playerManagerInstance, nullptr, returnVal, 2, args);
-		break;
-	}
-	case optionType_Collab:
-	{
-		RValue** args = new RValue*[1];
-		args[0] = &levelUpName;
-		origAddCollabScript(playerManagerInstance, nullptr, returnVal, 1, args);
-		break;
-	}
-	case optionType_SuperCollab:
-	{
-		RValue** args = new RValue*[1];
-		args[0] = &levelUpName;
-		origAddSuperCollabScript(playerManagerInstance, nullptr, returnVal, 1, args);
-		break;
-	}
-	default:
-	{
-		g_ModuleInterface->Print(CM_RED, "Unhandled level up type %d for %s", levelUpData.levelUpType, levelUpName.AsString().data());
-	}
+		case optionType_Skill:
+		{
+			RValue** args = new RValue*[1];
+			args[0] = &levelUpName;
+			origAddPerkScript(playerManagerInstance, nullptr, returnVal, 1, args);
+			if (isHost)
+			{
+				auto curSummon = summonMap[curPlayerID];
+				if (curSummon.m_Kind == VALUE_UNDEFINED)
+				{
+					RValue playerSummon = getInstanceVariable(playerManagerInstance, GML_playerSummon);
+					if (playerSummon.m_Kind == VALUE_OBJECT || playerSummon.m_Kind == VALUE_REF)
+					{
+						summonMap[curPlayerID] = playerSummon;
+					}
+					else if (playerSummon.m_Kind == VALUE_ARRAY)
+					{
+						// Add array to some keep alive array
+						RValue keepAliveArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "keepAliveArr" });
+						g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, playerSummon });
+						summonMap[curPlayerID] = playerSummon;
+					}
+					else
+					{
+						g_ModuleInterface->Print(CM_RED, "Couldn't find player summon %d", playerSummon.m_Kind);
+					}
+				}
+			}
+			break;
+		}
+		case optionType_Item:
+		{
+			RValue** args = new RValue*[1];
+			args[0] = &levelUpName;
+			origAddItemScript(playerManagerInstance, nullptr, returnVal, 1, args);
+			break;
+		}
+		case optionType_Consumable:
+		{
+			RValue** args = new RValue*[1];
+			args[0] = &levelUpName;
+			origAddConsumableScript(playerManagerInstance, nullptr, returnVal, 1, args);
+			break;
+		}
+		case optionType_StatUp:
+		{
+			RValue** args = new RValue*[1];
+			args[0] = &levelUpName;
+			origAddStatScript(playerManagerInstance, nullptr, returnVal, 1, args);
+			break;
+		}
+		case optionType_Enchant:
+		{
+			RValue** args = new RValue*[2];
+			int gainedModsSize = static_cast<int>(levelUpData.gainedMods.size());
+			RValue gainedModsArr = g_ModuleInterface->CallBuiltin("array_create", { gainedModsSize });
+			for (int i = 0; i < gainedModsSize; i++)
+			{
+				gainedModsArr[i] = levelUpData.gainedMods[i];
+			}
+			args[0] = &levelUpName;
+			args[1] = &gainedModsArr;
+			origAddEnchantScript(playerManagerInstance, nullptr, returnVal, 2, args);
+			break;
+		}
+		case optionType_Collab:
+		{
+			RValue** args = new RValue*[1];
+			args[0] = &levelUpName;
+			origAddCollabScript(playerManagerInstance, nullptr, returnVal, 1, args);
+			break;
+		}
+		case optionType_SuperCollab:
+		{
+			RValue** args = new RValue*[1];
+			args[0] = &levelUpName;
+			origAddSuperCollabScript(playerManagerInstance, nullptr, returnVal, 1, args);
+			break;
+		}
+		default:
+		{
+			g_ModuleInterface->Print(CM_RED, "Unhandled level up type %d for %s", levelUpData.levelUpType, levelUpName.AsString().data());
+		}
 	}
 }
 
