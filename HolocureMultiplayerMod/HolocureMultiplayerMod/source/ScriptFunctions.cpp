@@ -60,6 +60,7 @@ std::unordered_map<uint32_t, RValue> rerollContainerMap;
 std::unordered_map<uint32_t, RValue> currentStickersMap;
 std::unordered_map<uint32_t, RValue> charSelectedMap;
 std::unordered_map<uint32_t, RValue> summonMap;
+std::unordered_map<uint32_t, RValue> customDrawScriptMap;
 std::unordered_map<uint32_t, int> playerPingMap;
 std::unordered_map<uint32_t, lobbyPlayerData> lobbyPlayerDataMap;
 std::unordered_map<uint32_t, bool> clientUnpausedMap;
@@ -265,6 +266,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			playerPerksMapMap.clear();
 			playerStatUpsMap.clear();
 			summonMap.clear();
+			customDrawScriptMap.clear();
 
 			if (availableInstanceIDs.empty())
 			{
@@ -370,6 +372,10 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 
 			summonMap[HOST_INDEX] = RValue();
 
+			RValue customDrawScript = getInstanceVariable(Self, GML_customDrawScript);
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, customDrawScript });
+			customDrawScriptMap[HOST_INDEX] = customDrawScript;
+
 			RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
 
 			// initialize player data for each client
@@ -378,6 +384,11 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				uint32_t clientID = curClientSocket.first;
 
 				summonMap[clientID] = RValue();
+
+				RValue newCustomDrawScript;
+				g_RunnerInterface.StructCreate(&newCustomDrawScript);
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newCustomDrawScript });
+				customDrawScriptMap[clientID] = newCustomDrawScript;
 
 				RValue newItemsMap = deepCopyMap(Self, itemsMap);
 				playerItemsMapMap[clientID] = newItemsMap;
@@ -771,14 +782,15 @@ void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, u
 	setInstanceVariable(playerManagerInstance, GML_charPerks, playerCharPerksMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_ITEMS, playerItemsMapMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_items, playerItemsMap[playerID]);
-	setInstanceVariable(playerManagerInstance, GML_perks, playerPerksMap[playerID]); // TODO: Crashes on either this line or the next. Access violation reading location 0xFFFFFF...
+	setInstanceVariable(playerManagerInstance, GML_perks, playerPerksMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_attacksCopy, attacksCopyMap[playerID]);
-	setInstanceVariable(playerManagerInstance, GML_PERKS, playerPerksMapMap[playerID]); // TODO: Crashes on either this line or the next. Access violation reading location 0xFFFFFF...
+	setInstanceVariable(playerManagerInstance, GML_PERKS, playerPerksMapMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_playerStatUps, playerStatUpsMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_eliminatedAttacks, eliminatedAttacksMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_removedItems, removedItemsMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_rerollContainer, rerollContainerMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_playerSummon, summonMap[playerID]);
+	setInstanceVariable(playerManagerInstance, GML_customDrawScript, customDrawScriptMap[playerID]);
 	setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[playerID]);
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentStickers", currentStickersMap[playerID] });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charSelectedMap[playerID] });
@@ -1982,6 +1994,7 @@ void cleanupPlayerGameData()
 	isPlayerCreatedMap.clear();
 	lastTimeReceivedMoveDataMap.clear();
 	summonMap.clear();
+	customDrawScriptMap.clear();
 
 	instanceToIDMap.clear();
 	pickupableToIDMap.clear();
@@ -2235,7 +2248,7 @@ RValue& AddPerkPlayerManagerOtherAfter(CInstance* Self, CInstance* Other, RValue
 				else
 				{
 					// Seems like the host couldn't find the summon?
-					g_ModuleInterface->Print(CM_RED, "Couldn't find player summon %d", playerSummon.m_Kind);
+//					g_ModuleInterface->Print(CM_RED, "Couldn't find player summon %d", playerSummon.m_Kind);
 				}
 			}
 		}

@@ -266,6 +266,7 @@ void resetAllData()
 	playerPingMap.clear();
 	lobbyPlayerDataMap.clear();
 	summonMap.clear();
+	customDrawScriptMap.clear();
 }
 
 void serverDisconnected()
@@ -389,6 +390,7 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 			handleLobbyPlayerDisconnected();
 			handleHostHasPaused();
 			handleHostHasUnpaused();
+			handleKaelaOreAmount();
 
 			if (lastSentPingMessage != timeNum && timeNum % 60 == 0)
 			{
@@ -2349,6 +2351,211 @@ void SummonStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 			CInstance* Self = std::get<0>(Args);
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 			g_ModuleInterface->CallBuiltin("instance_destroy", { RValue(Self) });
+		}
+	}
+}
+
+void OreDepositStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			// TODO: Use UDP in order to send these messages
+			CInstance* Self = std::get<0>(Args);
+
+			RValue HP = getInstanceVariable(Self, GML_HP);
+			RValue rarest = getInstanceVariable(Self, GML_rarest);
+			if (HP.m_Real < 1 && !rarest.AsBool())
+			{
+				RValue oreType = getInstanceVariable(Self, GML_oreType);
+				for (auto& player : playerMap)
+				{
+					if (player.first == 0)
+					{
+						continue;
+					}
+					RValue scripts = getInstanceVariable(player.second, GML_scripts);
+					RValue materialGrind = getInstanceVariable(scripts, GML_MaterialGrind);
+					if (materialGrind.m_Kind == VALUE_UNDEFINED || materialGrind.m_Kind == VALUE_UNSET)
+					{
+						continue;
+					}
+					char oreTypeChar = static_cast<char>(lround(oreType.m_Real));
+					RValue config = getInstanceVariable(materialGrind, GML_config);
+					RValue newOreA = RValue(getInstanceVariable(config, GML_oreA).m_Real + (oreTypeChar == 0 ? 1 : 0));
+					RValue newOreB = RValue(getInstanceVariable(config, GML_oreB).m_Real + (oreTypeChar == 1 ? 1 : 0));
+					RValue newOreC = RValue(getInstanceVariable(config, GML_oreC).m_Real + (oreTypeChar == 2 ? 1 : 0));
+					sendKaelaOreAmountMessage(clientSocketMap[player.first], static_cast<short>(newOreA.m_Real), static_cast<short>(newOreB.m_Real), static_cast<short>(newOreC.m_Real));
+					setInstanceVariable(config, GML_oreA, newOreA);
+					setInstanceVariable(config, GML_oreB, newOreB);
+					setInstanceVariable(config, GML_oreC, newOreC);
+					RValue playerX = getInstanceVariable(player.second, GML_x);
+					RValue playerY = getInstanceVariable(player.second, GML_y);
+					RValue depth = getInstanceVariable(player.second, GML_depth);
+					RValue mineral = g_ModuleInterface->CallBuiltin("instance_create_depth", { playerX, playerY.m_Real - 16, depth.m_Real - 10, objGetFishIndex });
+					setInstanceVariable(mineral, GML_sprite_index, sprKaelaMinerals);
+					setInstanceVariable(mineral, GML_image_index, RValue(oreType.m_Real + 1));
+					setInstanceVariable(mineral, GML_image_speed, 0);
+					setInstanceVariable(mineral, GML_waitTime, 30);
+					setInstanceVariable(mineral, GML_image_xscale, 2);
+					setInstanceVariable(mineral, GML_image_yscale, 2);
+				}
+				auto mapInstance = instanceToIDMap.find(Self);
+				if (mapInstance != instanceToIDMap.end())
+				{
+					uint16_t instanceID = mapInstance->second;
+					instanceToIDMap.erase(Self);
+
+					instancesDeleteMessage.addInstance(instanceID);
+					if (instancesDeleteMessage.numInstances >= instanceDeleteDataLen)
+					{
+						sendAllInstanceDeleteMessage();
+					}
+					availableInstanceIDs.push(instanceID);
+				}
+				
+				g_ModuleInterface->CallBuiltin("instance_destroy", { Self });
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+			else
+			{
+				auto mapInstance = instanceToIDMap.find(Self);
+				if (mapInstance == instanceToIDMap.end())
+				{
+					int instanceID = availableInstanceIDs.front();
+					instanceToIDMap[Self] = instanceID;
+					float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
+					float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+					float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
+					float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+					// Probably should change this to uint16_t
+					short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
+					char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+					// seems like there's something that doesn't have a sprite at the beginning? Not sure what it is
+					// Maybe it's the additional player I created?
+					// temp code to just make it work for now
+					if (spriteIndex < 0)
+					{
+						spriteIndex = 0;
+					}
+					instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, instanceID, truncatedImageIndex);
+					//			if (spriteIndex >= 0)
+					{
+						instancesCreateMessage.addInstance(data);
+						if (instancesCreateMessage.numInstances >= instanceCreateDataLen)
+						{
+							sendAllInstanceCreateMessage();
+						}
+					}
+
+					availableInstanceIDs.pop();
+				}
+				else
+				{
+					float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
+					float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+					float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
+					float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+					// Probably should change this to uint16_t
+					short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
+					char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+					instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, mapInstance->second, truncatedImageIndex);
+					instancesUpdateMessage.addInstance(data);
+					if (instancesUpdateMessage.numInstances >= instanceUpdateDataLen)
+					{
+						sendAllInstanceUpdateMessage();
+					}
+				}
+			}
+		}
+		else
+		{
+			callbackManagerInterfacePtr->CancelOriginalFunction();
+		}
+	}
+}
+
+void GetFishAlarm0Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Self = std::get<0>(Args);
+			auto mapInstance = instanceToIDMap.find(Self);
+			if (mapInstance == instanceToIDMap.end())
+			{
+				int instanceID = availableInstanceIDs.front();
+				instanceToIDMap[Self] = instanceID;
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+				// Probably should change this to uint16_t
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				// seems like there's something that doesn't have a sprite at the beginning? Not sure what it is
+				// Maybe it's the additional player I created?
+				// temp code to just make it work for now
+				if (spriteIndex < 0)
+				{
+					spriteIndex = 0;
+				}
+				instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, instanceID, truncatedImageIndex);
+				//			if (spriteIndex >= 0)
+				{
+					instancesCreateMessage.addInstance(data);
+					if (instancesCreateMessage.numInstances >= instanceCreateDataLen)
+					{
+						sendAllInstanceCreateMessage();
+					}
+				}
+
+				availableInstanceIDs.pop();
+			}
+			else
+			{
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+				// Probably should change this to uint16_t
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, mapInstance->second, truncatedImageIndex);
+				instancesUpdateMessage.addInstance(data);
+				if (instancesUpdateMessage.numInstances >= instanceUpdateDataLen)
+				{
+					sendAllInstanceUpdateMessage();
+				}
+			}
+		}
+	}
+}
+
+void GetFishAlarm1Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Self = std::get<0>(Args);
+			auto mapInstance = instanceToIDMap.find(Self);
+			if (mapInstance != instanceToIDMap.end())
+			{
+				uint16_t instanceID = mapInstance->second;
+				instanceToIDMap.erase(Self);
+
+				instancesDeleteMessage.addInstance(instanceID);
+				if (instancesDeleteMessage.numInstances >= instanceDeleteDataLen)
+				{
+					sendAllInstanceDeleteMessage();
+				}
+				availableInstanceIDs.push(instanceID);
+			}
+
+			g_ModuleInterface->CallBuiltin("instance_destroy", { Self });
 		}
 	}
 }

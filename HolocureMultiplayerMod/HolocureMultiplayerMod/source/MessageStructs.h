@@ -48,6 +48,7 @@ enum MessageTypes : char
 	MESSAGE_LOBBY_PLAYER_DISCONNECTED,
 	MESSAGE_HOST_HAS_PAUSED,
 	MESSAGE_HOST_HAS_UNPAUSED,
+	MESSAGE_KAELA_ORE_AMOUNT,
 	MESSAGE_INVALID
 };
 
@@ -1799,5 +1800,41 @@ struct messageHostHasUnpaused
 	{
 		int startBufferPos = 0;
 		writeCharToByteBuffer(messageBuffer, MESSAGE_HOST_HAS_UNPAUSED, startBufferPos);
+	}
+};
+
+struct messageKaelaOreAmount
+{
+	short oreA;
+	short oreB;
+	short oreC;
+
+	messageKaelaOreAmount() : oreA(0), oreB(0), oreC(0)
+	{
+	}
+
+	messageKaelaOreAmount(short oreA, short oreB, short oreC) : oreA(oreA), oreB(oreB), oreC(oreC)
+	{
+	}
+
+	int receiveMessage(SOCKET socket);
+
+	void serialize(char* messageBuffer)
+	{
+		int startBufferPos = 0;
+		writeCharToByteBuffer(messageBuffer, MESSAGE_KAELA_ORE_AMOUNT, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, oreA, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, oreB, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, oreC, startBufferPos);
+	}
+
+	size_t getMessageSize()
+	{
+		size_t curMessageSize = 0;
+		curMessageSize++;
+		curMessageSize += 2;
+		curMessageSize += 2;
+		curMessageSize += 2;
+		return curMessageSize;
 	}
 };

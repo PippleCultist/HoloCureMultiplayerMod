@@ -147,6 +147,9 @@ bool receivedHostHasPaused = false;
 std::binary_semaphore hostHasUnpausedQueueLock(1);
 bool receivedHostHasUnpaused = false;
 
+std::binary_semaphore kaelaOreAmountQueueLock(1);
+std::queue<messageKaelaOreAmount> kaelaOreAmountQueue;
+
 // Message handler should probably only handle receiving messages. Let the sending be handled somewhere else
 
 void clientReceiveMessageHandler()
@@ -244,7 +247,7 @@ void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInst
 					}
 					else
 					{
-						g_ModuleInterface->Print(CM_RED, "Couldn't find player summon %d", playerSummon.m_Kind);
+//						g_ModuleInterface->Print(CM_RED, "Couldn't find player summon %d", playerSummon.m_Kind);
 					}
 				}
 			}
@@ -2782,6 +2785,41 @@ void handleHostHasUnpaused()
 	hostHasUnpausedQueueLock.release();
 }
 
+int receiveKaelaOreAmount(SOCKET socket)
+{
+	messageKaelaOreAmount curMessage = messageKaelaOreAmount();
+	int curMessageLen = curMessage.receiveMessage(socket);
+
+	kaelaOreAmountQueueLock.acquire();
+	kaelaOreAmountQueue.push(curMessage);
+	kaelaOreAmountQueueLock.release();
+
+	return curMessageLen;
+}
+
+void handleKaelaOreAmount()
+{
+	do
+	{
+		kaelaOreAmountQueueLock.acquire();
+		if (kaelaOreAmountQueue.empty())
+		{
+			kaelaOreAmountQueueLock.release();
+			break;
+		}
+		messageKaelaOreAmount curMessage = kaelaOreAmountQueue.front();
+		kaelaOreAmountQueue.pop();
+		kaelaOreAmountQueueLock.release();
+
+		RValue scripts = getInstanceVariable(playerMap[clientID], GML_scripts);
+		RValue materialGrind = getInstanceVariable(scripts, GML_MaterialGrind);
+		RValue config = getInstanceVariable(materialGrind, GML_config);
+		setInstanceVariable(config, GML_oreA, RValue(curMessage.oreA));
+		setInstanceVariable(config, GML_oreB, RValue(curMessage.oreB));
+		setInstanceVariable(config, GML_oreC, RValue(curMessage.oreC));
+	} while (true);
+}
+
 int receiveMessage(SOCKET socket, uint32_t playerID)
 {
 	const int messageTypeLen = 1;
@@ -2972,6 +3010,10 @@ int receiveMessage(SOCKET socket, uint32_t playerID)
 		case MESSAGE_HOST_HAS_UNPAUSED:
 		{
 			return receiveHostHasUnpaused(socket);
+		}
+		case MESSAGE_KAELA_ORE_AMOUNT:
+		{
+			return receiveKaelaOreAmount(socket);
 		}
 	}
 	g_ModuleInterface->Print(CM_RED, "Unknown message type received %d", messageType[0]);
@@ -3770,4 +3812,15 @@ int sendAllHostHasUnpausedMessage()
 	}
 
 	return messageBufferLen;
+}
+
+int sendKaelaOreAmountMessage(SOCKET socket, short oreA, short oreB, short oreC)
+{
+	messageKaelaOreAmount curMessage = messageKaelaOreAmount(oreA, oreB, oreC);
+	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
+	char* messageBuffer = new char[messageBufferLen];
+	curMessage.serialize(messageBuffer);
+	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	delete[] messageBuffer;
+	return sentLen;
 }

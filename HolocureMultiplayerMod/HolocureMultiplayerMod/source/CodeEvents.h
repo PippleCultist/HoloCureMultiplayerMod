@@ -23,6 +23,8 @@ extern int curSelectedStageSprite;
 extern bool hasSent;
 extern bool hasHostPaused;
 
+extern bool isInOreDepositStep;
+
 extern std::unordered_map<uint32_t, bool> hasClientPlayerDisconnected;
 
 extern std::unordered_map<ULONG, SOCKET> listenForClientSocketMap;
@@ -103,3 +105,6 @@ void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void SummonCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void SummonStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void OreDepositStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void GetFishAlarm0Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void GetFishAlarm1Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

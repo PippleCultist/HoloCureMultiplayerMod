@@ -179,6 +179,15 @@
 	DO(Confirmed) \
 	DO(version) \
 	DO(playerSummon) \
+	DO(customDrawScript) \
+	DO(rarest) \
+	DO(oreType) \
+	DO(scripts) \
+	DO(MaterialGrind) \
+	DO(oreA) \
+	DO(oreB) \
+	DO(oreC) \
+	DO(waitTime) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -269,12 +278,14 @@ extern int objInputManagerIndex;
 extern int objCharacterDataIndex;
 extern int objCharSelectIndex;
 extern int objObstacleIndex;
+extern int objGetFishIndex;
 extern int sprEmptyIndex;
 extern int sprGameCursorIndex;
 extern int sprGameCursor2Index;
 extern int sprEmptyMaskIndex;
 extern int sprSummonPointerIndex;
 extern int sprHudInitButtonsIndex;
+extern int sprKaelaMinerals;
 extern int jpFont;
 extern int rmTitle;
 extern int rmCharSelect;

@@ -102,12 +102,14 @@ int objInputManagerIndex = -1;
 int objCharacterDataIndex = -1;
 int objCharSelectIndex = -1;
 int objObstacleIndex = -1;
+int objGetFishIndex = -1;
 int sprEmptyIndex = -1;
 int sprEmptyMaskIndex = -1;
 int sprGameCursorIndex = -1;
 int sprGameCursor2Index = -1;
 int sprSummonPointerIndex = -1;
 int sprHudInitButtonsIndex = -1;
+int sprKaelaMinerals = -1;
 int jpFont = -1;
 int rmTitle = -1;
 int rmCharSelect = -1;
@@ -473,6 +475,21 @@ EXPORTED AurieStatus ModuleInitialize(
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Summon_Step_0", SummonStepBefore, nullptr)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Summon_Step_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_OreDeposit_Step_0", OreDepositStepBefore, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_OreDeposit_Step_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_GetFish_Alarm_0", GetFishAlarm0Before, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_GetFish_Alarm_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_GetFish_Alarm_1", GetFishAlarm1Before, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_GetFish_Alarm_1");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 
@@ -942,12 +959,14 @@ EXPORTED AurieStatus ModuleInitialize(
 	objCharacterDataIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CharacterData" }).AsReal());
 	objCharSelectIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CharSelect" }).AsReal());
 	objObstacleIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Obstacle" }).AsReal());
+	objGetFishIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_GetFish" }).AsReal());
 	sprEmptyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_empty" }).AsReal());
 	sprGameCursorIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor" }).AsReal());
 	sprGameCursor2Index = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor2" }).AsReal());
 	sprEmptyMaskIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_emptyMask" }).AsReal());
 	sprSummonPointerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_summonPointer" }).AsReal());
 	sprHudInitButtonsIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_initButtons" }).AsReal());
+	sprKaelaMinerals = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_KaelaMinerals" }).AsReal());
 	jpFont = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "jpFont" }).AsReal());
 	rmTitle = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_Title" }).AsReal());
 	rmCharSelect = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_CharSelect" }).AsReal());

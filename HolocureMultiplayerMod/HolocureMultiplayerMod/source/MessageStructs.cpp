@@ -806,3 +806,38 @@ int messageAttackUpdate::receiveMessage(SOCKET socket)
 	}
 	return messageLen;
 }
+
+int messageKaelaOreAmount::receiveMessage(SOCKET socket)
+{
+	int messageLen = 0;
+	int result = -1;
+
+	char oreAArr[2];
+	if ((result = receiveBytes(socket, oreAArr, sizeof(oreAArr))) <= 0)
+	{
+		return result;
+	}
+	int startBufferPos = 0;
+	readByteBufferToShort(&oreA, oreAArr, startBufferPos);
+	messageLen += result;
+
+	char oreBArr[2];
+	if ((result = receiveBytes(socket, oreBArr, sizeof(oreBArr))) <= 0)
+	{
+		return result;
+	}
+	startBufferPos = 0;
+	readByteBufferToShort(&oreB, oreBArr, startBufferPos);
+	messageLen += result;
+
+	char oreCArr[2];
+	if ((result = receiveBytes(socket, oreCArr, sizeof(oreCArr))) <= 0)
+	{
+		return result;
+	}
+	startBufferPos = 0;
+	readByteBufferToShort(&oreC, oreCArr, startBufferPos);
+	messageLen += result;
+
+	return messageLen;
+}

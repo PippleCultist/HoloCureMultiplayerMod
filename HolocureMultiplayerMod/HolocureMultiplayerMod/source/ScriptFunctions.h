@@ -12,6 +12,7 @@ extern std::unordered_map<uint32_t, RValue> playerItemsMap;
 extern std::unordered_map<uint32_t, RValue> playerAttackIndexMapMap;
 extern std::unordered_map<uint32_t, RValue> currentStickersMap;
 extern std::unordered_map<uint32_t, RValue> summonMap;
+extern std::unordered_map<uint32_t, RValue> customDrawScriptMap;
 extern std::unordered_map<uint32_t, int> playerPingMap;
 extern std::unordered_map<uint32_t, lobbyPlayerData> lobbyPlayerDataMap;
 extern std::unordered_map<uint32_t, bool> clientUnpausedMap;
