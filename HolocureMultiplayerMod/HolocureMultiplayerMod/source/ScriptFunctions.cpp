@@ -7,10 +7,18 @@
 #include "CommonFunctions.h"
 #include "NetworkFunctions.h"
 #include "CodeEvents.h"
+#include "SteamHost.h"
+#include "SteamClient.h"
+#include "SteamLobbyBrowser.h"
 #include <iphlpapi.h>
 #include <fstream>
 
 #define HOST_INDEX 0
+
+extern int curMenuButtonsIndex;
+extern CSteamID curSelectedSteamID;
+extern CSteamLobbyBrowser* steamLobbyBrowser;
+extern int curSteamLobbyMemberIndex;
 
 inline PFUNC_YYGMLScript getScriptFunction(const char* name)
 {
@@ -66,6 +74,11 @@ std::unordered_map<uint32_t, lobbyPlayerData> lobbyPlayerDataMap;
 std::unordered_map<uint32_t, bool> clientUnpausedMap;
 
 std::unordered_map<uint32_t, levelUpOptionNames> levelUpOptionNamesMap;
+std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
+std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
+std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
+
+CSteamHost* steamHost = nullptr;
 
 double moneyGainMultiplier = 0;
 
@@ -379,9 +392,9 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			RValue playerCharacter = getInstanceVariable(Self, GML_playerCharacter);
 
 			// initialize player data for each client
-			for (auto& curClientSocket : clientSocketMap)
+			for (auto& curClientIDMapping : clientIDToSteamIDMap)
 			{
-				uint32_t clientID = curClientSocket.first;
+				uint32_t clientID = curClientIDMapping.first;
 
 				summonMap[clientID] = RValue();
 
@@ -554,9 +567,9 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				attacksCopyMap[playerID] = getInstanceVariable(playerInstance, GML_attacks);
 			}
 
-			for (auto& curClientSocket : clientSocketMap)
+			for (auto& curClientIDMapping : clientIDToSteamIDMap)
 			{
-				uint32_t playerID = curClientSocket.first;
+				uint32_t playerID = curClientIDMapping.first;
 				RValue newRerollContainer;
 				g_RunnerInterface.StructCreate(&newRerollContainer);
 				rerollContainerMap[playerID] = newRerollContainer;
@@ -806,16 +819,16 @@ RValue& LevelUpPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 		{
 			return ReturnValue;
 		}
-		RValue keepAliveRerollContainerArr = g_ModuleInterface->CallBuiltin("array_create", { static_cast<int>(clientSocketMap.size()) });
+		RValue keepAliveRerollContainerArr = g_ModuleInterface->CallBuiltin("array_create", { static_cast<int>(clientIDToSteamIDMap.size()) });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "keepAliveRerollContainerArr", keepAliveRerollContainerArr });
 		rerollContainerMap.clear();
 		rerollContainerMap[HOST_INDEX] = getInstanceVariable(Self, GML_rerollContainer);
 		int clientSocketIndex = 0;
-		for (auto& clientSocket : clientSocketMap)
+		for (auto& curClientIDMapping : clientIDToSteamIDMap)
 		{
 			RValue newRerollContainer;
 			g_RunnerInterface.StructCreate(&newRerollContainer);
-			rerollContainerMap[clientSocket.first] = newRerollContainer;
+			rerollContainerMap[curClientIDMapping.first] = newRerollContainer;
 			keepAliveRerollContainerArr[clientSocketIndex] = newRerollContainer;
 			clientSocketIndex++;
 		}
@@ -830,10 +843,9 @@ RValue& LevelUpPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 			prevOptions[i] = options[i];
 		}
 
-		for (auto& clientSocket : clientSocketMap)
+		for (auto& curClientIDMapping : clientIDToSteamIDMap)
 		{
-			uint32_t playerID = clientSocket.first;
-			SOCKET curClientSocket = clientSocket.second;
+			uint32_t playerID = curClientIDMapping.first;
 			swapPlayerData(Self, attackController, playerID);
 			origGeneratePossibleOptionsScript(Self, Other, result, 0, nullptr);
 			origOptionOneScript(Self, Other, result, 0, nullptr);
@@ -844,7 +856,7 @@ RValue& LevelUpPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 			options[2] = result;
 			origOptionFourScript(Self, Other, result, 0, nullptr);
 			options[3] = result;
-			sendClientLevelUpOptionsMessage(curClientSocket, playerID);
+			sendClientLevelUpOptionsMessage(playerID);
 			optionType optionType0 = convertStringOptionTypeToEnum(getInstanceVariable(options[0], GML_optionType));
 			optionType optionType1 = convertStringOptionTypeToEnum(getInstanceVariable(options[1], GML_optionType));
 			optionType optionType2 = convertStringOptionTypeToEnum(getInstanceVariable(options[2], GML_optionType));
@@ -945,7 +957,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					if (static_cast<int>(lround(rerollTimes.m_Real)) >= 1)
 					{
 						// TODO: Check if the message failed to send
-						sendLevelUpClientChoiceMessage(serverSocket, selectedOption);
+						sendLevelUpClientChoiceMessage(0, selectedOption);
 						setInstanceVariable(Self, GML_eliminateMode, RValue(false));
 						// TODO: Maybe should wait until an acknowledgement is received from the host before reducing the count (low priority)
 						g_ModuleInterface->CallBuiltin("variable_global_set", { "rerollTimes", rerollTimes.m_Real - 1 });
@@ -966,7 +978,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					g_ModuleInterface->CallBuiltin("variable_global_set", { "eliminateTimes", eliminateTimes.m_Real - 1 });
 					setInstanceVariable(Self, GML_eliminateMode, RValue(false));
 					setInstanceVariable(Self, GML_eliminatedThisLevel, RValue(true));
-					sendEliminateLevelUpClientChoiceMessage(serverSocket, selectedOption);
+					sendEliminateLevelUpClientChoiceMessage(0, selectedOption);
 					setInstanceVariable(options[selectedOption], GML_optionName, RValue(""));
 					setInstanceVariable(options[selectedOption], GML_optionIcon, RValue(sprEmptyIndex));
 					setInstanceVariable(options[selectedOption], GML_optionDescription, RValue(""));
@@ -984,7 +996,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 
 				setInstanceVariable(Self, GML_eliminatedThisLevel, RValue(false));
 				// TODO: Check if the message failed to send
-				sendLevelUpClientChoiceMessage(serverSocket, selectedOption);
+				sendLevelUpClientChoiceMessage(0, selectedOption);
 
 				levelUpPausedData levelUpData = levelUpPausedData(
 					0,
@@ -1008,7 +1020,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				{
 					if (static_cast<int>(lround(getInstanceVariable(Self, GML_itemBoxTakeOption).m_Real)) == 0)
 					{
-						sendBoxTakeOptionMessage(serverSocket, static_cast<char>(lround(getInstanceVariable(Self, GML_currentBoxItem).m_Real)));
+						sendBoxTakeOptionMessage(HOST_INDEX, static_cast<char>(lround(getInstanceVariable(Self, GML_currentBoxItem).m_Real)));
 					}
 					else if (getInstanceVariable(Self, GML_superBox).AsBool())
 					{
@@ -1020,7 +1032,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 						setInstanceVariable(curItem, GML_becomeSuper, RValue(false));
 						setInstanceVariable(curItem, GML_optionIcon, getInstanceVariable(curItem, GML_optionIcon_Normal));
 						// Required to tell the host that the client dropped the super item and to set the item back to normal
-						sendBoxTakeOptionMessage(serverSocket, 100);
+						sendBoxTakeOptionMessage(HOST_INDEX, 100);
 					}
 				}
 			}
@@ -1031,7 +1043,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				{
 					int stickerAction = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerAction).m_Real));
 					int stickerOption = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerOption).m_Real));
-					sendStickerChooseOptionMessage(serverSocket, stickerOption, stickerAction);
+					sendStickerChooseOptionMessage(HOST_INDEX, stickerOption, stickerAction);
 					if (stickerAction == 1)
 					{
 						// Check to make sure to swap the sticker sprite after swapping
@@ -1053,7 +1065,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					RValue attackID = getInstanceVariable(collabingWeapon, GML_attackID);
 					RValue optionType = getInstanceVariable(collabingWeapon, GML_optionType);
 					levelUpOption curOption = levelUpOption(optionType.AsString(), "", attackID.AsString(), std::vector<std::string_view>(), 0, 0, 0);
-					sendChooseCollabMessage(serverSocket, curOption);
+					sendChooseCollabMessage(HOST_INDEX, curOption);
 				}
 			}
 			else if (gameOvered.AsBool() || gameWon.AsBool())
@@ -1133,6 +1145,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					}
 					else if (pauseOption == 2)
 					{
+						// TODO: Add code that disconnects steam connections as well
 						for (auto& clientSocket : clientSocketMap)
 						{
 							closesocket(clientSocket.second);
@@ -1259,9 +1272,9 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 			if (isClientUsingBox)
 			{
 				isClientUsingBox = false;
-				sendInteractFinishedMessage(serverSocket);
+				sendInteractFinishedMessage(HOST_INDEX);
 				uint32_t boxCoinGain = static_cast<uint32_t>(floor(getInstanceVariable(Self, GML_boxCoinGain).m_Real));
-				sendClientGainMoneyMessage(serverSocket, boxCoinGain);
+				sendClientGainMoneyMessage(HOST_INDEX, boxCoinGain);
 
 				// Need to manually remove certain instances created while paused since the game originally created them in a different room which would automatically destroy them when moved,
 				// but that doesn't work now since I prevented it from moving rooms while paused
@@ -1292,13 +1305,13 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 								RValue enhanceCostMult = g_ModuleInterface->CallBuiltin("variable_global_get", { "enhanceCostMultiplier" });
 								RValue enhancements = getInstanceVariable(loadOut, GML_enhancements);
 								uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.m_Real * enhancements.m_Real * 50));
-								sendAnvilChooseOptionMessage(serverSocket, optionID.AsString(), optionType.AsString(), enhanceCost, 1);
+								sendAnvilChooseOptionMessage(HOST_INDEX, optionID.AsString(), optionType.AsString(), enhanceCost, 1);
 							}
 						}
 						else
 						{
 							// Levelled up weapon
-							sendAnvilChooseOptionMessage(serverSocket, optionID.AsString(), optionType.AsString(), 0, 0);
+							sendAnvilChooseOptionMessage(HOST_INDEX, optionID.AsString(), optionType.AsString(), 0, 0);
 						}
 					}
 					else if (upgradeOption == 1)
@@ -1306,25 +1319,25 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 						// Enchanting anvil
 						RValue enhanceCostMult = g_ModuleInterface->CallBuiltin("variable_global_get", { "enhanceCostMultiplier" });
 						uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.m_Real * 250));
-						sendClientAnvilEnchantMessage(serverSocket, optionID.AsString(), currentAnvilRolledMods, enhanceCost);
+						sendClientAnvilEnchantMessage(HOST_INDEX, optionID.AsString(), currentAnvilRolledMods, enhanceCost);
 					}
 					setInstanceVariable(Self, GML_usedAnvil, RValue(false));
 					g_ModuleInterface->CallBuiltin("instance_destroy", { objItemLightBeamIndex });
 				}
 				isClientUsingAnvil = false;
-				sendInteractFinishedMessage(serverSocket);
+				sendInteractFinishedMessage(HOST_INDEX);
 			}
 			else if (isClientUsingGoldenAnvil)
 			{
 				setInstanceVariable(Self, GML_usedAnvil, RValue(false));
 				isClientUsingGoldenAnvil = false;
-				sendInteractFinishedMessage(serverSocket);
+				sendInteractFinishedMessage(HOST_INDEX);
 				g_ModuleInterface->CallBuiltin("instance_destroy", { objItemLightBeamIndex });
 			}
 			else if (isClientUsingStamp)
 			{
 				isClientUsingStamp = false;
-				sendInteractFinishedMessage(serverSocket);
+				sendInteractFinishedMessage(HOST_INDEX);
 			}
 		}
 	}
@@ -1415,7 +1428,7 @@ RValue& ExecuteSpecialAttackBefore(CInstance* Self, CInstance* Other, RValue& Re
 {
 	if (hasConnected && !isHost)
 	{
-		sendClientSpecialAttackMessage(serverSocket);
+		sendClientSpecialAttackMessage(0);
 		callbackManagerInterfacePtr->CancelOriginalFunction();
 	}
 
@@ -1591,6 +1604,7 @@ bool isInCoopOptionMenu = false;
 bool isInLobby = false;
 bool isSelectingCharacter = false;
 bool isSelectingMap = false;
+bool isInSteamLobby = false;
 SOCKET listenSocket;
 
 SOCKET broadcastSocket = INVALID_SOCKET;
@@ -1610,46 +1624,65 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 	}
 	else if (isInLobby)
 	{
-		// In the modded lobby
-		if (curCoopOptionMenuIndex == 0)
+		if (curMenuButtonsIndex == 0)
 		{
-			// Choose character
-			isInLobby = false;
-			isSelectingCharacter = true;
-			lobbyPlayerDataMap[clientID].isReady = 0;
-			g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
-		}
-		else if (curCoopOptionMenuIndex == 1)
-		{
-			// Ready button
-			if (!lobbyPlayerDataMap[clientID].charName.empty())
+			// In the modded lobby
+			if (curCoopOptionMenuIndex == 0)
 			{
-				lobbyPlayerDataMap[clientID].isReady = 1 - lobbyPlayerDataMap[clientID].isReady;
+				// Choose character
+				isInLobby = false;
+				isSelectingCharacter = true;
+				lobbyPlayerDataMap[clientID].isReady = 0;
+				g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
+			}
+			else if (curCoopOptionMenuIndex == 1)
+			{
+				// Ready button
+				if (!lobbyPlayerDataMap[clientID].charName.empty())
+				{
+					lobbyPlayerDataMap[clientID].isReady = 1 - lobbyPlayerDataMap[clientID].isReady;
+				}
+			}
+			else if (curCoopOptionMenuIndex == 2)
+			{
+				// Choose map button
+				isInLobby = false;
+				isSelectingMap = true;
+				RValue charSelectInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
+				RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
+				RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName });
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charData });
+				// TODO: Need to also set the outfit once I add that
+				RValue availableOutfitsArr = g_ModuleInterface->CallBuiltin("array_create", { 1, "default" });
+				setInstanceVariable(charSelectInstance, GML_availableOutfits, availableOutfitsArr);
+			}
+			else if (curCoopOptionMenuIndex == 3)
+			{
+				// Start game button
+				hasSelectedMap = false;
+				isInLobby = false;
+				closesocket(connectClientSocket);
+				connectClientSocket = INVALID_SOCKET;
+				closesocket(broadcastSocket);
+				broadcastSocket = INVALID_SOCKET;
+				g_ModuleInterface->CallBuiltin("room_goto", { curSelectedMap });
 			}
 		}
-		else if (curCoopOptionMenuIndex == 2)
+		else if (curMenuButtonsIndex == 1) // Should be only if the host is in a steam lobby and if they click on the lobby member list
 		{
-			// Choose map button
-			isInLobby = false;
-			isSelectingMap = true;
-			RValue charSelectInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
-			RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
-			RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName });
-			g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charData });
-			// TODO: Need to also set the outfit once I add that
-			RValue availableOutfitsArr = g_ModuleInterface->CallBuiltin("array_create", { 1, "default" });
-			setInstanceVariable(charSelectInstance, GML_availableOutfits, availableOutfitsArr);
+			curSelectedSteamID = steamLobbyBrowser->m_lobbyMemberList[curSteamLobbyMemberIndex].m_steamIDMember;
 		}
-		else if (curCoopOptionMenuIndex == 3)
+		else if (curMenuButtonsIndex == 2) // Should be only if the host has clicked on a lobby member and clicked on an option
 		{
-			// Start game button
-			hasSelectedMap = false;
-			isInLobby = false;
-			closesocket(connectClientSocket);
-			connectClientSocket = INVALID_SOCKET;
-			closesocket(broadcastSocket);
-			broadcastSocket = INVALID_SOCKET;
-			g_ModuleInterface->CallBuiltin("room_goto", { curSelectedMap });
+			if (!curSelectedSteamID.IsValid())
+			{
+				g_ModuleInterface->Print(CM_RED, "Steam ID isn't valid");
+				return ReturnValue;
+			}
+			uint64 inviteeSteamID = curSelectedSteamID.ConvertToUint64();
+			steamIDToClientIDMap[inviteeSteamID] = 0;
+			SteamMatchmaking()->SendLobbyChatMsg(steamLobbyBrowser->getSteamLobbyID(), &inviteeSteamID, sizeof(inviteeSteamID));
+			printf("Pressed invite button\n");
 		}
 	}
 	else if (isInCoopOptionMenu)
@@ -1955,6 +1988,18 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 			isInNetworkAdapterMenu = true;
 			hasReadNetworkAdapterDisclaimer = false;
 		}
+		else if (curCoopOptionMenuIndex == 3)
+		{
+			printf("Hosting via steam\n");
+			steamHost = new CSteamHost();
+			isHost = true;
+			playerPingMap.clear();
+			lobbyPlayerDataMap.clear();
+			hasClientPlayerDisconnected.clear();
+			lobbyPlayerDataMap[0] = lobbyPlayerData();
+			// TODO: Let the host decide their own name eventually
+			lobbyPlayerDataMap[0].playerName = "0";
+		}
 	}
 	else
 	{
@@ -2039,6 +2084,14 @@ void cleanupPlayerClientData()
 	clientSocketMap.clear();
 	lobbyPlayerDataMap.clear();
 	hasClientPlayerDisconnected.clear();
+	steamIDToClientIDMap.clear();
+	clientIDToSteamIDMap.clear();
+	for (auto& messageQueue : steamIDToConnectionMap)
+	{
+		SteamNetworkingSockets()->CloseConnection(messageQueue.second.curConnection, 0, nullptr, false);
+		messageQueue.second.curMessage->Release();
+	}
+	steamIDToConnectionMap.clear();
 	for (auto& listenForClientSocket : listenForClientSocketMap)
 	{
 		closesocket(listenForClientSocket.second);
@@ -2051,6 +2104,8 @@ bool hasReturnedFromSelectingMap = false;
 RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
 	curCoopOptionMenuIndex = 0;
+	curSteamLobbyMemberIndex = 0;
+	curSelectedSteamID = CSteamID();
 	if (isInGamemodeSelect)
 	{
 		isInGamemodeSelect = false;
@@ -2110,7 +2165,9 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 			hasReturnedFromSelectingCharacter = false;
 			isSelectingCharacter = false;
 			isInLobby = true;
+			curSelectedSteamID = CSteamID();
 			curCoopOptionMenuIndex = 0;
+			curSteamLobbyMemberIndex = 0;
 			g_ModuleInterface->CallBuiltin("instance_destroy", { objCharSelectIndex });
 		}
 	}
@@ -2121,7 +2178,9 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 			hasReturnedFromSelectingMap = false;
 			isSelectingMap = false;
 			isInLobby = true;
+			curSelectedSteamID = CSteamID();
 			curCoopOptionMenuIndex = 0;
+			curSteamLobbyMemberIndex = 0;
 			g_ModuleInterface->CallBuiltin("instance_destroy", { objCharSelectIndex });
 		}
 	}
@@ -2168,7 +2227,9 @@ RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& R
 				lobbyPlayerDataMap[clientID].stageSprite = curSelectedStageSprite;
 				isSelectingCharacter = false;
 				isInLobby = true;
+				curSelectedSteamID = CSteamID();
 				curCoopOptionMenuIndex = 0;
+				curSteamLobbyMemberIndex = 0;
 				g_ModuleInterface->CallBuiltin("instance_destroy", { objCharSelectIndex });
 			}
 		}
@@ -2190,7 +2251,9 @@ RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& R
 				}
 				isSelectingMap = false;
 				isInLobby = true;
+				curSelectedSteamID = CSteamID();
 				curCoopOptionMenuIndex = 0;
+				curSteamLobbyMemberIndex = 0;
 				g_ModuleInterface->CallBuiltin("instance_destroy", { objCharSelectIndex });
 			}
 		}

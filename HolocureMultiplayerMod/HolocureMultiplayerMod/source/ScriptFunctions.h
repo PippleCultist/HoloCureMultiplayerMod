@@ -1,6 +1,7 @@
 #pragma once
 #include <YYToolkit/shared.hpp>
 #include "ModuleMain.h"
+#include "steam/steamnetworkingtypes.h"
 
 struct lobbyPlayerData;
 extern bool isClientPaused;
@@ -51,6 +52,21 @@ struct levelUpOptionNames
 	}
 };
 
+struct steamConnection
+{
+	steamConnection() : curConnection(0), curMessage(nullptr), curBytePos(0)
+	{
+	}
+
+	steamConnection(HSteamNetConnection curConnection) : curConnection(curConnection), curMessage(nullptr), curBytePos(0)
+	{
+	}
+
+	HSteamNetConnection curConnection;
+	SteamNetworkingMessage_t* curMessage;
+	int curBytePos;
+};
+
 void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, uint32_t playerIndex);
 optionType convertStringOptionTypeToEnum(RValue optionType);
 
@@ -63,6 +79,7 @@ extern bool isInCoopOptionMenu;
 extern bool isInLobby;
 extern bool isSelectingCharacter;
 extern bool isSelectingMap;
+extern bool isInSteamLobby;
 
 extern SOCKET listenSocket;
 

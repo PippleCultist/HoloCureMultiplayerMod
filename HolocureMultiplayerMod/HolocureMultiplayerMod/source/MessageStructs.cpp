@@ -1,12 +1,12 @@
 #include "MessageStructs.h"
 #include "NetworkFunctions.h"
 
-int receiveString(SOCKET socket, std::string* outputString)
+int receiveString(uint32_t playerID, std::string* outputString)
 {
 	char messageLenArr[2];
 	short messageLen = -1;
 	int result = -1;
-	if ((result = receiveBytes(socket, messageLenArr, sizeof(messageLenArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageLenArr, sizeof(messageLenArr))) <= 0)
 	{
 		return result;
 	}
@@ -19,7 +19,7 @@ int receiveString(SOCKET socket, std::string* outputString)
 	}
 	char* inputMessage = new char[static_cast<int>(messageLen) + 1];
 	inputMessage[messageLen] = '\0';
-	if ((result = receiveBytes(socket, inputMessage, messageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, messageLen)) <= 0)
 	{
 		return result;
 	}
@@ -30,12 +30,12 @@ int receiveString(SOCKET socket, std::string* outputString)
 	return result;
 }
 
-int receiveStringView(SOCKET socket, std::string_view* outputString)
+int receiveStringView(uint32_t playerID, std::string_view* outputString)
 {
 	char messageLenArr[2];
 	short messageLen = -1;
 	int result = -1;
-	if ((result = receiveBytes(socket, messageLenArr, sizeof(messageLenArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageLenArr, sizeof(messageLenArr))) <= 0)
 	{
 		return result;
 	}
@@ -48,7 +48,7 @@ int receiveStringView(SOCKET socket, std::string_view* outputString)
 	}
 	char* inputMessage = new char[static_cast<int>(messageLen) + 1];
 	inputMessage[messageLen] = '\0';
-	if ((result = receiveBytes(socket, inputMessage, messageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, messageLen)) <= 0)
 	{
 		return result;
 	}
@@ -59,12 +59,12 @@ int receiveStringView(SOCKET socket, std::string_view* outputString)
 	return result;
 }
 
-int levelUpOption::receiveMessage(SOCKET socket)
+int levelUpOption::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
 	char modsListSize = -1;
-	if ((result = receiveBytes(socket, &modsListSize, sizeof(modsListSize))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &modsListSize, sizeof(modsListSize))) <= 0)
 	{
 		return result;
 	}
@@ -72,7 +72,7 @@ int levelUpOption::receiveMessage(SOCKET socket)
 	for (int i = 0; i < static_cast<int>(modsListSize); i++)
 	{
 		std::string_view curGainedMod;
-		if ((result = receiveStringView(socket, &curGainedMod)) <= 0)
+		if ((result = receiveStringView(playerID, &curGainedMod)) <= 0)
 		{
 			return result;
 		}
@@ -81,7 +81,7 @@ int levelUpOption::receiveMessage(SOCKET socket)
 	}
 
 	char optionDescriptionSize = -1;
-	if ((result = receiveBytes(socket, &optionDescriptionSize, sizeof(optionDescriptionSize))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &optionDescriptionSize, sizeof(optionDescriptionSize))) <= 0)
 	{
 		return result;
 	}
@@ -89,7 +89,7 @@ int levelUpOption::receiveMessage(SOCKET socket)
 	for (int i = 0; i < static_cast<int>(optionDescriptionSize); i++)
 	{
 		std::string_view curOptionDescription;
-		if ((result = receiveStringView(socket, &curOptionDescription)) <= 0)
+		if ((result = receiveStringView(playerID, &curOptionDescription)) <= 0)
 		{
 			return result;
 		}
@@ -97,17 +97,17 @@ int levelUpOption::receiveMessage(SOCKET socket)
 		messageLen += result;
 	}
 
-	if ((result = receiveStringView(socket, &optionType)) <= 0)
+	if ((result = receiveStringView(playerID, &optionType)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
-	if ((result = receiveStringView(socket, &optionName)) <= 0)
+	if ((result = receiveStringView(playerID, &optionName)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
-	if ((result = receiveStringView(socket, &optionID)) <= 0)
+	if ((result = receiveStringView(playerID, &optionID)) <= 0)
 	{
 		return result;
 	}
@@ -115,7 +115,7 @@ int levelUpOption::receiveMessage(SOCKET socket)
 
 	char optionIconArr[2];
 	short optionIconShort = -1;
-	if ((result = receiveBytes(socket, optionIconArr, sizeof(optionIconArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, optionIconArr, sizeof(optionIconArr))) <= 0)
 	{
 		return result;
 	}
@@ -126,7 +126,7 @@ int levelUpOption::receiveMessage(SOCKET socket)
 
 	char optionIconSuperArr[2];
 	short optionIconSuperShort = -1;
-	if ((result = receiveBytes(socket, optionIconSuperArr, sizeof(optionIconSuperArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, optionIconSuperArr, sizeof(optionIconSuperArr))) <= 0)
 	{
 		return result;
 	}
@@ -134,7 +134,7 @@ int levelUpOption::receiveMessage(SOCKET socket)
 	readByteBufferToShort(&optionIconSuperShort, optionIconSuperArr, startBufferPos);
 	optionIcon_Super = static_cast<uint16_t>(optionIconSuperShort);
 	messageLen += result;
-	if ((result = receiveBytes(socket, &weaponAndItemType, sizeof(weaponAndItemType))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &weaponAndItemType, sizeof(weaponAndItemType))) <= 0)
 	{
 		return result;
 	}
@@ -142,13 +142,13 @@ int levelUpOption::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int messageLevelUpOptions::receiveMessage(SOCKET socket)
+int messageLevelUpOptions::receiveMessage(uint32_t playerID)
 {
 	int curMessageSize = 0;
 	int result = -1;
 	for (int i = 0; i < 4; i++)
 	{
-		if ((result = optionArr[i].receiveMessage(socket)) <= 0)
+		if ((result = optionArr[i].receiveMessage(playerID)) <= 0)
 		{
 			return result;
 		}
@@ -157,12 +157,12 @@ int messageLevelUpOptions::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageLevelUpClientChoice::receiveMessage(SOCKET socket)
+int messageLevelUpClientChoice::receiveMessage(uint32_t playerID)
 {
 	int curMessageSize = sizeof(levelUpOption);
 	int result = -1;
 	char receivedLevelUpOption = 0;
-	if ((result = receiveBytes(socket, &receivedLevelUpOption, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &receivedLevelUpOption, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -170,19 +170,19 @@ int messageLevelUpClientChoice::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageDestructableCreate::receiveMessage(SOCKET socket)
+int messageDestructableCreate::receiveMessage(uint32_t playerID)
 {
 	int result = -1;
 	int curMessageSize = 0;
 	char messageArr[4];
-	if ((result = receiveBytes(socket, messageArr, sizeof(messageArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageArr, sizeof(messageArr))) <= 0)
 	{
 		return result;
 	}
 	int startBufferPos = 0;
 	readByteBufferToFloat(&data.xPos, messageArr, startBufferPos);
 	curMessageSize += result;
-	if ((result = receiveBytes(socket, messageArr, sizeof(messageArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageArr, sizeof(messageArr))) <= 0)
 	{
 		return result;
 	}
@@ -190,14 +190,14 @@ int messageDestructableCreate::receiveMessage(SOCKET socket)
 	readByteBufferToFloat(&data.yPos, messageArr, startBufferPos);
 	curMessageSize += result;
 	char shortArr[2];
-	if ((result = receiveBytes(socket, shortArr, sizeof(shortArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, shortArr, sizeof(shortArr))) <= 0)
 	{
 		return result;
 	}
 	startBufferPos = 0;
 	readByteBufferToShort(&data.id, shortArr, startBufferPos);
 	curMessageSize += result;
-	if ((result = receiveBytes(socket, &data.pillarType, sizeof(data.pillarType))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &data.pillarType, sizeof(data.pillarType))) <= 0)
 	{
 		return result;
 	}
@@ -205,19 +205,19 @@ int messageDestructableCreate::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageDestructableBreak::receiveMessage(SOCKET socket)
+int messageDestructableBreak::receiveMessage(uint32_t playerID)
 {
 	int result = -1;
 	int curMessageSize = 0;
 	char messageArr[4];
-	if ((result = receiveBytes(socket, messageArr, sizeof(messageArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageArr, sizeof(messageArr))) <= 0)
 	{
 		return result;
 	}
 	int startBufferPos = 0;
 	readByteBufferToFloat(&data.xPos, messageArr, startBufferPos);
 	curMessageSize += result;
-	if ((result = receiveBytes(socket, messageArr, sizeof(messageArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageArr, sizeof(messageArr))) <= 0)
 	{
 		return result;
 	}
@@ -225,14 +225,14 @@ int messageDestructableBreak::receiveMessage(SOCKET socket)
 	readByteBufferToFloat(&data.yPos, messageArr, startBufferPos);
 	curMessageSize += result;
 	char shortArr[2];
-	if ((result = receiveBytes(socket, shortArr, sizeof(shortArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, shortArr, sizeof(shortArr))) <= 0)
 	{
 		return result;
 	}
 	startBufferPos = 0;
 	readByteBufferToShort(&data.id, shortArr, startBufferPos);
 	curMessageSize += result;
-	if ((result = receiveBytes(socket, &data.pillarType, sizeof(data.pillarType))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &data.pillarType, sizeof(data.pillarType))) <= 0)
 	{
 		return result;
 	}
@@ -240,12 +240,12 @@ int messageDestructableBreak::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageEliminateLevelUpClientChoice::receiveMessage(SOCKET socket)
+int messageEliminateLevelUpClientChoice::receiveMessage(uint32_t playerID)
 {
 	int curMessageSize = sizeof(levelUpOption);
 	int result = -1;
 	char receivedLevelUpOption = 0;
-	if ((result = receiveBytes(socket, &receivedLevelUpOption, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &receivedLevelUpOption, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -253,12 +253,12 @@ int messageEliminateLevelUpClientChoice::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageCautionCreate::receiveMessage(SOCKET socket)
+int messageCautionCreate::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(messageCautionCreate);
 	int result = -1;
 	char messageBuffer[curMessageSize];
-	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageBuffer, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -270,12 +270,12 @@ int messageCautionCreate::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messagePreCreateUpdate::receiveMessage(SOCKET socket)
+int messagePreCreateUpdate::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(messagePreCreateUpdate);
 	int result = -1;
 	char messageBuffer[curMessageSize];
-	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageBuffer, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -287,12 +287,12 @@ int messagePreCreateUpdate::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageVfxUpdate::receiveMessage(SOCKET socket)
+int messageVfxUpdate::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(messageVfxUpdate);
 	int result = -1;
 	char messageBuffer[curMessageSize];
-	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageBuffer, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -311,12 +311,12 @@ int messageVfxUpdate::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageInteractableCreate::receiveMessage(SOCKET socket)
+int messageInteractableCreate::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(messageInteractableCreate);
 	int result = -1;
 	char messageBuffer[curMessageSize];
-	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageBuffer, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -329,12 +329,12 @@ int messageInteractableCreate::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageInteractableDelete::receiveMessage(SOCKET socket)
+int messageInteractableDelete::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(messageInteractableDelete);
 	int result = -1;
 	char messageBuffer[curMessageSize];
-	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageBuffer, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -344,43 +344,43 @@ int messageInteractableDelete::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageInteractablePlayerInteracted::receiveMessage(SOCKET socket)
+int messageInteractablePlayerInteracted::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(messageInteractablePlayerInteracted);
 	int result = -1;
 	char messageBuffer[curMessageSize];
-	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageBuffer, curMessageSize)) <= 0)
 	{
 		return result;
 	}
 	int startBufferPos = 0;
-	readByteBufferToLong(&playerID, messageBuffer, startBufferPos);
+	readByteBufferToLong(&m_playerID, messageBuffer, startBufferPos);
 	readByteBufferToShort(&id, messageBuffer, startBufferPos);
 	readByteBufferToChar(&type, messageBuffer, startBufferPos);
 	return curMessageSize;
 }
 
-int messageStickerPlayerInteracted::receiveMessage(SOCKET socket)
+int messageStickerPlayerInteracted::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveStringView(socket, &stickerID)) <= 0)
+	if ((result = receiveStringView(playerID, &stickerID)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
 
 	char playerIDArr[4];
-	if ((result = receiveBytes(socket, playerIDArr, sizeof(playerIDArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, playerIDArr, sizeof(playerIDArr))) <= 0)
 	{
 		return result;
 	}
 	int startBufferPos = 0;
-	readByteBufferToLong(&playerID, playerIDArr, startBufferPos);
+	readByteBufferToLong(&m_playerID, playerIDArr, startBufferPos);
 	messageLen += result;
 
 	char idArr[2];
-	if ((result = receiveBytes(socket, idArr, sizeof(idArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, idArr, sizeof(idArr))) <= 0)
 	{
 		return result;
 	}
@@ -390,13 +390,13 @@ int messageStickerPlayerInteracted::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int messageBoxPlayerInteracted::receiveMessage(SOCKET socket)
+int messageBoxPlayerInteracted::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
 	for (int i = 0; i < 3; i++)
 	{
-		if ((result = randomWeapons[i].receiveMessage(socket)) <= 0)
+		if ((result = randomWeapons[i].receiveMessage(playerID)) <= 0)
 		{
 			return result;
 		}
@@ -404,28 +404,28 @@ int messageBoxPlayerInteracted::receiveMessage(SOCKET socket)
 	}
 
 	char playerIDArr[4];
-	if ((result = receiveBytes(socket, playerIDArr, sizeof(playerIDArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, playerIDArr, sizeof(playerIDArr))) <= 0)
 	{
 		return result;
 	}
 	int startBufferPos = 0;
-	readByteBufferToLong(&playerID, playerIDArr, startBufferPos);
+	readByteBufferToLong(&m_playerID, playerIDArr, startBufferPos);
 	messageLen += result;
 
 	char idArr[2];
-	if ((result = receiveBytes(socket, idArr, sizeof(idArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, idArr, sizeof(idArr))) <= 0)
 	{
 		return result;
 	}
 	startBufferPos = 0;
 	readByteBufferToShort(&id, idArr, startBufferPos);
 	messageLen += result;
-	if ((result = receiveBytes(socket, &boxItemAmount, sizeof(boxItemAmount))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &boxItemAmount, sizeof(boxItemAmount))) <= 0)
 	{
 		return result;
 	}
 	messageLen++;
-	if ((result = receiveBytes(socket, &isSuperBox, sizeof(isSuperBox))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &isSuperBox, sizeof(isSuperBox))) <= 0)
 	{
 		return result;
 	}
@@ -433,12 +433,12 @@ int messageBoxPlayerInteracted::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int messageBoxTakeOption::receiveMessage(SOCKET socket)
+int messageBoxTakeOption::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(boxItemNum);
 	int result = -1;
 	char messageBuffer[curMessageSize];
-	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageBuffer, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -447,30 +447,30 @@ int messageBoxTakeOption::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageAnvilChooseOption::receiveMessage(SOCKET socket)
+int messageAnvilChooseOption::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveStringView(socket, &optionID)) <= 0)
+	if ((result = receiveStringView(playerID, &optionID)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
-	if ((result = receiveStringView(socket, &optionType)) <= 0)
+	if ((result = receiveStringView(playerID, &optionType)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
 
 	char coinCostArr[4];
-	if ((result = receiveBytes(socket, coinCostArr, sizeof(coinCostArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, coinCostArr, sizeof(coinCostArr))) <= 0)
 	{
 		return result;
 	}
 	int startBufferPos = 0;
 	readByteBufferToLong(&coinCost, coinCostArr, startBufferPos);
 	messageLen += result;
-	if ((result = receiveBytes(socket, &anvilOptionType, sizeof(anvilOptionType))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &anvilOptionType, sizeof(anvilOptionType))) <= 0)
 	{
 		return result;
 	}
@@ -478,12 +478,12 @@ int messageAnvilChooseOption::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int messageClientGainMoney::receiveMessage(SOCKET socket)
+int messageClientGainMoney::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(messageClientGainMoney);
 	int result = -1;
 	char messageBuffer[curMessageSize];
-	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageBuffer, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -492,12 +492,12 @@ int messageClientGainMoney::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageClientAnvilEnchant::receiveMessage(SOCKET socket)
+int messageClientAnvilEnchant::receiveMessage(uint32_t playerID)
 {
 	int result = -1;
 	char numGainedMods = -1;
 	int messageLen = 0;
-	if ((result = receiveBytes(socket, &numGainedMods, sizeof(numGainedMods))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &numGainedMods, sizeof(numGainedMods))) <= 0)
 	{
 		return result;
 	}
@@ -505,20 +505,20 @@ int messageClientAnvilEnchant::receiveMessage(SOCKET socket)
 	for (int i = 0; i < static_cast<int>(numGainedMods); i++)
 	{
 		std::string_view curGainedMod;
-		if ((result = receiveStringView(socket, &curGainedMod)) <= 0)
+		if ((result = receiveStringView(playerID, &curGainedMod)) <= 0)
 		{
 			return result;
 		}
 		gainedMods.push_back(std::move(curGainedMod));
 		messageLen += result;
 	}
-	if ((result = receiveStringView(socket, &optionID)) <= 0)
+	if ((result = receiveStringView(playerID, &optionID)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
 	char coinCostArr[4];
-	if ((result = receiveBytes(socket, coinCostArr, sizeof(coinCostArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, coinCostArr, sizeof(coinCostArr))) <= 0)
 	{
 		return result;
 	}
@@ -528,12 +528,12 @@ int messageClientAnvilEnchant::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int messageStickerChooseOption::receiveMessage(SOCKET socket)
+int messageStickerChooseOption::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(stickerOption) + sizeof(stickerOptionType);
 	int result = -1;
 	char messageBuffer[curMessageSize];
-	if ((result = receiveBytes(socket, messageBuffer, curMessageSize)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageBuffer, curMessageSize)) <= 0)
 	{
 		return result;
 	}
@@ -543,11 +543,11 @@ int messageStickerChooseOption::receiveMessage(SOCKET socket)
 	return curMessageSize;
 }
 
-int messageChooseCollab::receiveMessage(SOCKET socket)
+int messageChooseCollab::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = collab.receiveMessage(socket)) <= 0)
+	if ((result = collab.receiveMessage(playerID)) <= 0)
 	{
 		return result;
 	}
@@ -555,18 +555,18 @@ int messageChooseCollab::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int buffData::receiveMessage(SOCKET socket)
+int buffData::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveStringView(socket, &buffName)) <= 0)
+	if ((result = receiveStringView(playerID, &buffName)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
 
 	char timerArr[2];
-	if ((result = receiveBytes(socket, timerArr, sizeof(timerArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, timerArr, sizeof(timerArr))) <= 0)
 	{
 		return result;
 	}
@@ -575,7 +575,7 @@ int buffData::receiveMessage(SOCKET socket)
 	messageLen += result;
 
 	char stacksArr[2];
-	if ((result = receiveBytes(socket, stacksArr, sizeof(stacksArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, stacksArr, sizeof(stacksArr))) <= 0)
 	{
 		return result;
 	}
@@ -586,12 +586,12 @@ int buffData::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int messageBuffData::receiveMessage(SOCKET socket)
+int messageBuffData::receiveMessage(uint32_t playerID)
 {
 	int result = -1;
 	int messageLen = 0;
 	char numBuffs = -1;
-	if ((result = receiveBytes(socket, &numBuffs, sizeof(numBuffs))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &numBuffs, sizeof(numBuffs))) <= 0)
 	{
 		return result;
 	}
@@ -599,7 +599,7 @@ int messageBuffData::receiveMessage(SOCKET socket)
 	for (int i = 0; i < static_cast<int>(numBuffs); i++)
 	{
 		buffData curBuffData;
-		if ((result = curBuffData.receiveMessage(socket)) <= 0)
+		if ((result = curBuffData.receiveMessage(playerID)) <= 0)
 		{
 			return result;
 		}
@@ -610,24 +610,24 @@ int messageBuffData::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int lobbyPlayerData::receiveMessage(SOCKET socket)
+int lobbyPlayerData::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveStringView(socket, &charName)) <= 0)
+	if ((result = receiveStringView(playerID, &charName)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
 
-	if ((result = receiveString(socket, &playerName)) <= 0)
+	if ((result = receiveString(playerID, &playerName)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
 
 	char stageSpriteArr[2];
-	if ((result = receiveBytes(socket, stageSpriteArr, sizeof(stageSpriteArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, stageSpriteArr, sizeof(stageSpriteArr))) <= 0)
 	{
 		return result;
 	}
@@ -635,7 +635,7 @@ int lobbyPlayerData::receiveMessage(SOCKET socket)
 	readByteBufferToShort(&stageSprite, stageSpriteArr, startBufferPos);
 	messageLen += result;
 
-	if ((result = receiveBytes(socket, &isReady, sizeof(isReady))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &isReady, sizeof(isReady))) <= 0)
 	{
 		return result;
 	}
@@ -644,48 +644,48 @@ int lobbyPlayerData::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int messageCharData::receiveMessage(SOCKET socket)
+int messageCharData::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = playerData.receiveMessage(socket)) <= 0)
+	if ((result = playerData.receiveMessage(playerID)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
 
 	char playerIDArr[4];
-	if ((result = receiveBytes(socket, playerIDArr, sizeof(playerIDArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, playerIDArr, sizeof(playerIDArr))) <= 0)
 	{
 		return result;
 	}
 	int startBufferPos = 0;
-	readByteBufferToLong(&playerID, playerIDArr, startBufferPos);
+	readByteBufferToLong(&m_playerID, playerIDArr, startBufferPos);
 	messageLen += result;
 	return messageLen;
 }
 
-int messageLobbyPlayerDisconnected::receiveMessage(SOCKET socket)
+int messageLobbyPlayerDisconnected::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
 
 	char playerIDArr[4];
-	if ((result = receiveBytes(socket, playerIDArr, sizeof(playerIDArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, playerIDArr, sizeof(playerIDArr))) <= 0)
 	{
 		return result;
 	}
 	int startBufferPos = 0;
-	readByteBufferToLong(&playerID, playerIDArr, startBufferPos);
+	readByteBufferToLong(&m_playerID, playerIDArr, startBufferPos);
 	messageLen += result;
 	return messageLen;
 }
 
-int messageInstancesUpdate::receiveMessage(SOCKET socket)
+int messageInstancesUpdate::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveBytes(socket, &numInstances, sizeof(numInstances))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &numInstances, sizeof(numInstances))) <= 0)
 	{
 		return result;
 	}
@@ -695,7 +695,7 @@ int messageInstancesUpdate::receiveMessage(SOCKET socket)
 	{
 		instanceData& curInstance = data[i];
 		char xPosArr[4];
-		if ((result = receiveBytes(socket, xPosArr, sizeof(xPosArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, xPosArr, sizeof(xPosArr))) <= 0)
 		{
 			return result;
 		}
@@ -704,7 +704,7 @@ int messageInstancesUpdate::receiveMessage(SOCKET socket)
 		messageLen += result;
 
 		char yPosArr[4];
-		if ((result = receiveBytes(socket, yPosArr, sizeof(yPosArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, yPosArr, sizeof(yPosArr))) <= 0)
 		{
 			return result;
 		}
@@ -713,7 +713,7 @@ int messageInstancesUpdate::receiveMessage(SOCKET socket)
 		messageLen += result;
 
 		char spriteIndexArr[2];
-		if ((result = receiveBytes(socket, spriteIndexArr, sizeof(spriteIndexArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, spriteIndexArr, sizeof(spriteIndexArr))) <= 0)
 		{
 			return result;
 		}
@@ -722,7 +722,7 @@ int messageInstancesUpdate::receiveMessage(SOCKET socket)
 		messageLen += result;
 
 		char instanceIDArr[2];
-		if ((result = receiveBytes(socket, instanceIDArr, sizeof(instanceIDArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, instanceIDArr, sizeof(instanceIDArr))) <= 0)
 		{
 			return result;
 		}
@@ -730,7 +730,7 @@ int messageInstancesUpdate::receiveMessage(SOCKET socket)
 		readByteBufferToShort(&curInstance.instanceID, instanceIDArr, startBufferPos);
 		messageLen += result;
 
-		if ((result = receiveBytes(socket, &curInstance.truncatedImageIndex, sizeof(curInstance.truncatedImageIndex))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, &curInstance.truncatedImageIndex, sizeof(curInstance.truncatedImageIndex))) <= 0)
 		{
 			return result;
 		}
@@ -739,11 +739,11 @@ int messageInstancesUpdate::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int messageAttackUpdate::receiveMessage(SOCKET socket)
+int messageAttackUpdate::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveBytes(socket, &numAttacks, sizeof(numAttacks))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, &numAttacks, sizeof(numAttacks))) <= 0)
 	{
 		return result;
 	}
@@ -753,7 +753,7 @@ int messageAttackUpdate::receiveMessage(SOCKET socket)
 	{
 		attackData& curAttack = data[i];
 		char xPosArr[4];
-		if ((result = receiveBytes(socket, xPosArr, sizeof(xPosArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, xPosArr, sizeof(xPosArr))) <= 0)
 		{
 			return result;
 		}
@@ -762,7 +762,7 @@ int messageAttackUpdate::receiveMessage(SOCKET socket)
 		messageLen += result;
 
 		char yPosArr[4];
-		if ((result = receiveBytes(socket, yPosArr, sizeof(yPosArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, yPosArr, sizeof(yPosArr))) <= 0)
 		{
 			return result;
 		}
@@ -771,7 +771,7 @@ int messageAttackUpdate::receiveMessage(SOCKET socket)
 		messageLen += result;
 
 		char imageAngleApproxArr[2];
-		if ((result = receiveBytes(socket, imageAngleApproxArr, sizeof(imageAngleApproxArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, imageAngleApproxArr, sizeof(imageAngleApproxArr))) <= 0)
 		{
 			return result;
 		}
@@ -782,7 +782,7 @@ int messageAttackUpdate::receiveMessage(SOCKET socket)
 		messageLen += result;
 
 		char instanceIDArr[2];
-		if ((result = receiveBytes(socket, instanceIDArr, sizeof(instanceIDArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, instanceIDArr, sizeof(instanceIDArr))) <= 0)
 		{
 			return result;
 		}
@@ -791,14 +791,14 @@ int messageAttackUpdate::receiveMessage(SOCKET socket)
 		messageLen += result;
 
 		char imageAlphaApprox = 0;
-		if ((result = receiveBytes(socket, &imageAlphaApprox, sizeof(imageAlphaApprox))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, &imageAlphaApprox, sizeof(imageAlphaApprox))) <= 0)
 		{
 			return result;
 		}
 		curAttack.imageAlpha = ((static_cast<int>(imageAlphaApprox) + 256) % 256) / 256.0f;
 		messageLen++;
 
-		if ((result = receiveBytes(socket, &curAttack.truncatedImageIndex, sizeof(curAttack.truncatedImageIndex))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, &curAttack.truncatedImageIndex, sizeof(curAttack.truncatedImageIndex))) <= 0)
 		{
 			return result;
 		}
@@ -807,13 +807,13 @@ int messageAttackUpdate::receiveMessage(SOCKET socket)
 	return messageLen;
 }
 
-int messageKaelaOreAmount::receiveMessage(SOCKET socket)
+int messageKaelaOreAmount::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
 
 	char oreAArr[2];
-	if ((result = receiveBytes(socket, oreAArr, sizeof(oreAArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, oreAArr, sizeof(oreAArr))) <= 0)
 	{
 		return result;
 	}
@@ -822,7 +822,7 @@ int messageKaelaOreAmount::receiveMessage(SOCKET socket)
 	messageLen += result;
 
 	char oreBArr[2];
-	if ((result = receiveBytes(socket, oreBArr, sizeof(oreBArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, oreBArr, sizeof(oreBArr))) <= 0)
 	{
 		return result;
 	}
@@ -831,7 +831,7 @@ int messageKaelaOreAmount::receiveMessage(SOCKET socket)
 	messageLen += result;
 
 	char oreCArr[2];
-	if ((result = receiveBytes(socket, oreCArr, sizeof(oreCArr))) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, oreCArr, sizeof(oreCArr))) <= 0)
 	{
 		return result;
 	}

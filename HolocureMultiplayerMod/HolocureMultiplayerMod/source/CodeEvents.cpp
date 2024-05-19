@@ -7,9 +7,18 @@
 #include "ScriptFunctions.h"
 #include "CommonFunctions.h"
 #include "NetworkFunctions.h"
+#include "SteamLobbyBrowser.h"
+#include "steam/steam_api.h"
 #include <fstream>
 #include <iphlpapi.h>
 #include <semaphore>
+
+extern CSteamLobbyBrowser* steamLobbyBrowser;
+extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
+extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
+
+int curMenuButtonsIndex = 0;
+bool hasJoinedSteamLobby = false;
 
 std::vector<destructableData> createDestructableMessagesList;
 std::unordered_map<uint32_t, bool> hasClientPlayerDisconnected;
@@ -45,6 +54,9 @@ int curSelectedMap = -1;
 int curSelectedGameMode = -1;
 int curSelectedStageSprite = -1;
 int curCoopOptionMenuIndex = 0;
+int curSteamLobbyMemberIndex = 0;
+int curSteamLobbyOptionMemberIndex = 0;
+CSteamID curSelectedSteamID;
 
 bool hasHostPaused = false;
 
@@ -228,6 +240,8 @@ void resetAllData()
 	isAnyInteracting = false;
 	collidedStickerID = "";
 	curCoopOptionMenuIndex = 0;
+	curSteamLobbyMemberIndex = 0;
+	curSelectedSteamID = CSteamID();
 	hasSelectedMap = false;
 	curSelectedMap = -1;
 	curSelectedGameMode = -1;
@@ -300,6 +314,7 @@ void serverDisconnected()
 
 void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
+	SteamAPI_RunCallbacks();
 	CInstance* Self = std::get<0>(Args);
 	CInstance* Other = std::get<1>(Args);
 	RValue returnVal;
@@ -318,13 +333,12 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 			handleStickerChooseOptionMessage();
 			handleChooseCollabMessage();
 			handleLevelUpClientChoiceMessage();
-			for (auto& curClientSocket : clientSocketMap)
+			for (auto& curClientIDMapping : clientIDToSteamIDMap)
 			{
-				uint32_t clientPlayerID = curClientSocket.first;
-				SOCKET clientSocket = curClientSocket.second;
+				uint32_t clientPlayerID = curClientIDMapping.first;
 				if (lastSentPingMessage != timeNum && timeNum % 60 == 0)
 				{
-					sendPing(clientSocket);
+					sendPing(clientPlayerID);
 				}
 			}
 			if (lastSentPingMessage != timeNum && timeNum % 60 == 0)
@@ -394,10 +408,10 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 
 			if (lastSentPingMessage != timeNum && timeNum % 60 == 0)
 			{
-				sendPing(serverSocket);
+				sendPing(0);
 				lastSentPingMessage = timeNum;
 			}
-			sendInputMessage(serverSocket);
+			sendInputMessage(0);
 		}
 	}
 }
@@ -847,7 +861,7 @@ void PlayerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 						short timer = static_cast<short>(lround(getInstanceVariable(curBuff, GML_timer).m_Real));
 						buffDataList.push_back(buffData(curBuffName.AsString(), timer, stacksValue));
 					}
-					sendBuffDataMessage(clientSocketMap[playerID], buffDataList);
+					sendBuffDataMessage(playerID, buffDataList);
 				}
 			}
 		}
@@ -1804,37 +1818,42 @@ void TextControllerCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, R
 {
 }
 
-void drawCoopMenuButtons(std::vector<std::string> CoopOptionMenuTextList, CInstance* Self, double buttonX, double buttonY)
+std::vector<coopMenuButtonsData> menuButtons;
+void drawCoopMenuButtons(CInstance* Self)
 {
 	double buttonYSpacing = 29;
 	double textColor[2]{ 0xFFFFFF, 0 };
 	RValue inputManager = g_ModuleInterface->CallBuiltin("instance_find", { objInputManagerIndex, 0 });
-	bool isMouseMoving = getInstanceVariable(inputManager, GML_mouseMoving).AsBool();
-	for (int i = 0; i < CoopOptionMenuTextList.size(); i++)
+//	bool isMouseMoving = getInstanceVariable(inputManager, GML_mouseMoving).AsBool();
+	for (auto& curMenuButton : menuButtons)
 	{
-		if (isMouseMoving)
+		for (int i = 0; i < curMenuButton.menuText.size(); i++)
 		{
-			RValue** args = new RValue*[4];
-			RValue mouseOverType = "long";
-			RValue curButtonX = buttonX;
-			RValue curButtonY = buttonY + i * buttonYSpacing;
-			RValue scale = .5;
-			args[0] = &mouseOverType;
-			args[1] = &curButtonX;
-			args[2] = &curButtonY;
-			args[3] = &scale;
-			RValue returnVal;
-			origMouseOverButtonScript(Self, nullptr, returnVal, 4, args);
-			if (returnVal.AsBool())
+//			if (isMouseMoving)
 			{
-				curCoopOptionMenuIndex = i;
+				RValue** args = new RValue*[4];
+				RValue mouseOverType = "long";
+				RValue curButtonX = curMenuButton.menuButtonsXPos;
+				RValue curButtonY = curMenuButton.menuButtonsYPos + i * buttonYSpacing;
+				RValue scale = .5;
+				args[0] = &mouseOverType;
+				args[1] = &curButtonX;
+				args[2] = &curButtonY;
+				args[3] = &scale;
+				RValue returnVal;
+				origMouseOverButtonScript(Self, nullptr, returnVal, 4, args);
+				if (returnVal.AsBool())
+				{
+					curMenuButton.menuIndex = i;
+					curMenuButton.menuIsButtonMouseOver = true;
+				}
 			}
+			int isOptionSelected = curMenuButton.menuIndex == i;
+			g_ModuleInterface->CallBuiltin("draw_set_font", { jpFont });
+			g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
+			g_ModuleInterface->CallBuiltin("draw_sprite_ext", { sprHudInitButtonsIndex, isOptionSelected, curMenuButton.menuButtonsXPos, curMenuButton.menuButtonsYPos + i * buttonYSpacing, 1, 1, 0, static_cast<double>(0xFFFFFF), 1 });
+			g_ModuleInterface->CallBuiltin("draw_text_color", { curMenuButton.menuButtonsXPos, curMenuButton.menuButtonsYPos + 9 + i * buttonYSpacing, curMenuButton.menuText[i], textColor[isOptionSelected], textColor[isOptionSelected], textColor[isOptionSelected], textColor[isOptionSelected], 1 });
 		}
-		int isOptionSelected = curCoopOptionMenuIndex == i;
-		g_ModuleInterface->CallBuiltin("draw_set_font", { jpFont });
-		g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
-		g_ModuleInterface->CallBuiltin("draw_sprite_ext", { sprHudInitButtonsIndex, isOptionSelected, buttonX, buttonY + i * buttonYSpacing, 1, 1, 0, static_cast<double>(0xFFFFFF), 1 });
-		g_ModuleInterface->CallBuiltin("draw_text_color", { buttonX, buttonY + 9 + i * buttonYSpacing, CoopOptionMenuTextList[i], textColor[isOptionSelected], textColor[isOptionSelected], textColor[isOptionSelected], textColor[isOptionSelected], 1 });
 	}
 }
 
@@ -1842,17 +1861,19 @@ int adapterPageNum = 0;
 int prevPageButtonNum = -1;
 int nextPageButtonNum = -1;
 
-int menuButtonsNum = 0;
-int menuButtonsXPos = 0;
-int menuButtonsYPos = 0;
+bool coopMenuIsButtonMouseOver = false;
+bool steamLobbyMenuIsButtonMouseOver = false;
+bool steamLobbyOptionMenuIsButtonMouseOver = false;
+
 void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
 	if (isInGamemodeSelect)
 	{
-		drawCoopMenuButtons({ "Play Single Player", "Use saved network adapter", "Select network adapter" }, std::get<0>(Args), 530, 104);
-		menuButtonsNum = 3;
-		menuButtonsXPos = 530;
-		menuButtonsYPos = 104;
+		menuButtons.clear();
+		coopMenuIsButtonMouseOver = false;
+		menuButtons.push_back(coopMenuButtonsData({ "Play Single Player", "Use saved network adapter", "Select network adapter", "Create friend Steam lobby" }, 530, 104, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
+		
+		drawCoopMenuButtons(std::get<0>(Args));
 	}
 	else if (isInNetworkAdapterMenu)
 	{
@@ -1864,10 +1885,10 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 			g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
 			drawTextOutline(Self, 320, 100, networkAdapterDisclaimer, 1, 0x000000, 14, 20, 440, 0x0FFFFF, 1);
 
-			drawCoopMenuButtons({ "OK" }, std::get<0>(Args), 320, 250);
-			menuButtonsNum = 1;
-			menuButtonsXPos = 320;
-			menuButtonsYPos = 250;
+			menuButtons.clear();
+			coopMenuIsButtonMouseOver = false;
+			menuButtons.push_back(coopMenuButtonsData({ "OK" }, 320, 250, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
+			drawCoopMenuButtons(std::get<0>(Args));
 		}
 		else
 		{
@@ -1943,23 +1964,41 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 				{
 					nextPageButtonNum = -1;
 				}
-				drawCoopMenuButtons(adapterNames, std::get<0>(Args), 530, 104);
-				menuButtonsNum = static_cast<int>(adapterNames.size());
-				menuButtonsXPos = 530;
-				menuButtonsYPos = 104;
+				menuButtons.clear();
+				coopMenuIsButtonMouseOver = false;
+				menuButtons.push_back(coopMenuButtonsData(adapterNames, 530, 104, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
+				drawCoopMenuButtons(std::get<0>(Args));
 			}
 		}
 	}
 	else if (isInCoopOptionMenu)
 	{
-		drawCoopMenuButtons({ "Host LAN Session", "Join LAN Session" }, std::get<0>(Args), 530, 104);
-		menuButtonsNum = 2;
-		menuButtonsXPos = 530;
-		menuButtonsYPos = 104;
+		menuButtons.clear();
+		coopMenuIsButtonMouseOver = false;
+		menuButtons.push_back(coopMenuButtonsData({ "Host LAN Session", "Join LAN Session" }, 530, 104, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
+		drawCoopMenuButtons(std::get<0>(Args));
 	}
-	else if (isInLobby && (isHost || hasObtainedClientID))
+	else if (isInLobby && (isHost || hasObtainedClientID || isInSteamLobby))
 	{
+		if (isInSteamLobby && !isHost && !hasObtainedClientID)
+		{
+			// Player is a client and hasn't connected to a host yet
+			// TODO: Kind of hacky way to display the names. Should probably fix this later
+			coopMenuIsButtonMouseOver = false;
+			menuButtons.push_back(coopMenuButtonsData({}, 0, 0, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
+			std::vector<std::string> lobbyPlayerNameList;
+			for (auto& curLobbyMember : steamLobbyBrowser->m_lobbyMemberList)
+			{
+				lobbyPlayerNameList.push_back(curLobbyMember.m_memberName);
+			}
+			steamLobbyMenuIsButtonMouseOver = false;
+			menuButtons.push_back(coopMenuButtonsData(lobbyPlayerNameList, 160, 14, curSteamLobbyMemberIndex, steamLobbyMenuIsButtonMouseOver));
+			drawCoopMenuButtons(std::get<0>(Args));
+			return;
+		}
 		CInstance* Self = std::get<0>(Args);
+		menuButtons.clear();
+
 		RValue returnVal;
 		RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
 		int curPlayerIndex = 0;
@@ -2015,10 +2054,49 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 				}
 			}
 		}
-		drawCoopMenuButtons(CoopOptionMenuTextList, std::get<0>(Args), 530, 104);
-		menuButtonsNum = static_cast<int>(CoopOptionMenuTextList.size());
-		menuButtonsXPos = 530;
-		menuButtonsYPos = 104;
+		coopMenuIsButtonMouseOver = false;
+		menuButtons.push_back(coopMenuButtonsData(CoopOptionMenuTextList, 530, 104, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
+
+		if (isHost)
+		{
+			std::vector<std::string> lobbyPlayerNameList;
+			for (auto& curLobbyMember : steamLobbyBrowser->m_lobbyMemberList)
+			{
+				lobbyPlayerNameList.push_back(curLobbyMember.m_memberName);
+			}
+			steamLobbyMenuIsButtonMouseOver = false;
+			menuButtons.push_back(coopMenuButtonsData(lobbyPlayerNameList, 160, 14, curSteamLobbyMemberIndex, steamLobbyMenuIsButtonMouseOver));
+			if (curSelectedSteamID.IsValid())
+			{
+				auto mapFind = steamIDToClientIDMap.find(curSelectedSteamID.ConvertToUint64());
+				if (mapFind == steamIDToClientIDMap.end() || mapFind->second == 0)
+				{
+					steamLobbyOptionMenuIsButtonMouseOver = false;
+					menuButtons.push_back(coopMenuButtonsData({ "Invite user" }, 340, 14, curSteamLobbyOptionMemberIndex, steamLobbyOptionMenuIsButtonMouseOver));
+				}
+			}
+		}
+
+		int prevSteamLobbyMemberIndex = curSteamLobbyMemberIndex;
+		drawCoopMenuButtons(std::get<0>(Args));
+		if (isHost && !steamLobbyMenuIsButtonMouseOver)
+		{
+			bool hasFoundSteamLobbyMember = false;
+			for (int i = 0; i < steamLobbyBrowser->m_lobbyMemberList.size(); i++)
+			{
+				//				if (curSelectedSteamID.IsValid() && curSelectedSteamID == steamLobbyBrowser->m_lobbyMemberList[i].m_steamIDMember)
+				if (curSelectedSteamID == steamLobbyBrowser->m_lobbyMemberList[i].m_steamIDMember)
+				{
+					curSteamLobbyMemberIndex = i;
+					hasFoundSteamLobbyMember = true;
+				}
+			}
+			if (!hasFoundSteamLobbyMember)
+			{
+				curSteamLobbyMemberIndex = 0;
+				curSelectedSteamID = CSteamID();
+			}
+		}
 	}
 }
 
@@ -2026,6 +2104,12 @@ int numTimesFailedToConnect = 0;
 int numFramesSinceLastBroadcast = 0;
 void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
+	if (hasJoinedSteamLobby)
+	{
+		CInstance* Self = std::get<0>(Args);
+		setInstanceVariable(Self, GML_canControl, RValue(false));
+		hasJoinedSteamLobby = false;
+	}
 	if (isInCoopOptionMenu || isInLobby || isSelectingCharacter || isSelectingMap)
 	{
 		CInstance* Self = std::get<0>(Args);
@@ -2035,10 +2119,9 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 			// TODO: replace this code with something better
 			if (isHost)
 			{
-				for (auto& clientSocketData : clientSocketMap)
+				for (auto& curClientIDMapping : clientIDToSteamIDMap)
 				{
-					uint32_t clientSocketPlayerID = clientSocketData.first;
-					SOCKET clientSocket = clientSocketData.second;
+					uint32_t clientSocketPlayerID = curClientIDMapping.first;
 					for (auto& curPlayerData : lobbyPlayerDataMap)
 					{
 						uint32_t curPlayerID = curPlayerData.first;
@@ -2047,7 +2130,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 						{
 							continue;
 						}
-						sendCharDataMessage(clientSocket, curPlayerData.second, curPlayerID);
+						sendCharDataMessage(clientSocketPlayerID, curPlayerData.second, curPlayerID);
 					}
 				}
 			}
@@ -2055,7 +2138,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 			{
 				if (hasObtainedClientID)
 				{
-					sendCharDataMessage(serverSocket, lobbyPlayerDataMap[clientID], clientID);
+					sendCharDataMessage(0, lobbyPlayerDataMap[clientID], clientID);
 				}
 			}
 		}
@@ -2104,11 +2187,11 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 						uint32_t newClientID = curUnusedPlayerID;
 						curUnusedPlayerID++;
 						// TODO: Handle if the message isn't sent
-						sendClientIDMessage(clientSocket, newClientID);
 						clientSocketMap[newClientID] = clientSocket;
 						playerPingMap[newClientID] = 0;
 						hasClientPlayerDisconnected[newClientID] = false;
 						lobbyPlayerDataMap[newClientID] = lobbyPlayerData();
+						sendClientIDMessage(newClientID);
 						if (!hasConnected)
 						{
 							hasConnected = true;
@@ -2257,25 +2340,30 @@ void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 
 void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
-	if (isInGamemodeSelect || isInNetworkAdapterMenu || isInCoopOptionMenu || (isInLobby && (isHost || hasObtainedClientID)))
+	if (isInGamemodeSelect || isInNetworkAdapterMenu || isInCoopOptionMenu || (isInLobby && (isHost || hasObtainedClientID || isInSteamLobby)))
 	{
 		CInstance* Self = std::get<0>(Args);
-		for (int i = 0; i < menuButtonsNum; i++)
+		for (int i = 0; i < menuButtons.size(); i++)
 		{
-			RValue** args = new RValue*[4];
-			RValue mouseOverType = "long";
-			RValue curButtonX = menuButtonsXPos;
-			RValue curButtonY = menuButtonsYPos + i * 29 - 3;
-			args[0] = &mouseOverType;
-			args[1] = &curButtonX;
-			args[2] = &curButtonY;
-			RValue returnVal;
-			origMouseOverButtonScript(Self, nullptr, returnVal, 3, args);
-			if (returnVal.AsBool())
+			coopMenuButtonsData curMenuButtonsData = menuButtons[i];
+			for (int j = 0; j < curMenuButtonsData.menuText.size(); j++)
 			{
-				RValue ConfirmedMethod = getInstanceVariable(Self, GML_Confirmed);
-				RValue ConfirmedMethodArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
-				g_ModuleInterface->CallBuiltin("method_call", { ConfirmedMethod, ConfirmedMethodArr });
+				RValue** args = new RValue*[4];
+				RValue mouseOverType = "long";
+				RValue curButtonX = curMenuButtonsData.menuButtonsXPos;
+				RValue curButtonY = curMenuButtonsData.menuButtonsYPos + j * 29 - 3;
+				args[0] = &mouseOverType;
+				args[1] = &curButtonX;
+				args[2] = &curButtonY;
+				RValue returnVal;
+				origMouseOverButtonScript(Self, nullptr, returnVal, 3, args);
+				if (returnVal.AsBool())
+				{
+					curMenuButtonsIndex = i;
+					RValue ConfirmedMethod = getInstanceVariable(Self, GML_Confirmed);
+					RValue ConfirmedMethodArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
+					g_ModuleInterface->CallBuiltin("method_call", { ConfirmedMethod, ConfirmedMethodArr });
+				}
 			}
 		}
 		callbackManagerInterfacePtr->CancelOriginalFunction();
@@ -2386,7 +2474,7 @@ void OreDepositStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue
 					RValue newOreA = RValue(getInstanceVariable(config, GML_oreA).m_Real + (oreTypeChar == 0 ? 1 : 0));
 					RValue newOreB = RValue(getInstanceVariable(config, GML_oreB).m_Real + (oreTypeChar == 1 ? 1 : 0));
 					RValue newOreC = RValue(getInstanceVariable(config, GML_oreC).m_Real + (oreTypeChar == 2 ? 1 : 0));
-					sendKaelaOreAmountMessage(clientSocketMap[player.first], static_cast<short>(newOreA.m_Real), static_cast<short>(newOreB.m_Real), static_cast<short>(newOreC.m_Real));
+					sendKaelaOreAmountMessage(player.first, static_cast<short>(newOreA.m_Real), static_cast<short>(newOreB.m_Real), static_cast<short>(newOreC.m_Real));
 					setInstanceVariable(config, GML_oreA, newOreA);
 					setInstanceVariable(config, GML_oreB, newOreB);
 					setInstanceVariable(config, GML_oreC, newOreC);

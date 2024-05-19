@@ -138,6 +138,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(ProjectDir)include</AdditionalLibraryDirectories>
+      <AdditionalDependencies>steam_api64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -148,11 +150,59 @@
     <ClCompile Include="source\ModuleMain.cpp" />
     <ClCompile Include="source\NetworkFunctions.cpp" />
     <ClCompile Include="source\ScriptFunctions.cpp" />
+    <ClCompile Include="source\SteamClient.cpp" />
+    <ClCompile Include="source\SteamHost.cpp" />
+    <ClCompile Include="source\SteamLobbyBrowser.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Aurie\shared.hpp" />
     <ClInclude Include="include\CallbackManager\CallbackManagerInterface.h" />
     <ClInclude Include="include\FunctionWrapper\FunctionWrapper.hpp" />
+    <ClInclude Include="include\steam\isteamapplist.h" />
+    <ClInclude Include="include\steam\isteamapps.h" />
+    <ClInclude Include="include\steam\isteamappticket.h" />
+    <ClInclude Include="include\steam\isteamclient.h" />
+    <ClInclude Include="include\steam\isteamcontroller.h" />
+    <ClInclude Include="include\steam\isteamdualsense.h" />
+    <ClInclude Include="include\steam\isteamfriends.h" />
+    <ClInclude Include="include\steam\isteamgamecoordinator.h" />
+    <ClInclude Include="include\steam\isteamgameserver.h" />
+    <ClInclude Include="include\steam\isteamgameserverstats.h" />
+    <ClInclude Include="include\steam\isteamhtmlsurface.h" />
+    <ClInclude Include="include\steam\isteamhttp.h" />
+    <ClInclude Include="include\steam\isteaminput.h" />
+    <ClInclude Include="include\steam\isteaminventory.h" />
+    <ClInclude Include="include\steam\isteammatchmaking.h" />
+    <ClInclude Include="include\steam\isteammusic.h" />
+    <ClInclude Include="include\steam\isteammusicremote.h" />
+    <ClInclude Include="include\steam\isteamnetworking.h" />
+    <ClInclude Include="include\steam\isteamnetworkingmessages.h" />
+    <ClInclude Include="include\steam\isteamnetworkingsockets.h" />
+    <ClInclude Include="include\steam\isteamnetworkingutils.h" />
+    <ClInclude Include="include\steam\isteamparentalsettings.h" />
+    <ClInclude Include="include\steam\isteamps3overlayrenderer.h" />
+    <ClInclude Include="include\steam\isteamremoteplay.h" />
+    <ClInclude Include="include\steam\isteamremotestorage.h" />
+    <ClInclude Include="include\steam\isteamscreenshots.h" />
+    <ClInclude Include="include\steam\isteamugc.h" />
+    <ClInclude Include="include\steam\isteamuser.h" />
+    <ClInclude Include="include\steam\isteamuserstats.h" />
+    <ClInclude Include="include\steam\isteamutils.h" />
+    <ClInclude Include="include\steam\isteamvideo.h" />
+    <ClInclude Include="include\steam\matchmakingtypes.h" />
+    <ClInclude Include="include\steam\steamclientpublic.h" />
+    <ClInclude Include="include\steam\steamencryptedappticket.h" />
+    <ClInclude Include="include\steam\steamhttpenums.h" />
+    <ClInclude Include="include\steam\steamnetworkingfakeip.h" />
+    <ClInclude Include="include\steam\steamnetworkingtypes.h" />
+    <ClInclude Include="include\steam\steamps3params.h" />
+    <ClInclude Include="include\steam\steamtypes.h" />
+    <ClInclude Include="include\steam\steamuniverse.h" />
+    <ClInclude Include="include\steam\steam_api.h" />
+    <ClInclude Include="include\steam\steam_api_common.h" />
+    <ClInclude Include="include\steam\steam_api_flat.h" />
+    <ClInclude Include="include\steam\steam_api_internal.h" />
+    <ClInclude Include="include\steam\steam_gameserver.h" />
     <ClInclude Include="include\YYTKTypes\RefThing.h" />
     <ClInclude Include="include\YYToolkit\Shared.hpp" />
     <ClInclude Include="source\BuiltinFunctions.h" />
@@ -162,6 +212,9 @@
     <ClInclude Include="source\ModuleMain.h" />
     <ClInclude Include="source\NetworkFunctions.h" />
     <ClInclude Include="source\ScriptFunctions.h" />
+    <ClInclude Include="source\SteamClient.h" />
+    <ClInclude Include="source\SteamHost.h" />
+    <ClInclude Include="source\SteamLobbyBrowser.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

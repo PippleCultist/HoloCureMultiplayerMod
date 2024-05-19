@@ -3,7 +3,13 @@
 #include "ScriptFunctions.h"
 #include "CodeEvents.h"
 #include "CommonFunctions.h"
+#include "steam/steam_api.h"
+#include "SteamLobbyBrowser.h"
 #include <semaphore>
+
+extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
+extern CSteamLobbyBrowser* steamLobbyBrowser;
+extern std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
 
 messageInstancesCreate instancesCreateMessage;
 messageInstancesUpdate instancesUpdateMessage;
@@ -159,7 +165,7 @@ void clientReceiveMessageHandler()
 		int result = -1;
 		do
 		{
-			result = receiveMessage(serverSocket);
+			result = receiveMessage(0);
 			if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
 			{
 				g_ModuleInterface->Print(CM_RED, "Server disconnected");
@@ -175,14 +181,13 @@ void hostReceiveMessageHandler()
 	while (hasConnected)
 	{
 		std::vector<uint32_t> playerDisconnectedList;
-		for (auto& curClientSocket : clientSocketMap)
+		for (auto& curClientIDMapping : clientIDToSteamIDMap)
 		{
-			uint32_t clientPlayerID = curClientSocket.first;
-			SOCKET clientSocket = curClientSocket.second;
+			uint32_t clientPlayerID = curClientIDMapping.first;
 			int result = -1;
 			do
 			{
-				result = receiveMessage(clientSocket, clientPlayerID);
+				result = receiveMessage(clientPlayerID);
 				if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
 				{
 					g_ModuleInterface->Print(CM_RED, "Client disconnected");
@@ -317,54 +322,173 @@ inline void getInputState(const char* inputName, size_t playerIndex, RValue& res
 	origInputCheckScript(globalInstance, nullptr, result, 2, args);
 }
 
-int receiveBytes(SOCKET socket, char* outputBuffer, int length, bool loopUntilDone)
+int receiveBytesFromPlayer(uint32_t playerID, char* outputBuffer, int length, bool loopUntilDone)
 {
-	char* curPtr = outputBuffer;
-	int numBytesLeft = length;
-	while (numBytesLeft > 0)
+	if (clientIDToSteamIDMap.empty())
 	{
-		int numBytes = recv(socket, curPtr, numBytesLeft, 0);
-		if (numBytes == 0)
+		// Assume that it's not using steam and is using LAN
+		SOCKET curSocket = INVALID_SOCKET;
+		if (playerID == 0)
 		{
-			return 0;
+			// Assume it's receiving from the host
+			curSocket = serverSocket;
 		}
-		if (numBytes < 0)
+		else
 		{
-			int error = WSAGetLastError();
-			if ((error == WSAECONNRESET || error == WSAECONNABORTED || error == WSAENOTSOCK) || (!loopUntilDone && numBytesLeft == length))
+			// Assume it's receiving from a client
+			curSocket = clientSocketMap[playerID];
+		}
+		char* curPtr = outputBuffer;
+		int numBytesLeft = length;
+		while (numBytesLeft > 0)
+		{
+			int numBytes = recv(curSocket, curPtr, numBytesLeft, 0);
+			if (numBytes == 0)
+			{
+				return 0;
+			}
+			if (numBytes < 0)
+			{
+				int error = WSAGetLastError();
+				if ((error == WSAECONNRESET || error == WSAECONNABORTED || error == WSAENOTSOCK) || (!loopUntilDone && numBytesLeft == length))
+				{
+					return -1;
+				}
+				continue;
+			}
+			numBytesLeft -= numBytes;
+			curPtr += numBytes;
+		}
+	}
+	else
+	{
+		// Assume that it's using steam
+		// TODO: Should probably make it so that it treats the messages the same for steam and the regular socket code
+		// TODO: For now, can probably be inefficient with the messages
+		// TODO: Also probably need to change this once it starts using unreliable messages since those aren't guaranteed to stay in order
+		uint64 steamPlayerID = 0;
+		steamConnection* steamPlayerConnection = nullptr;
+		if (playerID == 0)
+		{
+			// Assume it's receiving from the host
+			steamPlayerID = steamLobbyBrowser->getSteamLobbyHostID().ConvertToUint64();
+			steamPlayerConnection = &(steamLobbyBrowser->getSteamLobbyHostConnection());
+		}
+		else
+		{
+			// Assume it's receiving from a client
+			steamPlayerID = clientIDToSteamIDMap[playerID];
+			steamPlayerConnection = &(steamIDToConnectionMap[steamPlayerID]);
+		}
+		// Check the queued messages to see if any message is still queued
+		if (steamPlayerConnection->curMessage == nullptr)
+		{
+			// No messages are queued, so get a message from the current connection
+			// TODO: Can probably increase the amount of messages received later
+			SteamNetworkingMessage_t* messageArr[1];
+			int numMessages = 0;
+			while ((numMessages = SteamNetworkingSockets()->ReceiveMessagesOnConnection(steamPlayerConnection->curConnection, messageArr, 1)) == 0 && loopUntilDone)
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			}
+			if (numMessages != 0)
+			{
+				steamPlayerConnection->curMessage = messageArr[0];
+				steamPlayerConnection->curBytePos = 0;
+			}
+			else
 			{
 				return -1;
 			}
-			continue;
 		}
-		numBytesLeft -= numBytes;
-		curPtr += numBytes;
+		// Assume that the receiveBytes won't read past the current message received
+		// TODO: Should make this code not reliant on this assumption
+		const char* dataBuffer = reinterpret_cast<const char*>(steamPlayerConnection->curMessage->GetData());
+		if (steamPlayerConnection->curMessage->GetSize() < static_cast<uint32_t>(length + steamPlayerConnection->curBytePos))
+		{
+			g_ModuleInterface->Print(CM_RED, "Trying to copy message data past its bounds");
+			return -1;
+		}
+		memcpy(outputBuffer, &dataBuffer[steamPlayerConnection->curBytePos], length);
+		if (steamPlayerConnection->curMessage->GetSize() == static_cast<uint32_t>(length + steamPlayerConnection->curBytePos))
+		{
+			steamPlayerConnection->curMessage->Release();
+			steamPlayerConnection->curMessage = nullptr;
+			steamPlayerConnection->curBytePos = 0;
+		}
+		else
+		{
+			steamPlayerConnection->curBytePos += length;
+		}
 	}
+	
 	return length;
 }
 
-int sendBytes(SOCKET socket, char* outputBuffer, int length, bool loopUntilDone)
+int sendBytesToPlayer(uint32_t playerID, char* outputBuffer, int length, bool loopUntilDone)
 {
-	char* curPtr = outputBuffer;
-	int numBytesLeft = length;
-	while (numBytesLeft > 0)
+	if (clientIDToSteamIDMap.empty())
 	{
-		int numBytes = send(socket, curPtr, numBytesLeft, 0);
-		if (numBytes == 0)
+		// Assume that it's not using steam and is using LAN
+		SOCKET curSocket = INVALID_SOCKET;
+		if (playerID == 0)
 		{
-			return 0;
+			// Assume it's receiving from the host
+			curSocket = serverSocket;
 		}
-		if (numBytes < 0)
+		else
 		{
-			int error = WSAGetLastError();
-			if ((error == WSAECONNRESET || error == WSAECONNABORTED || error == WSAENOTSOCK) || (!loopUntilDone && numBytesLeft == length))
+			// Assume it's receiving from a client
+			curSocket = clientSocketMap[playerID];
+		}
+		char* curPtr = outputBuffer;
+		int numBytesLeft = length;
+		while (numBytesLeft > 0)
+		{
+			int numBytes = send(curSocket, curPtr, numBytesLeft, 0);
+			if (numBytes == 0)
 			{
-				return -1;
+				return 0;
 			}
-			continue;
+			if (numBytes < 0)
+			{
+				int error = WSAGetLastError();
+				if ((error == WSAECONNRESET || error == WSAECONNABORTED || error == WSAENOTSOCK) || (!loopUntilDone && numBytesLeft == length))
+				{
+					return -1;
+				}
+				continue;
+			}
+			numBytesLeft -= numBytes;
+			curPtr += numBytes;
 		}
-		numBytesLeft -= numBytes;
-		curPtr += numBytes;
+	}
+	else
+	{
+		// Assume that it's using steam
+		// TODO: Should probably make it so that it treats the messages the same for steam and the regular socket code
+		// TODO: For now, can probably be inefficient with the messages
+		// TODO: Also probably need to change this once it starts using unreliable messages since those aren't guaranteed to stay in order
+		uint64 steamPlayerID = 0;
+		steamConnection steamPlayerConnection;
+		if (playerID == 0)
+		{
+			// Assume it's sending to the host
+			steamPlayerID = steamLobbyBrowser->getSteamLobbyHostID().ConvertToUint64();
+			steamPlayerConnection = steamLobbyBrowser->getSteamLobbyHostConnection();
+		}
+		else
+		{
+			// Assume it's sending a client
+			steamPlayerID = clientIDToSteamIDMap[playerID];
+			steamPlayerConnection = steamIDToConnectionMap[steamPlayerID];
+		}
+		EResult res = SteamNetworkingSockets()->SendMessageToConnection(steamPlayerConnection.curConnection, outputBuffer, length, k_nSteamNetworkingSend_Reliable, nullptr);
+		if (res != k_EResultOK)
+		{
+			g_ModuleInterface->Print(CM_RED, "Failed to send message");
+			return -1;
+		}
 	}
 	return length;
 }
@@ -444,7 +568,7 @@ struct messageInputMouseFollow
 	}
 };
 
-int receiveInputMessage(SOCKET socket, MessageTypes messageType, uint32_t playerID)
+int receiveInputMessage(uint32_t playerID, MessageTypes messageType)
 {
 	int curMessageLen = -1;
 	bool isPlayerMoving = false;
@@ -455,63 +579,63 @@ int receiveInputMessage(SOCKET socket, MessageTypes messageType, uint32_t player
 	float direction = 0;
 	switch (messageType)
 	{
-	case MESSAGE_INPUT_AIM:
-	{
-		const int inputMessageLen = sizeof(messageInputAim);
-		char inputMessage[inputMessageLen];
-		curMessageLen = inputMessageLen;
-		int result = -1;
-		if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+		case MESSAGE_INPUT_AIM:
 		{
-			return result;
+			const int inputMessageLen = sizeof(messageInputAim);
+			char inputMessage[inputMessageLen];
+			curMessageLen = inputMessageLen;
+			int result = -1;
+			if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
+			{
+				return result;
+			}
+			messageInputAim curMessage = messageInputAim(inputMessage);
+			isDownHeld = curMessage.isDirHeld & 0b0001;
+			isUpHeld = curMessage.isDirHeld & 0b0010;
+			isLeftHeld = curMessage.isDirHeld & 0b0100;
+			isRightHeld = curMessage.isDirHeld & 0b1000;
+			isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
+			direction = curMessage.direction;
+			break;
 		}
-		messageInputAim curMessage = messageInputAim(inputMessage);
-		isDownHeld = curMessage.isDirHeld & 0b0001;
-		isUpHeld = curMessage.isDirHeld & 0b0010;
-		isLeftHeld = curMessage.isDirHeld & 0b0100;
-		isRightHeld = curMessage.isDirHeld & 0b1000;
-		isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
-		direction = curMessage.direction;
-		break;
-	}
-	case MESSAGE_INPUT_NO_AIM:
-	{
-		const int inputMessageLen = sizeof(messageInputNoAim);
-		char inputMessage[inputMessageLen];
-		curMessageLen = inputMessageLen;
-		int result = -1;
-		if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+		case MESSAGE_INPUT_NO_AIM:
 		{
-			return result;
+			const int inputMessageLen = sizeof(messageInputNoAim);
+			char inputMessage[inputMessageLen];
+			curMessageLen = inputMessageLen;
+			int result = -1;
+			if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
+			{
+				return result;
+			}
+			messageInputNoAim curMessage = messageInputNoAim(inputMessage);
+			isDownHeld = curMessage.isDirHeld & 0b0001;
+			isUpHeld = curMessage.isDirHeld & 0b0010;
+			isLeftHeld = curMessage.isDirHeld & 0b0100;
+			isRightHeld = curMessage.isDirHeld & 0b1000;
+			isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
+			direction = curMessage.direction;
+			break;
 		}
-		messageInputNoAim curMessage = messageInputNoAim(inputMessage);
-		isDownHeld = curMessage.isDirHeld & 0b0001;
-		isUpHeld = curMessage.isDirHeld & 0b0010;
-		isLeftHeld = curMessage.isDirHeld & 0b0100;
-		isRightHeld = curMessage.isDirHeld & 0b1000;
-		isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
-		direction = curMessage.direction;
-		break;
-	}
-	case MESSAGE_INPUT_MOUSEFOLLOW:
-	{
-		const int inputMessageLen = sizeof(messageInputMouseFollow);
-		char inputMessage[inputMessageLen];
-		curMessageLen = inputMessageLen;
-		int result = -1;
-		if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+		case MESSAGE_INPUT_MOUSEFOLLOW:
 		{
-			return result;
+			const int inputMessageLen = sizeof(messageInputMouseFollow);
+			char inputMessage[inputMessageLen];
+			curMessageLen = inputMessageLen;
+			int result = -1;
+			if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
+			{
+				return result;
+			}
+			messageInputMouseFollow curMessage = messageInputMouseFollow(inputMessage);
+			isDownHeld = curMessage.isDirHeld & 0b0001;
+			isUpHeld = curMessage.isDirHeld & 0b0010;
+			isLeftHeld = curMessage.isDirHeld & 0b0100;
+			isRightHeld = curMessage.isDirHeld & 0b1000;
+			isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
+			direction = curMessage.direction;
+			break;
 		}
-		messageInputMouseFollow curMessage = messageInputMouseFollow(inputMessage);
-		isDownHeld = curMessage.isDirHeld & 0b0001;
-		isUpHeld = curMessage.isDirHeld & 0b0010;
-		isLeftHeld = curMessage.isDirHeld & 0b0100;
-		isRightHeld = curMessage.isDirHeld & 0b1000;
-		isPlayerMoving = isDownHeld || isUpHeld || isLeftHeld || isRightHeld;
-		direction = curMessage.direction;
-		break;
-	}
 	}
 
 	clientMovementData inputData = clientMovementData(messageType, direction, isPlayerMoving, isDownHeld, isUpHeld, isLeftHeld, isRightHeld);
@@ -615,13 +739,13 @@ void handleInputMessage(CInstance* Self)
 	}
 }
 
-int receiveRoomMessage(SOCKET socket)
+int receiveRoomMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messageRoom);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -645,13 +769,13 @@ void handleRoomMessage()
 	}
 }
 
-int receiveInstanceCreateMessage(SOCKET socket)
+int receiveInstanceCreateMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messageInstancesCreate);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -693,10 +817,10 @@ void handleInstanceCreateMessage()
 	} while (true);
 }
 
-int receiveInstanceUpdateMessage(SOCKET socket)
+int receiveInstanceUpdateMessage(uint32_t playerID)
 {
 	messageInstancesUpdate curInstances = messageInstancesUpdate();
-	int curMessageLen = curInstances.receiveMessage(socket);
+	int curMessageLen = curInstances.receiveMessage(playerID);
 	updateInstancesMessageQueueLock.acquire();
 	updateInstancesMessageQueue.push(curInstances);
 	updateInstancesMessageQueueLock.release();
@@ -765,13 +889,13 @@ void handleInstanceUpdateMessage()
 	} while (true);
 }
 
-int receiveInstanceDeleteMessage(SOCKET socket)
+int receiveInstanceDeleteMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messageInstancesDelete);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -811,13 +935,13 @@ float clientCamPosX = 0;
 float clientCamPosY = 0;
 std::unordered_map<uint32_t, bool> isPlayerCreatedMap;
 
-int receiveClientPlayerDataMessage(SOCKET socket)
+int receiveClientPlayerDataMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messageClientPlayerData);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -845,7 +969,7 @@ void handleClientPlayerDataMessage()
 		clientPlayerDataMessageQueueLock.release();
 
 		playerData clientPlayerData = clientPlayer.data;
-		uint32_t playerID = clientPlayerData.playerID;
+		uint32_t playerID = clientPlayerData.m_playerID;
 		memcpy(&playerDataMap[playerID], &clientPlayerData, sizeof(playerData));
 
 		if (playerID == clientID)
@@ -888,13 +1012,13 @@ void handleClientPlayerDataMessage()
 	} while (true);
 }
 
-int receiveAttackCreateMessage(SOCKET socket)
+int receiveAttackCreateMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messageAttackCreate);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -959,10 +1083,10 @@ void handleAttackCreateMessage()
 	} while (true);
 }
 
-int receiveAttackUpdateMessage(SOCKET socket)
+int receiveAttackUpdateMessage(uint32_t playerID)
 {
 	messageAttackUpdate curAttacks = messageAttackUpdate();
-	int curMessageLen = curAttacks.receiveMessage(socket);
+	int curMessageLen = curAttacks.receiveMessage(playerID);
 	updateAttackMessageQueueLock.acquire();
 	updateAttackMessageQueue.push(curAttacks);
 	updateAttackMessageQueueLock.release();
@@ -1001,13 +1125,13 @@ void handleAttackUpdateMessage()
 	} while (true);
 }
 
-int receiveAttackDeleteMessage(SOCKET socket)
+int receiveAttackDeleteMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messageAttackDelete);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -1050,13 +1174,13 @@ void handleAttackDeleteMessage()
 bool hasObtainedClientID = false;
 int clientID = 0;
 
-int receiveClientIDMessage(SOCKET socket)
+int receiveClientIDMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messageClientID);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -1090,13 +1214,13 @@ void handleClientIDMessage()
 	} while (true);
 }
 
-int receivePickupableCreateMessage(SOCKET socket)
+int receivePickupableCreateMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messagePickupableCreate);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -1133,13 +1257,13 @@ void handlePickupableCreateMessage()
 	} while (true);
 }
 
-int receivePickupableUpdateMessage(SOCKET socket)
+int receivePickupableUpdateMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messagePickupableUpdate);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -1173,13 +1297,13 @@ void handlePickupableUpdateMessage()
 	} while (true);
 }
 
-int receivePickupableDeleteMessage(SOCKET socket)
+int receivePickupableDeleteMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messagePickupableDelete);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -1212,13 +1336,13 @@ void handlePickupableDeleteMessage()
 
 uint32_t timeNum = 0;
 
-int receiveGameDataMessage(SOCKET socket)
+int receiveGameDataMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messageGameData);
 	char inputMessage[inputMessageLen];
 	int curMessageLen = inputMessageLen;
 	int result = -1;
-	if ((result = receiveBytes(socket, inputMessage, inputMessageLen)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, inputMessage, inputMessageLen)) <= 0)
 	{
 		return result;
 	}
@@ -1266,10 +1390,10 @@ void handleGameDataMessage()
 	} while (true);
 }
 
-int receiveLevelUpOptionsMessage(SOCKET socket)
+int receiveLevelUpOptionsMessage(uint32_t playerID)
 {
 	messageLevelUpOptions curMessage = messageLevelUpOptions();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 	levelUpOptionsMessageQueueLock.acquire();
 	levelUpOptionsMessageQueue.push(curMessage);
 	levelUpOptionsMessageQueueLock.release();
@@ -1389,11 +1513,11 @@ void handleLevelUpOptionsMessage(CInstance* playerManager)
 
 std::vector<levelUpPausedData> levelUpPausedList;
 
-int receiveLevelUpClientChoiceMessage(SOCKET socket, uint32_t playerID)
+int receiveLevelUpClientChoiceMessage(uint32_t playerID)
 {
 	messageLevelUpClientChoice curMessage = messageLevelUpClientChoice();
-	int curMessageLen = curMessage.receiveMessage(socket);
-	curMessage.playerID = playerID;
+	int curMessageLen = curMessage.receiveMessage(playerID);
+	curMessage.m_playerID = playerID;
 	levelUpClientChoiceMessageQueueLock.acquire();
 	levelUpClientChoiceMessageQueue.push(curMessage);
 	levelUpClientChoiceMessageQueueLock.release();
@@ -1416,7 +1540,7 @@ void handleLevelUpClientChoiceMessage()
 		levelUpClientChoiceMessageQueueLock.release();
 
 		int levelUpOption = curMessage.levelUpOption;
-		uint32_t playerID = curMessage.playerID;
+		uint32_t playerID = curMessage.m_playerID;
 
 		// Chose an upgrade option
 		if (levelUpOption < 4)
@@ -1486,7 +1610,7 @@ void handleLevelUpClientChoiceMessage()
 			options[2] = result;
 			origOptionFourScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
 			options[3] = result;
-			sendClientLevelUpOptionsMessage(clientSocketMap[playerID], playerID);
+			sendClientLevelUpOptionsMessage(playerID);
 			optionType optionType0 = convertStringOptionTypeToEnum(getInstanceVariable(options[0], GML_optionType));
 			optionType optionType1 = convertStringOptionTypeToEnum(getInstanceVariable(options[1], GML_optionType));
 			optionType optionType2 = convertStringOptionTypeToEnum(getInstanceVariable(options[2], GML_optionType));
@@ -1509,12 +1633,12 @@ void handleLevelUpClientChoiceMessage()
 
 std::chrono::high_resolution_clock::time_point startPingTime;
 
-int receivePing(SOCKET socket)
+int receivePing(uint32_t playerID)
 {
-	return sendPong(socket);
+	return sendPong(playerID);
 }
 
-int receivePong(SOCKET socket, uint32_t playerID)
+int receivePong(uint32_t playerID)
 {
 	playerPingMap[playerID] = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startPingTime).count());
 	return 1;
@@ -1522,10 +1646,10 @@ int receivePong(SOCKET socket, uint32_t playerID)
 
 std::unordered_map<short, destructableData> destructableMap;
 
-int receiveDestructableCreateMessage(SOCKET socket)
+int receiveDestructableCreateMessage(uint32_t playerID)
 {
 	messageDestructableCreate curMessage = messageDestructableCreate();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	destructableCreateMessageQueueLock.acquire();
 	destructableCreateMessageQueue.push(curMessage);
@@ -1563,10 +1687,10 @@ void handleDestructableCreateMessage()
 	} while (true);
 }
 
-int receiveDestructableBreakMessage(SOCKET socket)
+int receiveDestructableBreakMessage(uint32_t playerID)
 {
 	messageDestructableBreak curMessage = messageDestructableBreak();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	destructableBreakMessageQueueLock.acquire();
 	destructableBreakMessageQueue.push(curMessage);
@@ -1602,11 +1726,11 @@ void handleDestructableBreakMessage()
 	} while (true);
 }
 
-int receiveEliminateLevelUpClientChoiceMessage(SOCKET socket, uint32_t playerID)
+int receiveEliminateLevelUpClientChoiceMessage(uint32_t playerID)
 {
 	messageEliminateLevelUpClientChoice curMessage = messageEliminateLevelUpClientChoice();
-	curMessage.playerID = playerID;
-	int curMessageLen = curMessage.receiveMessage(socket);
+	curMessage.m_playerID = playerID;
+	int curMessageLen = curMessage.receiveMessage(playerID);
 	eliminateLevelUpClientChoiceMessageQueueLock.acquire();
 	eliminateLevelUpClientChoiceMessageQueue.push(curMessage);
 	eliminateLevelUpClientChoiceMessageQueueLock.release();
@@ -1628,7 +1752,7 @@ void handleEliminateLevelUpClientChoiceMessage()
 		eliminateLevelUpClientChoiceMessageQueue.pop();
 		eliminateLevelUpClientChoiceMessageQueueLock.release();
 
-		uint32_t playerID = curMessage.playerID;
+		uint32_t playerID = curMessage.m_playerID;
 		int levelUpOption = curMessage.levelUpOption;
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 
@@ -1670,7 +1794,7 @@ void handleEliminateLevelUpClientChoiceMessage()
 	} while (true);
 }
 
-int receiveClientSpecialAttackMessage(SOCKET socket, uint32_t playerID)
+int receiveClientSpecialAttackMessage(uint32_t playerID)
 {
 	clientSpecialAttackMessageQueueLock.acquire();
 	clientSpecialAttackMessageQueue.push(playerID);
@@ -1708,11 +1832,11 @@ void handleClientSpecialAttackMessage()
 	} while (true);
 }
 
-int receiveCautionCreateMessage(SOCKET socket)
+int receiveCautionCreateMessage(uint32_t playerID)
 {
 	RValue returnVal;
 	messageCautionCreate curMessage = messageCautionCreate();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	cautionCreateMessageQueueLock.acquire();
 	cautionCreateMessageQueue.push(curMessage);
@@ -1755,11 +1879,11 @@ void handleCautionCreateMessage()
 	} while (true);
 }
 
-int receivePreCreateUpdateMessage(SOCKET socket)
+int receivePreCreateUpdateMessage(uint32_t playerID)
 {
 	RValue returnVal;
 	messagePreCreateUpdate curMessage = messagePreCreateUpdate();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	preCreateUpdateMessageQueueLock.acquire();
 	preCreateUpdateMessageQueue.push(curMessage);
@@ -1802,11 +1926,11 @@ void handlePreCreateUpdateMessage()
 	} while (true);
 }
 
-int receiveVFXUpdateMessage(SOCKET socket)
+int receiveVFXUpdateMessage(uint32_t playerID)
 {
 	RValue returnVal;
 	messageVfxUpdate curMessage = messageVfxUpdate();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	vfxUpdateMessageQueueLock.acquire();
 	vfxUpdateMessageQueue.push(curMessage);
@@ -1906,11 +2030,11 @@ void handleVFXUpdateMessage()
 	} while (true);
 }
 
-int receiveInteractableCreateMessage(SOCKET socket)
+int receiveInteractableCreateMessage(uint32_t playerID)
 {
 	RValue returnVal;
 	messageInteractableCreate curMessage = messageInteractableCreate();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	interactableCreateMessageQueueLock.acquire();
 	interactableCreateMessageQueue.push(curMessage);
@@ -1970,11 +2094,11 @@ void handleInteractableCreateMessage()
 	} while (true);
 }
 
-int receiveInteractableDeleteMessage(SOCKET socket)
+int receiveInteractableDeleteMessage(uint32_t playerID)
 {
 	RValue returnVal;
 	messageInteractableDelete curMessage = messageInteractableDelete();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	interactableDeleteMessageQueueLock.acquire();
 	interactableDeleteMessageQueue.push(curMessage);
@@ -2026,10 +2150,10 @@ bool isClientUsingStamp = false;
 
 std::vector<std::string_view> currentAnvilRolledMods;
 
-int receiveInteractablePlayerInteractedMessage(SOCKET socket)
+int receiveInteractablePlayerInteractedMessage(uint32_t playerID)
 {
 	messageInteractablePlayerInteracted curMessage = messageInteractablePlayerInteracted();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	interactablePlayerInteractedMessageQueueLock.acquire();
 	interactablePlayerInteractedMessageQueue.push(curMessage);
@@ -2053,43 +2177,43 @@ void handleInteractablePlayerInteractedMessage()
 		interactablePlayerInteractedMessageQueueLock.release();
 
 		// Can probably skip pausing the clients since the host will be paused anyways
-		if (curMessage.playerID == clientID)
+		if (curMessage.m_playerID == clientID)
 		{
 			RValue returnVal;
 			setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
 			unsetPauseMenu();
 			switch (curMessage.type)
 			{
-			case 1: // holoAnvil
-			{
-				currentAnvilRolledMods.clear();
-				isClientUsingAnvil = true;
-				RValue anvilInstance = interactableMap[curMessage.id];
-				RValue** args = new RValue*[1];
-				args[0] = &anvilInstance;
-				origGetAnvilScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
-				setInstanceVariable(playerManagerInstanceVar, GML_anvilID, RValue(-1));
-				break;
-			}
-			case 2: // goldenAnvil
-			{
-				isClientUsingGoldenAnvil = true;
-				RValue anvilInstance = interactableMap[curMessage.id];
-				RValue** args = new RValue*[1];
-				args[0] = &anvilInstance;
-				origGetGoldenAnvilScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
-				setInstanceVariable(playerManagerInstanceVar, GML_anvilID, RValue(-1));
-				break;
-			}
+				case 1: // holoAnvil
+				{
+					currentAnvilRolledMods.clear();
+					isClientUsingAnvil = true;
+					RValue anvilInstance = interactableMap[curMessage.id];
+					RValue** args = new RValue*[1];
+					args[0] = &anvilInstance;
+					origGetAnvilScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
+					setInstanceVariable(playerManagerInstanceVar, GML_anvilID, RValue(-1));
+					break;
+				}
+				case 2: // goldenAnvil
+				{
+					isClientUsingGoldenAnvil = true;
+					RValue anvilInstance = interactableMap[curMessage.id];
+					RValue** args = new RValue*[1];
+					args[0] = &anvilInstance;
+					origGetGoldenAnvilScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
+					setInstanceVariable(playerManagerInstanceVar, GML_anvilID, RValue(-1));
+					break;
+				}
 			}
 		}
 	} while (true);
 }
 
-int receiveStickerPlayerInteractedMessage(SOCKET socket)
+int receiveStickerPlayerInteractedMessage(uint32_t playerID)
 {
 	messageStickerPlayerInteracted curMessage = messageStickerPlayerInteracted();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	stickerPlayerInteractedMessageQueueLock.acquire();
 	stickerPlayerInteractedMessageQueue.push(curMessage);
@@ -2113,7 +2237,7 @@ void handleStickerPlayerInteractedMessage()
 		stickerPlayerInteractedMessageQueueLock.release();
 
 		// Can probably skip pausing the clients since the host will be paused anyways
-		if (curMessage.playerID == clientID)
+		if (curMessage.m_playerID == clientID)
 		{
 			RValue returnVal;
 			setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
@@ -2132,10 +2256,10 @@ void handleStickerPlayerInteractedMessage()
 	} while (true);
 }
 
-int receiveBoxPlayerInteractedMessage(SOCKET socket)
+int receiveBoxPlayerInteractedMessage(uint32_t playerID)
 {
 	messageBoxPlayerInteracted curMessage = messageBoxPlayerInteracted();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	boxPlayerInteractedMessageQueueLock.acquire();
 	boxPlayerInteractedMessageQueue.push(curMessage);
@@ -2162,7 +2286,7 @@ void handleBoxPlayerInteractedMessage()
 		interactableMap.erase(curMessage.id);
 
 		// Can probably skip pausing the clients since the host will be paused anyways
-		if (curMessage.playerID == clientID)
+		if (curMessage.m_playerID == clientID)
 		{
 			RValue returnVal;
 			setInstanceVariable(playerManagerInstanceVar, GML_paused, RValue(false));
@@ -2259,7 +2383,7 @@ void handleBoxPlayerInteractedMessage()
 	} while (true);
 }
 
-int receiveInteractFinishedMessage(SOCKET socket)
+int receiveInteractFinishedMessage(uint32_t playerID)
 {
 	interactFinishedMessageQueueLock.acquire();
 	hasInteractFinishedMessage = true;
@@ -2291,12 +2415,12 @@ void handleInteractFinishedMessage()
 	} while (true);
 }
 
-int receiveBoxTakeOptionMessage(SOCKET socket, uint32_t playerID)
+int receiveBoxTakeOptionMessage(uint32_t playerID)
 {
 	RValue returnVal;
 	messageBoxTakeOption curMessage = messageBoxTakeOption();
-	int curMessageLen = curMessage.receiveMessage(socket);
-	curMessage.playerID = playerID;
+	int curMessageLen = curMessage.receiveMessage(playerID);
+	curMessage.m_playerID = playerID;
 
 	boxTakeOptionMessageQueueLock.acquire();
 	boxTakeOptionMessageQueue.push(curMessage);
@@ -2319,7 +2443,7 @@ void handleBoxTakeOptionMessage()
 		boxTakeOptionMessageQueue.pop();
 		boxTakeOptionMessageQueueLock.release();
 
-		uint32_t playerID = curMessage.playerID;
+		uint32_t playerID = curMessage.m_playerID;
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 
 		// Special case if the client drops a super weapon to unset the super flag for the item
@@ -2337,12 +2461,12 @@ void handleBoxTakeOptionMessage()
 	} while (true);
 }
 
-int receiveAnvilChooseOptionMessage(SOCKET socket, uint32_t playerID)
+int receiveAnvilChooseOptionMessage(uint32_t playerID)
 {
 	RValue returnVal;
 	messageAnvilChooseOption curMessage = messageAnvilChooseOption();
-	int curMessageLen = curMessage.receiveMessage(socket);
-	curMessage.playerID = playerID;
+	int curMessageLen = curMessage.receiveMessage(playerID);
+	curMessage.m_playerID = playerID;
 
 	anvilChooseOptionMessageQueueLock.acquire();
 	anvilChooseOptionMessageQueue.push(curMessage);
@@ -2364,7 +2488,7 @@ void handleAnvilChooseOptionMessage()
 		messageAnvilChooseOption curMessage = anvilChooseOptionMessageQueue.front();
 		anvilChooseOptionMessageQueue.pop();
 		anvilChooseOptionMessageQueueLock.release();
-		uint32_t playerID = curMessage.playerID;
+		uint32_t playerID = curMessage.m_playerID;
 
 		if (curMessage.anvilOptionType == 0)
 		{
@@ -2382,10 +2506,10 @@ void handleAnvilChooseOptionMessage()
 	} while (true);
 }
 
-int receiveClientGainMoneyMessage(SOCKET socket)
+int receiveClientGainMoneyMessage(uint32_t playerID)
 {
 	messageClientGainMoney curMessage = messageClientGainMoney();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	clientGainMoneyMessageQueueLock.acquire();
 	clientGainMoneyMessageQueue.push(curMessage);
@@ -2414,12 +2538,12 @@ void handleClientGainMoneyMessage()
 	} while (true);
 }
 
-int receiveClientAnvilEnchantMessage(SOCKET socket, uint32_t playerID)
+int receiveClientAnvilEnchantMessage(uint32_t playerID)
 {
 	RValue returnVal;
 	messageClientAnvilEnchant curMessage = messageClientAnvilEnchant();
-	int curMessageLen = curMessage.receiveMessage(socket);
-	curMessage.playerID = playerID;
+	int curMessageLen = curMessage.receiveMessage(playerID);
+	curMessage.m_playerID = playerID;
 
 	clientAnvilEnchantMessageQueueLock.acquire();
 	clientAnvilEnchantMessageQueue.push(curMessage);
@@ -2442,7 +2566,7 @@ void handleClientAnvilEnchantMessage()
 		clientAnvilEnchantMessageQueue.pop();
 		clientAnvilEnchantMessageQueueLock.release();
 
-		uint32_t playerID = curMessage.playerID;
+		uint32_t playerID = curMessage.m_playerID;
 		levelUpPausedData curPausedData = levelUpPausedData(playerID, optionType_Enchant, curMessage.optionID, curMessage.gainedMods);
 		levelUpPausedList.push_back(curPausedData);
 
@@ -2453,12 +2577,12 @@ void handleClientAnvilEnchantMessage()
 	} while (true);
 }
 
-int receiveStickerChooseOptionMessage(SOCKET socket, uint32_t playerID)
+int receiveStickerChooseOptionMessage(uint32_t playerID)
 {
 	RValue returnVal;
 	messageStickerChooseOption curMessage = messageStickerChooseOption();
-	int curMessageLen = curMessage.receiveMessage(socket);
-	curMessage.playerID = playerID;
+	int curMessageLen = curMessage.receiveMessage(playerID);
+	curMessage.m_playerID = playerID;
 
 	stickerChooseOptionMessageQueueLock.acquire();
 	stickerChooseOptionMessageQueue.push(curMessage);
@@ -2481,7 +2605,7 @@ void handleStickerChooseOptionMessage()
 		stickerChooseOptionMessageQueue.pop();
 		stickerChooseOptionMessageQueueLock.release();
 
-		uint32_t playerID = curMessage.playerID;
+		uint32_t playerID = curMessage.m_playerID;
 		switch (curMessage.stickerOptionType)
 		{
 			case 0:
@@ -2573,11 +2697,11 @@ void handleStickerChooseOptionMessage()
 	} while (true);
 }
 
-int receiveChooseCollabMessage(SOCKET socket, uint32_t playerID)
+int receiveChooseCollabMessage(uint32_t playerID)
 {
 	messageChooseCollab curMessage = messageChooseCollab();
-	int curMessageLen = curMessage.receiveMessage(socket);
-	curMessage.playerID = playerID;
+	int curMessageLen = curMessage.receiveMessage(playerID);
+	curMessage.m_playerID = playerID;
 
 	chooseCollabMessageQueueLock.acquire();
 	chooseCollabMessageQueue.push(curMessage);
@@ -2600,7 +2724,7 @@ void handleChooseCollabMessage()
 		chooseCollabMessageQueue.pop();
 		chooseCollabMessageQueueLock.release();
 
-		uint32_t playerID = curMessage.playerID;
+		uint32_t playerID = curMessage.m_playerID;
 		levelUpOption curOption = curMessage.collab;
 
 		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curOption.optionType), curOption.optionID);
@@ -2608,10 +2732,10 @@ void handleChooseCollabMessage()
 	} while (true);
 }
 
-int receiveBuffDataMessage(SOCKET socket)
+int receiveBuffDataMessage(uint32_t playerID)
 {
 	messageBuffData curMessage = messageBuffData();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	buffDataMessageQueueLock.acquire();
 	buffDataMessageQueue.push(curMessage);
@@ -2657,10 +2781,10 @@ void handleBuffDataMessage()
 	} while (true);
 }
 
-int receiveCharDataMessage(SOCKET socket)
+int receiveCharDataMessage(uint32_t playerID)
 {
 	messageCharData curMessage = messageCharData();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	charDataMessageQueueLock.acquire();
 	charDataMessageQueue.push(curMessage);
@@ -2683,11 +2807,11 @@ void handleCharDataMessage()
 		charDataMessageQueue.pop();
 		charDataMessageQueueLock.release();
 
-		lobbyPlayerDataMap[curMessage.playerID] = curMessage.playerData;
+		lobbyPlayerDataMap[curMessage.m_playerID] = curMessage.playerData;
 	} while (true);
 }
 
-int receiveReturnToLobby(SOCKET socket)
+int receiveReturnToLobby(uint32_t playerID)
 {
 	ReturnToLobbyQueueLock.acquire();
 	hasReturnToLobby = true;
@@ -2711,10 +2835,10 @@ void handleReturnToLobby()
 	ReturnToLobbyQueueLock.release();
 }
 
-int receiveLobbyPlayerDisconnected(SOCKET socket)
+int receiveLobbyPlayerDisconnected(uint32_t playerID)
 {
 	messageLobbyPlayerDisconnected curMessage = messageLobbyPlayerDisconnected();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	lobbyPlayerDisconnectedQueueLock.acquire();
 	lobbyPlayerDisconnectedQueue.push(curMessage);
@@ -2737,15 +2861,15 @@ void handleLobbyPlayerDisconnected()
 		lobbyPlayerDisconnectedQueue.pop();
 		lobbyPlayerDisconnectedQueueLock.release();
 
-		playerPingMap.erase(curMessage.playerID);
-		clientUnpausedMap.erase(curMessage.playerID);
-		clientSocketMap.erase(curMessage.playerID);
-		lobbyPlayerDataMap.erase(curMessage.playerID);
-		hasClientPlayerDisconnected.erase(curMessage.playerID);
+		playerPingMap.erase(curMessage.m_playerID);
+		clientUnpausedMap.erase(curMessage.m_playerID);
+		clientSocketMap.erase(curMessage.m_playerID);
+		lobbyPlayerDataMap.erase(curMessage.m_playerID);
+		hasClientPlayerDisconnected.erase(curMessage.m_playerID);
 	} while (true);
 }
 
-int receiveHostHasPaused(SOCKET socket)
+int receiveHostHasPaused(uint32_t playerID)
 {
 	hostHasPausedQueueLock.acquire();
 	receivedHostHasPaused = true;
@@ -2765,7 +2889,7 @@ void handleHostHasPaused()
 	hostHasPausedQueueLock.release();
 }
 
-int receiveHostHasUnpaused(SOCKET socket)
+int receiveHostHasUnpaused(uint32_t playerID)
 {
 	hostHasUnpausedQueueLock.acquire();
 	receivedHostHasUnpaused = true;
@@ -2785,10 +2909,10 @@ void handleHostHasUnpaused()
 	hostHasUnpausedQueueLock.release();
 }
 
-int receiveKaelaOreAmount(SOCKET socket)
+int receiveKaelaOreAmount(uint32_t playerID)
 {
 	messageKaelaOreAmount curMessage = messageKaelaOreAmount();
-	int curMessageLen = curMessage.receiveMessage(socket);
+	int curMessageLen = curMessage.receiveMessage(playerID);
 
 	kaelaOreAmountQueueLock.acquire();
 	kaelaOreAmountQueue.push(curMessage);
@@ -2820,12 +2944,12 @@ void handleKaelaOreAmount()
 	} while (true);
 }
 
-int receiveMessage(SOCKET socket, uint32_t playerID)
+int receiveMessage(uint32_t playerID)
 {
 	const int messageTypeLen = 1;
 	char messageType[messageTypeLen];
 	int result = -1;
-	if ((result = receiveBytes(socket, messageType, messageTypeLen, false)) <= 0)
+	if ((result = receiveBytesFromPlayer(playerID, messageType, messageTypeLen, false)) <= 0)
 	{
 		return result;
 	}
@@ -2833,194 +2957,194 @@ int receiveMessage(SOCKET socket, uint32_t playerID)
 	{
 		case MESSAGE_INPUT_AIM:
 		{
-			return receiveInputMessage(socket, MESSAGE_INPUT_AIM, playerID);
+			return receiveInputMessage(playerID, MESSAGE_INPUT_AIM);
 		}
 		case MESSAGE_INPUT_NO_AIM:
 		{
-			return receiveInputMessage(socket, MESSAGE_INPUT_NO_AIM, playerID);
+			return receiveInputMessage(playerID, MESSAGE_INPUT_NO_AIM);
 		}
 		case MESSAGE_INPUT_MOUSEFOLLOW:
 		{
-			return receiveInputMessage(socket, MESSAGE_INPUT_MOUSEFOLLOW, playerID);
+			return receiveInputMessage(playerID, MESSAGE_INPUT_MOUSEFOLLOW);
 		}
 		case MESSAGE_ROOM:
 		{
-			return receiveRoomMessage(socket);
+			return receiveRoomMessage(playerID);
 		}
 		case MESSAGE_INSTANCES_CREATE:
 		{
-			return receiveInstanceCreateMessage(socket);
+			return receiveInstanceCreateMessage(playerID);
 		}
 		case MESSAGE_INSTANCES_UPDATE:
 		{
-			return receiveInstanceUpdateMessage(socket);
+			return receiveInstanceUpdateMessage(playerID);
 		}
 		case MESSAGE_INSTANCES_DELETE:
 		{
-			return receiveInstanceDeleteMessage(socket);
+			return receiveInstanceDeleteMessage(playerID);
 		}
 		case MESSAGE_CLIENT_PLAYER_DATA:
 		{
-			return receiveClientPlayerDataMessage(socket);
+			return receiveClientPlayerDataMessage(playerID);
 		}
 		case MESSAGE_ATTACK_CREATE:
 		{
-			return receiveAttackCreateMessage(socket);
+			return receiveAttackCreateMessage(playerID);
 		}
 		case MESSAGE_ATTACK_UPDATE:
 		{
-			return receiveAttackUpdateMessage(socket);
+			return receiveAttackUpdateMessage(playerID);
 		}
 		case MESSAGE_ATTACK_DELETE:
 		{
-			return receiveAttackDeleteMessage(socket);
+			return receiveAttackDeleteMessage(playerID);
 		}
 		case MESSAGE_CLIENT_ID:
 		{
-			return receiveClientIDMessage(socket);
+			return receiveClientIDMessage(playerID);
 		}
 		case MESSAGE_PICKUPABLE_CREATE:
 		{
-			return receivePickupableCreateMessage(socket);
+			return receivePickupableCreateMessage(playerID);
 		}
 		case MESSAGE_PICKUPABLE_UPDATE:
 		{
-			return receivePickupableUpdateMessage(socket);
+			return receivePickupableUpdateMessage(playerID);
 		}
 		case MESSAGE_PICKUPABLE_DELETE:
 		{
-			return receivePickupableDeleteMessage(socket);
+			return receivePickupableDeleteMessage(playerID);
 		}
 		case MESSAGE_GAME_DATA:
 		{
-			return receiveGameDataMessage(socket);
+			return receiveGameDataMessage(playerID);
 		}
 		case MESSAGE_LEVEL_UP_OPTIONS:
 		{
-			return receiveLevelUpOptionsMessage(socket);
+			return receiveLevelUpOptionsMessage(playerID);
 		}
 		case MESSAGE_LEVEL_UP_CLIENT_CHOICE:
 		{
-			return receiveLevelUpClientChoiceMessage(socket, playerID);
+			return receiveLevelUpClientChoiceMessage(playerID);
 		}
 		case MESSAGE_PING:
 		{
-			return receivePing(socket);
+			return receivePing(playerID);
 		}
 		case MESSAGE_PONG:
 		{
-			return receivePong(socket, playerID);
+			return receivePong(playerID);
 		}
 		case MESSAGE_DESTRUCTABLE_CREATE:
 		{
-			return receiveDestructableCreateMessage(socket);
+			return receiveDestructableCreateMessage(playerID);
 		}
 		case MESSAGE_DESTRUCTABLE_BREAK:
 		{
-			return receiveDestructableBreakMessage(socket);
+			return receiveDestructableBreakMessage(playerID);
 		}
 		case MESSAGE_ELIMINATE_LEVEL_UP_CLIENT_CHOICE:
 		{
-			return receiveEliminateLevelUpClientChoiceMessage(socket, playerID);
+			return receiveEliminateLevelUpClientChoiceMessage(playerID);
 		}
 		case MESSAGE_CLIENT_SPECIAL_ATTACK:
 		{
-			return receiveClientSpecialAttackMessage(socket, playerID);
+			return receiveClientSpecialAttackMessage(playerID);
 		}
 		case MESSAGE_CAUTION_CREATE:
 		{
-			return receiveCautionCreateMessage(socket);
+			return receiveCautionCreateMessage(playerID);
 		}
 		case MESSAGE_PRECREATE_UPDATE:
 		{
-			return receivePreCreateUpdateMessage(socket);
+			return receivePreCreateUpdateMessage(playerID);
 		}
 		case MESSAGE_VFX_UPDATE:
 		{
-			return receiveVFXUpdateMessage(socket);
+			return receiveVFXUpdateMessage(playerID);
 		}
 		case MESSAGE_INTERACTABLE_CREATE:
 		{
-			return receiveInteractableCreateMessage(socket);
+			return receiveInteractableCreateMessage(playerID);
 		}
 		case MESSAGE_INTERACTABLE_DELETE:
 		{
-			return receiveInteractableDeleteMessage(socket);
+			return receiveInteractableDeleteMessage(playerID);
 		}
 		case MESSAGE_INTERACTABLE_PLAYER_INTERACTED:
 		{
-			return receiveInteractablePlayerInteractedMessage(socket);
+			return receiveInteractablePlayerInteractedMessage(playerID);
 		}
 		case MESSAGE_STICKER_PLAYER_INTERACTED:
 		{
-			return receiveStickerPlayerInteractedMessage(socket);
+			return receiveStickerPlayerInteractedMessage(playerID);
 		}
 		case MESSAGE_BOX_PLAYER_INTERACTED:
 		{
-			return receiveBoxPlayerInteractedMessage(socket);
+			return receiveBoxPlayerInteractedMessage(playerID);
 		}
 		case MESSAGE_INTERACT_FINISHED:
 		{
-			return receiveInteractFinishedMessage(socket);
+			return receiveInteractFinishedMessage(playerID);
 		}
 		case MESSAGE_BOX_TAKE_OPTION:
 		{
-			return receiveBoxTakeOptionMessage(socket, playerID);
+			return receiveBoxTakeOptionMessage(playerID);
 		}
 		case MESSAGE_ANVIL_CHOOSE_OPTION:
 		{
-			return receiveAnvilChooseOptionMessage(socket, playerID);
+			return receiveAnvilChooseOptionMessage(playerID);
 		}
 		case MESSAGE_CLIENT_GAIN_MONEY:
 		{
-			return receiveClientGainMoneyMessage(socket);
+			return receiveClientGainMoneyMessage(playerID);
 		}
 		case MESSAGE_CLIENT_ANVIL_ENCHANT:
 		{
-			return receiveClientAnvilEnchantMessage(socket, playerID);
+			return receiveClientAnvilEnchantMessage(playerID);
 		}
 		case MESSAGE_STICKER_CHOOSE_OPTION:
 		{
-			return receiveStickerChooseOptionMessage(socket, playerID);
+			return receiveStickerChooseOptionMessage(playerID);
 		}
 		case MESSAGE_CHOOSE_COLLAB:
 		{
-			return receiveChooseCollabMessage(socket, playerID);
+			return receiveChooseCollabMessage(playerID);
 		}
 		case MESSAGE_BUFF_DATA:
 		{
-			return receiveBuffDataMessage(socket);
+			return receiveBuffDataMessage(playerID);
 		}
 		case MESSAGE_CHAR_DATA:
 		{
-			return receiveCharDataMessage(socket);
+			return receiveCharDataMessage(playerID);
 		}
 		case MESSAGE_RETURN_TO_LOBBY:
 		{
-			return receiveReturnToLobby(socket);
+			return receiveReturnToLobby(playerID);
 		}
 		case MESSAGE_LOBBY_PLAYER_DISCONNECTED:
 		{
-			return receiveLobbyPlayerDisconnected(socket);
+			return receiveLobbyPlayerDisconnected(playerID);
 		}
 		case MESSAGE_HOST_HAS_PAUSED:
 		{
-			return receiveHostHasPaused(socket);
+			return receiveHostHasPaused(playerID);
 		}
 		case MESSAGE_HOST_HAS_UNPAUSED:
 		{
-			return receiveHostHasUnpaused(socket);
+			return receiveHostHasUnpaused(playerID);
 		}
 		case MESSAGE_KAELA_ORE_AMOUNT:
 		{
-			return receiveKaelaOreAmount(socket);
+			return receiveKaelaOreAmount(playerID);
 		}
 	}
 	g_ModuleInterface->Print(CM_RED, "Unknown message type received %d", messageType[0]);
 	return -1;
 }
 
-int sendInputMessage(SOCKET socket)
+int sendInputMessage(uint32_t playerID)
 {
 	if (!hasObtainedClientID || !isPlayerCreatedMap[clientID])
 	{
@@ -3069,7 +3193,7 @@ int sendInputMessage(SOCKET socket)
 			float direction = static_cast<float>(g_ModuleInterface->CallBuiltin("point_direction", { xPos, yPos, mouseX, mouseY }).m_Real);
 			messageInputMouseFollow sendMessage = messageInputMouseFollow(isDirHeld, direction);
 			sendMessage.serialize(inputMessage);
-			return sendBytes(socket, inputMessage, inputMessageLen);
+			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen);
 		}
 		else
 		{
@@ -3077,7 +3201,7 @@ int sendInputMessage(SOCKET socket)
 			char inputMessage[inputMessageLen];
 			messageInputNoAim sendMessage = messageInputNoAim(isDirHeld, static_cast<float>(getInstanceVariable(playerMap[clientID], GML_direction).m_Real));
 			sendMessage.serialize(inputMessage);
-			return sendBytes(socket, inputMessage, inputMessageLen);
+			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen);
 		}
 	}
 	else
@@ -3086,7 +3210,7 @@ int sendInputMessage(SOCKET socket)
 		char inputMessage[inputMessageLen];
 		messageInputAim sendMessage = messageInputAim(isDirHeld, static_cast<float>(returnVal.m_Real));
 		sendMessage.serialize(inputMessage);
-		return sendBytes(socket, inputMessage, inputMessageLen);
+		return sendBytesToPlayer(playerID, inputMessage, inputMessageLen);
 	}
 }
 
@@ -3101,9 +3225,9 @@ int sendAllRoomMessage()
 	sendMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	return inputMessageLen;
 }
@@ -3119,9 +3243,9 @@ int sendAllInstanceCreateMessage()
 	instancesCreateMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	instancesCreateMessage.numInstances = 0;
 	return inputMessageLen;
@@ -3138,9 +3262,9 @@ int sendAllInstanceUpdateMessage()
 	instancesUpdateMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	instancesUpdateMessage.numInstances = 0;
 	delete[] inputMessage;
@@ -3158,9 +3282,9 @@ int sendAllInstanceDeleteMessage()
 	instancesDeleteMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	instancesDeleteMessage.numInstances = 0;
 	return inputMessageLen;
@@ -3205,9 +3329,9 @@ int sendAllClientPlayerDataMessage()
 		playerData curData(xPos, yPos, imageXScale, imageYScale, direction, spriteIndex, curHP, maxHP, curAttack, curSpeed, curCrit, curHaste, curPickupRange, specialMeter, truncatedImageIndex, curPlayer.first);
 		messageClientPlayerData sendMessage = messageClientPlayerData(curData);
 		sendMessage.serialize(inputMessage);
-		for (auto& clientSocket : clientSocketMap)
+		for (auto& curClientIDMapping : clientIDToSteamIDMap)
 		{
-			sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+			sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 		}
 	}
 
@@ -3225,9 +3349,9 @@ int sendAllAttackCreateMessage()
 	attackCreateMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	attackCreateMessage.numAttacks = 0;
 	return inputMessageLen;
@@ -3244,9 +3368,9 @@ int sendAllAttackUpdateMessage()
 	attackUpdateMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	attackUpdateMessage.numAttacks = 0;
 	delete[] inputMessage;
@@ -3264,22 +3388,22 @@ int sendAllAttackDeleteMessage()
 	attackDeleteMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	attackDeleteMessage.numAttacks = 0;
 	return inputMessageLen;
 }
 
-int sendClientIDMessage(SOCKET socket, uint32_t playerID)
+int sendClientIDMessage(uint32_t playerID)
 {
 	const int inputMessageLen = sizeof(messageClientID) + 1;
 	char inputMessage[inputMessageLen];
 	messageClientID clientNumberID = messageClientID(playerID);
 	clientNumberID.serialize(inputMessage);
 
-	return sendBytes(socket, inputMessage, inputMessageLen);
+	return sendBytesToPlayer(playerID, inputMessage, inputMessageLen);
 }
 
 int sendAllPickupableCreateMessage(pickupableData data)
@@ -3290,9 +3414,9 @@ int sendAllPickupableCreateMessage(pickupableData data)
 	curMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	return inputMessageLen;
 }
@@ -3305,9 +3429,9 @@ int sendAllPickupableUpdateMessage(pickupableData data)
 	curMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	return inputMessageLen;
 }
@@ -3320,9 +3444,9 @@ int sendAllPickupableDeleteMessage(short pickupableID)
 	curMessage.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	return inputMessageLen;
 }
@@ -3351,14 +3475,14 @@ int sendAllGameDataMessage()
 	data.serialize(inputMessage);
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
 	}
 	return inputMessageLen;
 }
 
-int sendClientLevelUpOptionsMessage(SOCKET socket, uint32_t playerID)
+int sendClientLevelUpOptionsMessage(uint32_t playerID)
 {
 	RValue playerManager = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 });
 	RValue options = getInstanceVariable(playerManager, GML_options);
@@ -3450,43 +3574,43 @@ int sendClientLevelUpOptionsMessage(SOCKET socket, uint32_t playerID)
 
 
 	clientNumberMessage.serialize(inputMessage);
-	int sentLen = sendBytes(socket, inputMessage, static_cast<int>(inputMessageLen));
+	int sentLen = sendBytesToPlayer(playerID, inputMessage, static_cast<int>(inputMessageLen));
 
 	delete[] inputMessage;
 
 	return sentLen;
 }
 
-int sendLevelUpClientChoiceMessage(SOCKET socket, char levelUpOption)
+int sendLevelUpClientChoiceMessage(uint32_t playerID, char levelUpOption)
 {
 	messageLevelUpClientChoice curMessage = messageLevelUpClientChoice(levelUpOption);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }
 
-int sendPing(SOCKET socket)
+int sendPing(uint32_t playerID)
 {
 	messagePing curMessage = messagePing();
 	const int messageBufferLen = 1;
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 
 	startPingTime = std::chrono::high_resolution_clock::now();
 	return sentLen;
 }
 
-int sendPong(SOCKET socket)
+int sendPong(uint32_t playerID)
 {
 	messagePong curMessage = messagePong();
 	const int messageBufferLen = 1;
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	return sentLen;
 }
 
@@ -3497,9 +3621,9 @@ int sendAllDestructableCreateMessage(destructableData data)
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 
 	delete[] messageBuffer;
@@ -3513,33 +3637,33 @@ int sendAllDestructableBreakMessage(destructableData data)
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 
 	delete[] messageBuffer;
 	return messageBufferLen;
 }
 
-int sendEliminateLevelUpClientChoiceMessage(SOCKET socket, char levelUpOption)
+int sendEliminateLevelUpClientChoiceMessage(uint32_t playerID, char levelUpOption)
 {
 	messageEliminateLevelUpClientChoice curMessage = messageEliminateLevelUpClientChoice(levelUpOption);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }
 
-int sendClientSpecialAttackMessage(SOCKET socket)
+int sendClientSpecialAttackMessage(uint32_t playerID)
 {
 	messageClientSpecialAttack curMessage = messageClientSpecialAttack();
 	const int messageBufferLen = 1;
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	return sentLen;
 }
 
@@ -3550,9 +3674,9 @@ int sendAllCautionCreateMessage(cautionData data)
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 	return messageBufferLen;
 }
@@ -3564,9 +3688,9 @@ int sendAllPreCreateUpdateMessage(preCreateData data)
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 	return messageBufferLen;
 }
@@ -3578,9 +3702,9 @@ int sendAllVFXUpdateMessage(vfxData data)
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 	return messageBufferLen;
 }
@@ -3592,9 +3716,9 @@ int sendAllInteractableCreateMessage(interactableData data)
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 	return messageBufferLen;
 }
@@ -3606,9 +3730,9 @@ int sendAllInteractableDeleteMessage(short id, char type)
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 	return messageBufferLen;
 }
@@ -3620,9 +3744,9 @@ int sendAllInteractablePlayerInteractedMessage(uint32_t playerID, short id, char
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 	return messageBufferLen;
 }
@@ -3634,9 +3758,9 @@ int sendAllStickerPlayerInteractedMessage(uint32_t playerID, std::string_view st
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 	delete[] messageBuffer;
 	return messageBufferLen;
@@ -3649,107 +3773,107 @@ int sendAllBoxPlayerInteractedMessage(uint32_t playerID, levelUpOption* levelUpO
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 	delete[] messageBuffer;
 	return messageBufferLen;
 }
 
-int sendInteractFinishedMessage(SOCKET socket)
+int sendInteractFinishedMessage(uint32_t playerID)
 {
 	messageInteractFinished curMessage = messageInteractFinished();
 	const int messageBufferLen = 1;
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	return sentLen;
 }
 
-int sendBoxTakeOptionMessage(SOCKET socket, char boxItemNum)
+int sendBoxTakeOptionMessage(uint32_t playerID, char boxItemNum)
 {
 	messageBoxTakeOption curMessage = messageBoxTakeOption(boxItemNum);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }
 
-int sendAnvilChooseOptionMessage(SOCKET socket, std::string_view optionID, std::string_view optionType, uint32_t coinCost, char anvilOptionType)
+int sendAnvilChooseOptionMessage(uint32_t playerID, std::string_view optionID, std::string_view optionType, uint32_t coinCost, char anvilOptionType)
 {
 	messageAnvilChooseOption curMessage = messageAnvilChooseOption(optionID, optionType, coinCost, anvilOptionType);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }
 
-int sendClientGainMoneyMessage(SOCKET socket, uint32_t money)
+int sendClientGainMoneyMessage(uint32_t playerID, uint32_t money)
 {
 	messageClientGainMoney curMessage = messageClientGainMoney(money);
 	const int messageBufferLen = static_cast<int>(sizeof(messageClientGainMoney) + 1);
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	return sentLen;
 }
 
-int sendClientAnvilEnchantMessage(SOCKET socket, std::string_view optionID, std::vector<std::string_view> gainedMods, uint32_t coinCost)
+int sendClientAnvilEnchantMessage(uint32_t playerID, std::string_view optionID, std::vector<std::string_view> gainedMods, uint32_t coinCost)
 {
 	messageClientAnvilEnchant curMessage = messageClientAnvilEnchant(optionID, gainedMods, coinCost);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }
 
-int sendStickerChooseOptionMessage(SOCKET socket, char stickerOption, char stickerOptionType)
+int sendStickerChooseOptionMessage(uint32_t playerID, char stickerOption, char stickerOptionType)
 {
 	messageStickerChooseOption curMessage = messageStickerChooseOption(stickerOption, stickerOptionType);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }
 
-int sendChooseCollabMessage(SOCKET socket, levelUpOption collab)
+int sendChooseCollabMessage(uint32_t playerID, levelUpOption collab)
 {
 	messageChooseCollab curMessage = messageChooseCollab(collab);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }
 
-int sendBuffDataMessage(SOCKET socket, std::vector<buffData> buffDataList)
+int sendBuffDataMessage(uint32_t playerID, std::vector<buffData> buffDataList)
 {
 	messageBuffData curMessage = messageBuffData(buffDataList);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }
 
-int sendCharDataMessage(SOCKET socket, lobbyPlayerData playerData, uint32_t playerID)
+int sendCharDataMessage(uint32_t playerID, lobbyPlayerData playerData, uint32_t charPlayerID)
 {
-	messageCharData curMessage = messageCharData(playerData, playerID);
+	messageCharData curMessage = messageCharData(playerData, charPlayerID);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3761,9 +3885,9 @@ int sendAllReturnToLobbyMessage()
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 
 	return messageBufferLen;
@@ -3776,9 +3900,9 @@ int sendAllLobbyPlayerDisconnectedMessage(uint32_t playerID)
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 
 	return messageBufferLen;
@@ -3791,9 +3915,9 @@ int sendAllHostHasPausedMessage()
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 
 	return messageBufferLen;
@@ -3806,21 +3930,21 @@ int sendAllHostHasUnpausedMessage()
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
-	for (auto& clientSocket : clientSocketMap)
+	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytes(clientSocket.second, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
 	}
 
 	return messageBufferLen;
 }
 
-int sendKaelaOreAmountMessage(SOCKET socket, short oreA, short oreB, short oreC)
+int sendKaelaOreAmountMessage(uint32_t playerID, short oreA, short oreB, short oreC)
 {
 	messageKaelaOreAmount curMessage = messageKaelaOreAmount(oreA, oreB, oreC);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytes(socket, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
 	delete[] messageBuffer;
 	return sentLen;
 }

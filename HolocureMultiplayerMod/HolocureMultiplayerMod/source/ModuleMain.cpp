@@ -8,11 +8,17 @@
 #include "ScriptFunctions.h"
 #include "NetworkFunctions.h"
 #include "BuiltinFunctions.h"
+#include "SteamLobbyBrowser.h"
 #include <iphlpapi.h>
 #include <iostream>
 #include <fstream>
+#include <Windows.h>
+#include <string>
+#include "steam/steam_api.h"
 using namespace Aurie;
 using namespace YYTK;
+
+extern bool hasJoinedSteamLobby;
 
 RValue GMLVarIndexMapGMLHash[1001];
 
@@ -76,6 +82,7 @@ std::unordered_map<uint32_t, SOCKET> clientSocketMap;
 std::unordered_map<uint32_t, playerData> playerDataMap;
 bool isHost = false;
 bool hasConnected = false;
+CSteamLobbyBrowser* steamLobbyBrowser = nullptr;
 
 int objPlayerIndex = -1;
 int objBaseMobIndex = -1;
@@ -116,11 +123,59 @@ int rmCharSelect = -1;
 
 char broadcastAddressBuffer[16] = { 0 };
 
+std::string ConvertLPCWSTRToString(LPCWSTR lpcwszStr)
+{
+	int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, lpcwszStr, static_cast<int>(wcslen(lpcwszStr)), NULL, 0, NULL, NULL);
+	std::string resString(sizeNeeded, 0);
+	WideCharToMultiByte(CP_UTF8, 0, lpcwszStr, static_cast<int>(wcslen(lpcwszStr)), &resString[0], sizeNeeded, NULL, NULL);
+	return resString;
+}
+
 EXPORTED AurieStatus ModuleInitialize(
 	IN AurieModule* Module,
 	IN const fs::path& ModulePath
 )
 {
+	if (!SteamAPI_Init())
+	{
+		g_ModuleInterface->Print(CM_RED, "Couldn't initialize Steam api");
+		return AURIE_EXTERNAL_ERROR;
+	}
+
+	SteamNetworkingUtils()->InitRelayNetworkAccess();
+
+	steamLobbyBrowser = new CSteamLobbyBrowser();
+	int numCommandLineArgs = 0;
+	LPWSTR* commandLineArgsArr = CommandLineToArgvW(GetCommandLine(), &numCommandLineArgs);
+	
+	for (int i = 0; i < numCommandLineArgs; i++)
+	{
+		std::string commandLine = ConvertLPCWSTRToString(commandLineArgsArr[i]);
+		if (commandLine.compare("+connect_lobby") == 0)
+		{
+			if (i >= numCommandLineArgs - 1)
+			{
+				g_ModuleInterface->Print(CM_RED, "Couldn't find steam lobby id");
+			}
+			else
+			{
+				CSteamID steamIDLobby(static_cast<uint64>(atoll(ConvertLPCWSTRToString(commandLineArgsArr[i + 1]).c_str())));
+				if (steamIDLobby.IsValid())
+				{
+					steamLobbyBrowser->setSteamLobbyID(steamIDLobby);
+					SteamMatchmaking()->JoinLobby(steamIDLobby);
+					isInLobby = true;
+					isInSteamLobby = true;
+					hasJoinedSteamLobby = true;
+				}
+				else
+				{
+					g_ModuleInterface->Print(CM_RED, "Trying to join invalid steam lobby id");
+				}
+			}
+		}
+	}
+
 	AurieStatus status = AURIE_SUCCESS;
 	status = ObGetInterface("callbackManager", (AurieInterfaceBase*&)callbackManagerInterfacePtr);
 	if (!AurieSuccess(status))
@@ -868,6 +923,7 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Improve ping by changing some messages to be sent via UDP
 	// TODO: Probably should reduce attack speed
 	// TODO: Need to prevent player from moving outside the map and actually collide with stuff (first need to rewrite the message handler)
+	// TODO: Fix buttons not being selectable by controller
 
 	// Lower priority
 	// TODO: Add verbose file logs
@@ -1015,5 +1071,6 @@ EXPORTED AurieStatus ModuleInitialize(
 	freeaddrinfo(servinfo);
 
 	printf("Finished initializing network stuff\n");
+	
 	return AURIE_SUCCESS;
 }

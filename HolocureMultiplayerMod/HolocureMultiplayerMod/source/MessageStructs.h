@@ -133,8 +133,8 @@ inline void readByteBufferToChar(char* outputChar, char* inputBuffer, int& start
 	startPos++;
 }
 
-int receiveString(SOCKET socket, std::string* outputString);
-int receiveStringView(SOCKET socket, std::string_view* outputString);
+int receiveString(uint32_t playerID, std::string* outputString);
+int receiveStringView(uint32_t playerID, std::string_view* outputString);
 
 // Probably should optimize this/make a separate struct for the updates
 struct instanceData
@@ -224,7 +224,7 @@ struct messageInstancesUpdate
 		numInstances++;
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -392,7 +392,7 @@ struct messageAttackUpdate
 		numAttacks++;
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -497,7 +497,7 @@ struct messageClientID
 // TODO: Send over player stats as well. Not sure how I should handle sending over the character selected
 struct playerData
 {
-	uint32_t playerID;
+	uint32_t m_playerID;
 	float xPos;
 	float yPos;
 	float imageXScale;
@@ -514,15 +514,15 @@ struct playerData
 	short specialMeter;
 	char truncatedImageIndex;
 
-	playerData() : playerID(0), xPos(0), yPos(0), imageXScale(0), imageYScale(0), direction(0), spriteIndex(0), curHP(0), maxHP(0),
+	playerData() : m_playerID(0), xPos(0), yPos(0), imageXScale(0), imageYScale(0), direction(0), spriteIndex(0), curHP(0), maxHP(0),
 		curAttack(0), curSpeed(0), curCrit(0), curHaste(0), curPickupRange(0), specialMeter(0), truncatedImageIndex(0)
 	{
 	}
 
 	playerData(float xPos, float yPos, float imageXScale, float imageYScale, float direction, short spriteIndex, short curHP, short maxHP,
-		float curAttack, float curSpeed, short curCrit, short curHaste, short curPickupRange, short specialMeter, char truncatedImageIndex, uint32_t playerID) :
+		float curAttack, float curSpeed, short curCrit, short curHaste, short curPickupRange, short specialMeter, char truncatedImageIndex, uint32_t m_playerID) :
 		xPos(xPos), yPos(yPos), imageXScale(imageXScale), imageYScale(imageYScale), direction(direction), spriteIndex(spriteIndex), curHP(curHP), maxHP(maxHP),
-		curAttack(curAttack), curSpeed(curSpeed), curCrit(curCrit), curHaste(curHaste), curPickupRange(curPickupRange), specialMeter(specialMeter), truncatedImageIndex(truncatedImageIndex), playerID(playerID)
+		curAttack(curAttack), curSpeed(curSpeed), curCrit(curCrit), curHaste(curHaste), curPickupRange(curPickupRange), specialMeter(specialMeter), truncatedImageIndex(truncatedImageIndex), m_playerID(m_playerID)
 	{
 	}
 };
@@ -701,7 +701,7 @@ struct levelUpOption
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -763,7 +763,7 @@ struct messageLevelUpOptions
 		}
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -791,18 +791,18 @@ struct messageLevelUpOptions
 
 struct messageLevelUpClientChoice
 {
-	uint32_t playerID;
+	uint32_t m_playerID;
 	char levelUpOption;
 
-	messageLevelUpClientChoice() : playerID(0), levelUpOption(0)
+	messageLevelUpClientChoice() : m_playerID(0), levelUpOption(0)
 	{
 	}
 
-	messageLevelUpClientChoice(char levelUpOption) : playerID(0), levelUpOption(levelUpOption)
+	messageLevelUpClientChoice(char levelUpOption) : m_playerID(0), levelUpOption(levelUpOption)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -875,7 +875,7 @@ struct messageDestructableCreate
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -911,7 +911,7 @@ struct messageDestructableBreak
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -937,18 +937,18 @@ struct messageDestructableBreak
 
 struct messageEliminateLevelUpClientChoice
 {
-	uint32_t playerID;
+	uint32_t m_playerID;
 	char levelUpOption;
 
-	messageEliminateLevelUpClientChoice() : playerID(0), levelUpOption(0)
+	messageEliminateLevelUpClientChoice() : m_playerID(0), levelUpOption(0)
 	{
 	}
 
-	messageEliminateLevelUpClientChoice(char levelUpOption) : playerID(0), levelUpOption(levelUpOption)
+	messageEliminateLevelUpClientChoice(char levelUpOption) : m_playerID(0), levelUpOption(levelUpOption)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1006,7 +1006,7 @@ struct messageCautionCreate
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1058,7 +1058,7 @@ struct messagePreCreateUpdate
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1118,7 +1118,7 @@ struct messageVfxUpdate
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1187,7 +1187,7 @@ struct messageInteractableCreate
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1226,7 +1226,7 @@ struct messageInteractableDelete
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1248,25 +1248,25 @@ struct messageInteractableDelete
 
 struct messageInteractablePlayerInteracted
 {
-	uint32_t playerID;
+	uint32_t m_playerID;
 	short id;
 	char type;
 
-	messageInteractablePlayerInteracted() : playerID(0), id(0), type(0)
+	messageInteractablePlayerInteracted() : m_playerID(0), id(0), type(0)
 	{
 	}
 
-	messageInteractablePlayerInteracted(uint32_t playerID, short id, char type) : playerID(playerID), id(id), type(type)
+	messageInteractablePlayerInteracted(uint32_t m_playerID, short id, char type) : m_playerID(m_playerID), id(id), type(type)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
 		int startBufferPos = 0;
 		writeCharToByteBuffer(messageBuffer, MESSAGE_INTERACTABLE_PLAYER_INTERACTED, startBufferPos);
-		writeLongToByteBuffer(messageBuffer, playerID, startBufferPos);
+		writeLongToByteBuffer(messageBuffer, m_playerID, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, id, startBufferPos);
 		writeCharToByteBuffer(messageBuffer, type, startBufferPos);
 	}
@@ -1285,25 +1285,25 @@ struct messageInteractablePlayerInteracted
 struct messageStickerPlayerInteracted
 {
 	std::string_view stickerID;
-	uint32_t playerID;
+	uint32_t m_playerID;
 	short id;
 
-	messageStickerPlayerInteracted() : id(0), playerID(0)
+	messageStickerPlayerInteracted() : id(0), m_playerID(0)
 	{
 	}
 
-	messageStickerPlayerInteracted(std::string_view stickerID, uint32_t playerID, short id) : stickerID(stickerID), playerID(playerID), id(id)
+	messageStickerPlayerInteracted(std::string_view stickerID, uint32_t m_playerID, short id) : stickerID(stickerID), m_playerID(m_playerID), id(id)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
 		int startBufferPos = 0;
 		writeCharToByteBuffer(messageBuffer, MESSAGE_STICKER_PLAYER_INTERACTED, startBufferPos);
 		writeStringViewToByteBuffer(messageBuffer, stickerID, startBufferPos);
-		writeLongToByteBuffer(messageBuffer, playerID, startBufferPos);
+		writeLongToByteBuffer(messageBuffer, m_playerID, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, id, startBufferPos);
 	}
 
@@ -1321,17 +1321,17 @@ struct messageStickerPlayerInteracted
 struct messageBoxPlayerInteracted
 {
 	levelUpOption randomWeapons[3]{};
-	uint32_t playerID;
+	uint32_t m_playerID;
 	short id;
 	char boxItemAmount;
 	char isSuperBox;
 
-	messageBoxPlayerInteracted() : id(0), playerID(0), boxItemAmount(0), isSuperBox(0)
+	messageBoxPlayerInteracted() : id(0), m_playerID(0), boxItemAmount(0), isSuperBox(0)
 	{
 	}
 
-	messageBoxPlayerInteracted(levelUpOption* randomWeaponArr, uint32_t playerID, short id, char boxItemAmount, char isSuperBox) :
-		playerID(playerID), id(id), boxItemAmount(boxItemAmount), isSuperBox(isSuperBox)
+	messageBoxPlayerInteracted(levelUpOption* randomWeaponArr, uint32_t m_playerID, short id, char boxItemAmount, char isSuperBox) :
+		m_playerID(m_playerID), id(id), boxItemAmount(boxItemAmount), isSuperBox(isSuperBox)
 	{
 		for (int i = 0; i < 3; i++)
 		{
@@ -1339,7 +1339,7 @@ struct messageBoxPlayerInteracted
 		}
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1350,7 +1350,7 @@ struct messageBoxPlayerInteracted
 			randomWeapons[i].serialize(&messageBuffer[startBufferPos]);
 			startBufferPos += static_cast<int>(randomWeapons[i].getMessageSize());
 		}
-		writeLongToByteBuffer(messageBuffer, playerID, startBufferPos);
+		writeLongToByteBuffer(messageBuffer, m_playerID, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, id, startBufferPos);
 		writeCharToByteBuffer(messageBuffer, boxItemAmount, startBufferPos);
 		writeCharToByteBuffer(messageBuffer, isSuperBox, startBufferPos);
@@ -1384,18 +1384,18 @@ struct messageInteractFinished
 
 struct messageBoxTakeOption
 {
-	uint32_t playerID;
+	uint32_t m_playerID;
 	char boxItemNum;
 
-	messageBoxTakeOption() : playerID(0), boxItemNum(0)
+	messageBoxTakeOption() : m_playerID(0), boxItemNum(0)
 	{
 	}
 
-	messageBoxTakeOption(char boxItemNum) : playerID(0), boxItemNum(boxItemNum)
+	messageBoxTakeOption(char boxItemNum) : m_playerID(0), boxItemNum(boxItemNum)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1415,21 +1415,21 @@ struct messageBoxTakeOption
 
 struct messageAnvilChooseOption
 {
-	uint32_t playerID;
+	uint32_t m_playerID;
 	std::string_view optionID;
 	std::string_view optionType;
 	uint32_t coinCost;
 	char anvilOptionType; // 0 is level up, 1 is enhance
 
-	messageAnvilChooseOption() : playerID(0), coinCost(0), anvilOptionType(0)
+	messageAnvilChooseOption() : m_playerID(0), coinCost(0), anvilOptionType(0)
 	{
 	}
 
-	messageAnvilChooseOption(std::string_view optionID, std::string_view optionType, uint32_t coinCost, char anvilOptionType) : playerID(0), optionID(optionID), optionType(optionType), coinCost(coinCost), anvilOptionType(anvilOptionType)
+	messageAnvilChooseOption(std::string_view optionID, std::string_view optionType, uint32_t coinCost, char anvilOptionType) : m_playerID(0), optionID(optionID), optionType(optionType), coinCost(coinCost), anvilOptionType(anvilOptionType)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1465,7 +1465,7 @@ struct messageClientGainMoney
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1485,20 +1485,20 @@ struct messageClientGainMoney
 
 struct messageClientAnvilEnchant
 {
-	uint32_t playerID;
+	uint32_t m_playerID;
 	std::vector<std::string_view> gainedMods;
 	std::string_view optionID;
 	uint32_t coinCost;
 
-	messageClientAnvilEnchant() : playerID(0), coinCost(0)
+	messageClientAnvilEnchant() : m_playerID(0), coinCost(0)
 	{
 	}
 
-	messageClientAnvilEnchant(std::string_view optionID, std::vector<std::string_view> gainedMods, uint32_t coinCost) : playerID(0), optionID(optionID), gainedMods(gainedMods), coinCost(coinCost)
+	messageClientAnvilEnchant(std::string_view optionID, std::vector<std::string_view> gainedMods, uint32_t coinCost) : m_playerID(0), optionID(optionID), gainedMods(gainedMods), coinCost(coinCost)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1534,19 +1534,19 @@ struct messageClientAnvilEnchant
 
 struct messageStickerChooseOption
 {
-	uint32_t playerID;
+	uint32_t m_playerID;
 	char stickerOption;
 	char stickerOptionType; // 0 is take stamp, 1 is remove stamp, 2 is sell stamp
 
-	messageStickerChooseOption() : playerID(0), stickerOption(0), stickerOptionType(0)
+	messageStickerChooseOption() : m_playerID(0), stickerOption(0), stickerOptionType(0)
 	{
 	}
 
-	messageStickerChooseOption(char stickerOption, char stickerOptionType) : playerID(0), stickerOption(stickerOption), stickerOptionType(stickerOptionType)
+	messageStickerChooseOption(char stickerOption, char stickerOptionType) : m_playerID(0), stickerOption(stickerOption), stickerOptionType(stickerOptionType)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1569,17 +1569,17 @@ struct messageStickerChooseOption
 struct messageChooseCollab
 {
 	levelUpOption collab;
-	uint32_t playerID;
+	uint32_t m_playerID;
 
-	messageChooseCollab() : playerID(0)
+	messageChooseCollab() : m_playerID(0)
 	{
 	}
 
-	messageChooseCollab(levelUpOption collab) : playerID(0), collab(collab)
+	messageChooseCollab(levelUpOption collab) : m_playerID(0), collab(collab)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1612,7 +1612,7 @@ struct buffData
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1644,7 +1644,7 @@ struct messageBuffData
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1690,7 +1690,7 @@ struct lobbyPlayerData
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1715,17 +1715,17 @@ struct lobbyPlayerData
 struct messageCharData
 {
 	lobbyPlayerData playerData;
-	uint32_t playerID;
+	uint32_t m_playerID;
 
-	messageCharData() : playerID(0)
+	messageCharData() : m_playerID(0)
 	{
 	}
 
-	messageCharData(lobbyPlayerData playerData, uint32_t playerID) : playerData(playerData), playerID(playerID)
+	messageCharData(lobbyPlayerData playerData, uint32_t m_playerID) : playerData(playerData), m_playerID(m_playerID)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
@@ -1733,7 +1733,7 @@ struct messageCharData
 		writeCharToByteBuffer(messageBuffer, MESSAGE_CHAR_DATA, startBufferPos);
 		playerData.serialize(&messageBuffer[startBufferPos]);
 		startBufferPos += static_cast<int>(playerData.getMessageSize());
-		writeLongToByteBuffer(messageBuffer, playerID, startBufferPos);
+		writeLongToByteBuffer(messageBuffer, m_playerID, startBufferPos);
 	}
 
 	size_t getMessageSize()
@@ -1757,23 +1757,23 @@ struct messageReturnToLobby
 
 struct messageLobbyPlayerDisconnected
 {
-	uint32_t playerID;
+	uint32_t m_playerID;
 
-	messageLobbyPlayerDisconnected() : playerID(0)
+	messageLobbyPlayerDisconnected() : m_playerID(0)
 	{
 	}
 
-	messageLobbyPlayerDisconnected(uint32_t playerID) : playerID(playerID)
+	messageLobbyPlayerDisconnected(uint32_t m_playerID) : m_playerID(m_playerID)
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{
 		int startBufferPos = 0;
 		writeCharToByteBuffer(messageBuffer, MESSAGE_LOBBY_PLAYER_DISCONNECTED, startBufferPos);
-		writeLongToByteBuffer(messageBuffer, playerID, startBufferPos);
+		writeLongToByteBuffer(messageBuffer, m_playerID, startBufferPos);
 	}
 
 	size_t getMessageSize()
@@ -1817,7 +1817,7 @@ struct messageKaelaOreAmount
 	{
 	}
 
-	int receiveMessage(SOCKET socket);
+	int receiveMessage(uint32_t playerID);
 
 	void serialize(char* messageBuffer)
 	{

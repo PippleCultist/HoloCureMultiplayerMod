@@ -2,7 +2,8 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define MODNAME "Holocure Multiplayer Mod v1.0.7"
+#define VERSION_NUM "v1.1.0"
+#define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
 #define BROADCAST_PORT "27015"
 #define GAME_PORT "27016"
 
@@ -300,3 +301,5 @@ extern char broadcastAddressBuffer[16];
 extern TRoutine origStructGetFromHashFunc;
 extern TRoutine origStructSetFromHashFunc;
 extern TRoutine origSpriteDeleteScript;
+
+std::string ConvertLPCWSTRToString(LPCWSTR lpcwszStr);
