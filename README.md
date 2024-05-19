@@ -1,5 +1,5 @@
 # Holocure Multiplayer Mod
-A Holocure mod that adds LAN multiplayer to the game. Will probably be buggy and have random crashes since a lot has been modified in the game to get it working.
+A Holocure mod that adds multiplayer to the game. Will probably be buggy and have random crashes since a lot has been modified in the game to get it working.
 ## Installation Steps
 - Download `HoloCureMultiplayerMod.dll` and `CallbackManagerMod.dll` from the latest version of the mod https://github.com/PippleCultist/HoloCureMultiplayerMod/releases
 - Download `AurieManager.exe` from the latest version of Aurie https://github.com/AurieFramework/Aurie/releases
@@ -9,3 +9,16 @@ A Holocure mod that adds LAN multiplayer to the game. Will probably be buggy and
 - Click `Install Aurie`
 - Click `Add Mods` and add `HoloCureMultiplayerMod.dll` and `CallbackManagerMod.dll`
 - Running the game either using the executable or through Steam should now launch the mods as well
+## Playing LAN Multiplayer
+- Press `Play` on the title screen
+- If you want to use the previous network adapter you've used to play, click `Use saved network adapter`. Otherwise click `Select network adapter` and choose the name of your wireless adapter which is usually `Wi-Fi`.
+    - Note: If you want to connect via VPN as a LAN game, then choose the name of the VPN network adapter
+- Choose `Host LAN Session` if you're going to host. Everyone else should choose `Join LAN Session`.
+## Playing Steam Multiplayer
+### Instructions for Host:
+- Press `Play` on the title screen
+- Press `Create friend Steam lobby`
+- When the client has joined your lobby, their Steam name will show up in a list. Click the client you want to invite and click `Invite user` to have them join your game. Anyone in the lobby that hasn't been invited to your game won't be able to play.
+### Instructions for Client:
+- When the host has clicked `Create friend Steam lobby`, you will be able to see them playing `HoloCure - Save the Fans` in your Steam friends list. While in the HoloCure title screen, right click on their name in the Steam friends list and click `Join Game` to join their lobby.
+    - After joining the lobby, you will need to wait for the host to then invite you into their game before playing.
