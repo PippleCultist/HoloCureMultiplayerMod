@@ -2,7 +2,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.1.0"
+#define VERSION_NUM "v1.1.1"
 #define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
 #define BROADCAST_PORT "27015"
 #define GAME_PORT "27016"
@@ -189,6 +189,14 @@
 	DO(oreB) \
 	DO(oreC) \
 	DO(waitTime) \
+	DO(moveUpPressed) \
+	DO(moveLeftPressed) \
+	DO(moveRightPressed) \
+	DO(moveDownPressed) \
+	DO(actionOnePressed) \
+	DO(actionTwoPressed) \
+	DO(enterPressed) \
+	DO(escPressed) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -287,6 +295,8 @@ extern int sprEmptyMaskIndex;
 extern int sprSummonPointerIndex;
 extern int sprHudInitButtonsIndex;
 extern int sprKaelaMinerals;
+extern int sprHudToggleButtonIndex;
+extern int sprHudOptionButtonIndex;
 extern int jpFont;
 extern int rmTitle;
 extern int rmCharSelect;

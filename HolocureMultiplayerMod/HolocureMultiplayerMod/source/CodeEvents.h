@@ -3,20 +3,6 @@
 #include "CallbackManager/CallbackManagerInterface.h"
 #include "MessageStructs.h"
 
-struct coopMenuButtonsData
-{
-	coopMenuButtonsData(std::vector<std::string> menuText, int menuButtonsXPos, int menuButtonsYPos, int& menuIndex, bool& menuIsButtonMouseOver) :
-		menuText(menuText), menuButtonsXPos(menuButtonsXPos), menuButtonsYPos(menuButtonsYPos), menuIndex(menuIndex), menuIsButtonMouseOver(menuIsButtonMouseOver)
-	{
-	}
-
-	std::vector<std::string> menuText;
-	int menuButtonsXPos;
-	int menuButtonsYPos;
-	int& menuIndex;
-	bool& menuIsButtonMouseOver;
-};
-
 inline uint32_t getPlayerID(CInstance* currentPlayerPtr);
 
 extern std::unordered_map<CInstance*, uint16_t> instanceToIDMap;
@@ -28,7 +14,6 @@ extern CInstance* playerManagerInstanceVar;
 extern bool hasClientFinishedInteracting;
 extern bool isAnyInteracting;
 extern std::string collidedStickerID;
-extern int curCoopOptionMenuIndex;
 extern bool hasSelectedMap;
 extern int curSelectedMap;
 extern int curSelectedGameMode;

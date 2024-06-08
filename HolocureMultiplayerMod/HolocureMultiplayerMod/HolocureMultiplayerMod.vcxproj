@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -145,6 +145,7 @@
   <ItemGroup>
     <ClCompile Include="include\YYToolkit\Shared.cpp" />
     <ClCompile Include="source\BuiltinFunctions.cpp" />
+    <ClCompile Include="source\Button.cpp" />
     <ClCompile Include="source\CodeEvents.cpp" />
     <ClCompile Include="source\MessageStructs.cpp" />
     <ClCompile Include="source\ModuleMain.cpp" />
@@ -206,6 +207,7 @@
     <ClInclude Include="include\YYTKTypes\RefThing.h" />
     <ClInclude Include="include\YYToolkit\Shared.hpp" />
     <ClInclude Include="source\BuiltinFunctions.h" />
+    <ClInclude Include="source\Button.h" />
     <ClInclude Include="source\CodeEvents.h" />
     <ClInclude Include="source\CommonFunctions.h" />
     <ClInclude Include="source\MessageStructs.h" />

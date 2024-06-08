@@ -1,6 +1,7 @@
 #pragma once
 #include <YYToolkit/shared.hpp>
 #include "ModuleMain.h"
+#include "Button.h"
 #include "steam/steamnetworkingtypes.h"
 
 struct lobbyPlayerData;
@@ -18,6 +19,18 @@ extern std::unordered_map<uint32_t, int> playerPingMap;
 extern std::unordered_map<uint32_t, lobbyPlayerData> lobbyPlayerDataMap;
 extern std::unordered_map<uint32_t, bool> clientUnpausedMap;
 extern int curPlayerID;
+
+enum selectedMenuID
+{
+	selectedMenu_NONE,
+	selectedMenu_SelectingCharacter,
+	selectedMenu_SelectingMap,
+	selectedMenu_Lobby,
+	selectedMenu_CoopOptionMenu,
+	selectedMenu_NetworkAdapterDisclaimerMenu,
+	selectedMenu_NetworkAdapterMenu,
+	selectedMenu_GamemodeSelect
+};
 
 enum optionType
 {
@@ -67,19 +80,13 @@ struct steamConnection
 	int curBytePos;
 };
 
+void switchToMenu(selectedMenuID menuID);
+
 void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, uint32_t playerIndex);
 optionType convertStringOptionTypeToEnum(RValue optionType);
 
 extern std::unordered_map<uint32_t, levelUpOptionNames> levelUpOptionNamesMap;
 extern bool isHostWaitingForClientUnpause;
-extern bool isInGamemodeSelect;
-extern bool isInNetworkAdapterMenu;
-extern bool hasReadNetworkAdapterDisclaimer;
-extern bool isInCoopOptionMenu;
-extern bool isInLobby;
-extern bool isSelectingCharacter;
-extern bool isSelectingMap;
-extern bool isInSteamLobby;
 
 extern SOCKET listenSocket;
 

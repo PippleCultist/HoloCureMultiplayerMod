@@ -108,10 +108,7 @@ void CSteamHost::OnLobbyCreated(LobbyCreated_t* pCallback, bool bIOFailure)
 		SteamFriends()->SetRichPresence("connect", std::format("+connect_lobby {}", pCallback->m_ulSteamIDLobby).c_str());
 
 		steamLobbyBrowser->setSteamLobbyID(pCallback->m_ulSteamIDLobby);
-		
-		isInGamemodeSelect = false;
-		isInLobby = true;
-		isInSteamLobby = true;
+		switchToMenu(selectedMenu_Lobby);
 		// TODO: Problem is if the lobby owner is keeping track of the ids of each player, then that information will be lost if they leave the lobby
 		// TODO: Might need to assign a new owner and give the ids to them? Problem is if there is a bad actor that gets assigned as the owner
 		// TODO: I guess for now since it's a friend lobby, showing the steam name directly is okay.

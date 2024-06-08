@@ -8,6 +8,7 @@
 #include "CommonFunctions.h"
 #include "NetworkFunctions.h"
 #include "SteamLobbyBrowser.h"
+#include "Button.h"
 #include "steam/steam_api.h"
 #include <fstream>
 #include <iphlpapi.h>
@@ -16,9 +17,11 @@
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
+extern selectedMenuID curSelectedMenuID;
 
-int curMenuButtonsIndex = 0;
 bool hasJoinedSteamLobby = false;
+ButtonIDs curButtonID = COOPMENU_NONE;
+coopMenuButtonsGridData* curButtonMenu = nullptr;
 
 std::vector<destructableData> createDestructableMessagesList;
 std::unordered_map<uint32_t, bool> hasClientPlayerDisconnected;
@@ -53,7 +56,6 @@ bool hasSelectedMap = false;
 int curSelectedMap = -1;
 int curSelectedGameMode = -1;
 int curSelectedStageSprite = -1;
-int curCoopOptionMenuIndex = 0;
 int curSteamLobbyMemberIndex = 0;
 int curSteamLobbyOptionMemberIndex = 0;
 CSteamID curSelectedSteamID;
@@ -101,9 +103,22 @@ void InputManagerCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 	}
 }
 
-// TODO: Disable player input moving on the client side.
 void InputManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
+	CInstance* Self = std::get<0>(Args);
+	if (curButtonMenu != nullptr)
+	{
+		curButtonMenu->processInput(
+			getInstanceVariable(Self, GML_actionOnePressed).AsBool(),
+			getInstanceVariable(Self, GML_actionTwoPressed).AsBool(),
+			getInstanceVariable(Self, GML_enterPressed).AsBool(),
+			getInstanceVariable(Self, GML_escPressed).AsBool(),
+			getInstanceVariable(Self, GML_moveUpPressed).AsBool(),
+			getInstanceVariable(Self, GML_moveDownPressed).AsBool(),
+			getInstanceVariable(Self, GML_moveLeftPressed).AsBool(),
+			getInstanceVariable(Self, GML_moveRightPressed).AsBool()
+		);
+	}
 }
 
 inline uint32_t getPlayerID(CInstance* currentPlayerPtr)
@@ -239,7 +254,6 @@ void resetAllData()
 	hasClientFinishedInteracting = false;
 	isAnyInteracting = false;
 	collidedStickerID = "";
-	curCoopOptionMenuIndex = 0;
 	curSteamLobbyMemberIndex = 0;
 	curSelectedSteamID = CSteamID();
 	hasSelectedMap = false;
@@ -287,10 +301,6 @@ void serverDisconnected()
 {
 	hasHostPaused = false;
 	hasConnected = false;
-	isInCoopOptionMenu = false;
-	isInLobby = false;
-	isSelectingCharacter = false;
-	isSelectingMap = false;
 	closesocket(serverSocket);
 	serverSocket = INVALID_SOCKET;
 	closesocket(connectClientSocket);
@@ -1818,44 +1828,35 @@ void TextControllerCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, R
 {
 }
 
-std::vector<coopMenuButtonsData> menuButtons;
-void drawCoopMenuButtons(CInstance* Self)
+/*
+* // TODO: Probably should figure out how to get checkbox buttons working later
+void drawCheckBoxButtons(CInstance* Self, coopMenuCheckBoxButtonData checkBoxButtons)
 {
-	double buttonYSpacing = 29;
 	double textColor[2]{ 0xFFFFFF, 0 };
 	RValue inputManager = g_ModuleInterface->CallBuiltin("instance_find", { objInputManagerIndex, 0 });
-//	bool isMouseMoving = getInstanceVariable(inputManager, GML_mouseMoving).AsBool();
-	for (auto& curMenuButton : menuButtons)
+	for (int i = 0; i < checkBoxButtons.buttonList.size(); i++)
 	{
-		for (int i = 0; i < curMenuButton.menuText.size(); i++)
-		{
-//			if (isMouseMoving)
-			{
-				RValue** args = new RValue*[4];
-				RValue mouseOverType = "long";
-				RValue curButtonX = curMenuButton.menuButtonsXPos;
-				RValue curButtonY = curMenuButton.menuButtonsYPos + i * buttonYSpacing;
-				RValue scale = .5;
-				args[0] = &mouseOverType;
-				args[1] = &curButtonX;
-				args[2] = &curButtonY;
-				args[3] = &scale;
-				RValue returnVal;
-				origMouseOverButtonScript(Self, nullptr, returnVal, 4, args);
-				if (returnVal.AsBool())
-				{
-					curMenuButton.menuIndex = i;
-					curMenuButton.menuIsButtonMouseOver = true;
-				}
-			}
-			int isOptionSelected = curMenuButton.menuIndex == i;
-			g_ModuleInterface->CallBuiltin("draw_set_font", { jpFont });
-			g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
-			g_ModuleInterface->CallBuiltin("draw_sprite_ext", { sprHudInitButtonsIndex, isOptionSelected, curMenuButton.menuButtonsXPos, curMenuButton.menuButtonsYPos + i * buttonYSpacing, 1, 1, 0, static_cast<double>(0xFFFFFF), 1 });
-			g_ModuleInterface->CallBuiltin("draw_text_color", { curMenuButton.menuButtonsXPos, curMenuButton.menuButtonsYPos + 9 + i * buttonYSpacing, curMenuButton.menuText[i], textColor[isOptionSelected], textColor[isOptionSelected], textColor[isOptionSelected], textColor[isOptionSelected], 1 });
-		}
+		auto& curMenuButton = checkBoxButtons.buttonList[i];
+		RValue** args = new RValue*[4];
+		RValue mouseOverType = "long";
+		RValue curButtonX = curMenuButton.checkBoxButtonXPos;
+		RValue curButtonY = curMenuButton.checkBoxButtonYPos;
+		RValue scale = .5;
+		args[0] = &mouseOverType;
+		args[1] = &curButtonX;
+		args[2] = &curButtonY;
+		args[3] = &scale;
+		RValue returnVal;
+		origMouseOverButtonScript(Self, nullptr, returnVal, 4, args);
+		int isOptionSelected = static_cast<int>(returnVal.AsBool());
+		g_ModuleInterface->CallBuiltin("draw_set_font", { jpFont });
+		g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
+		g_ModuleInterface->CallBuiltin("draw_sprite_ext", { sprHudOptionButtonIndex, isOptionSelected, curMenuButton.checkBoxButtonXPos, curMenuButton.checkBoxButtonYPos, 1, 1, 0, static_cast<double>(0xFFFFFF), 1 });
+		g_ModuleInterface->CallBuiltin("draw_text_color", { curMenuButton.checkBoxButtonXPos, curMenuButton.checkBoxButtonYPos + 9, curMenuButton.checkBoxButtonText, textColor[isOptionSelected], textColor[isOptionSelected], textColor[isOptionSelected], textColor[isOptionSelected], 1 });
+		g_ModuleInterface->CallBuiltin("draw_sprite", { sprHudToggleButtonIndex, curMenuButton.isButtonChecked + isOptionSelected * 2, curMenuButton.checkBoxButtonXPos + 69, curMenuButton.checkBoxButtonYPos + 13 });
 	}
 }
+*/
 
 int adapterPageNum = 0;
 int prevPageButtonNum = -1;
@@ -1867,137 +1868,134 @@ bool steamLobbyOptionMenuIsButtonMouseOver = false;
 
 void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
-	if (isInGamemodeSelect)
+	if (curSelectedMenuID == selectedMenu_GamemodeSelect)
 	{
-		menuButtons.clear();
-		coopMenuIsButtonMouseOver = false;
-		menuButtons.push_back(coopMenuButtonsData({ "Play Single Player", "Use saved network adapter", "Select network adapter", "Create friend Steam lobby" }, 530, 104, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
-		
-		drawCoopMenuButtons(std::get<0>(Args));
+		gamemodeSelectButtonsGrid.draw(std::get<0>(Args));
 	}
-	else if (isInNetworkAdapterMenu)
+	else if (curSelectedMenuID == selectedMenu_NetworkAdapterDisclaimerMenu)
 	{
-		if (!hasReadNetworkAdapterDisclaimer)
-		{
-			CInstance* Self = std::get<0>(Args);
-			const char* networkAdapterDisclaimer = "DISCLAIMER: Please be aware that clicking the OK button will bring up a list of your computer's network adapter names which may contain private/sensitive information.";
-			g_ModuleInterface->CallBuiltin("draw_set_font", { jpFont });
-			g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
-			drawTextOutline(Self, 320, 100, networkAdapterDisclaimer, 1, 0x000000, 14, 20, 440, 0x0FFFFF, 1);
+		CInstance* Self = std::get<0>(Args);
+		const char* networkAdapterDisclaimer = "DISCLAIMER: Please be aware that clicking the OK button will bring up a list of your computer's network adapter names which may contain private/sensitive information.";
+		g_ModuleInterface->CallBuiltin("draw_set_font", { jpFont });
+		g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
+		drawTextOutline(Self, 320, 100, networkAdapterDisclaimer, 1, 0x000000, 14, 20, 440, 0x0FFFFF, 1);
 
-			menuButtons.clear();
-			coopMenuIsButtonMouseOver = false;
-			menuButtons.push_back(coopMenuButtonsData({ "OK" }, 320, 250, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
-			drawCoopMenuButtons(std::get<0>(Args));
-		}
-		else
+		networkAdapterDisclaimerButtonsGrid.draw(Self);
+	}
+	else if (curSelectedMenuID == selectedMenu_NetworkAdapterMenu)
+	{
+		if (adapterAddresses != NULL)
 		{
-			if (adapterAddresses != NULL)
+			IP_ADAPTER_ADDRESSES* adapter(NULL);
+			std::vector<coopMenuButtonsData>& curMenuButtonsList = networkAdapterNamesButtonsGrid.menuButtonsColumnsList[0].menuButtonsList;
+
+			bool hasPrev = false;
+			bool hasNext = false;
+			int count = -1;
+			int menuPos = 0;
+			for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
 			{
-				std::vector<std::string> adapterNames;
-				IP_ADAPTER_ADDRESSES* adapter(NULL);
-
-				bool hasPrev = false;
-				bool hasNext = false;
-				int count = -1;
-				for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
+				if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
 				{
-					if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
-					{
-						continue;
-					}
+					continue;
+				}
 
-					bool isValidAddress = true;
-					for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
+				bool isValidAddress = true;
+				for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
+				{
+					auto family = address->Address.lpSockaddr->sa_family;
+					if (family == AF_INET)
 					{
-						auto family = address->Address.lpSockaddr->sa_family;
-						if (family == AF_INET)
+						SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
+						inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
+
+						if (strncmp("169.254", broadcastAddressBuffer, 7) == 0)
 						{
-							SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
-							inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
-
-							if (strncmp("169.254", broadcastAddressBuffer, 7) == 0)
-							{
-								isValidAddress = false;
-							}
-							break;
+							isValidAddress = false;
 						}
-					}
-
-					if (!isValidAddress)
-					{
-						continue;
-					}
-
-					count++;
-					if (count < adapterPageNum * 5)
-					{
-						hasPrev = true;
-						continue;
-					}
-					if (count >= (adapterPageNum + 1) * 5)
-					{
-						hasNext = true;
 						break;
 					}
+				}
 
-					int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), NULL, 0, NULL, NULL);
-					std::string resString(sizeNeeded, 0);
-					WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), &resString[0], sizeNeeded, NULL, NULL);
-					adapterNames.push_back(resString);
-				}
-				if (hasPrev)
+				if (!isValidAddress)
 				{
-					prevPageButtonNum = static_cast<int>(adapterNames.size());
-					adapterNames.push_back("Prev Page");
+					continue;
 				}
-				else
+
+				count++;
+				if (count < adapterPageNum * 5)
 				{
-					prevPageButtonNum = -1;
+					hasPrev = true;
+					continue;
 				}
-				if (hasNext)
+				if (count >= (adapterPageNum + 1) * 5)
 				{
-					nextPageButtonNum = static_cast<int>(adapterNames.size());
-					adapterNames.push_back("Next Page");
+					hasNext = true;
+					break;
 				}
-				else
-				{
-					nextPageButtonNum = -1;
-				}
-				menuButtons.clear();
-				coopMenuIsButtonMouseOver = false;
-				menuButtons.push_back(coopMenuButtonsData(adapterNames, 530, 104, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
-				drawCoopMenuButtons(std::get<0>(Args));
+
+				int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), NULL, 0, NULL, NULL);
+				std::string resString(sizeNeeded, 0);
+				WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), &resString[0], sizeNeeded, NULL, NULL);
+				curMenuButtonsList[menuPos].buttonText = resString;
+				curMenuButtonsList[menuPos].isVisible = true;
+				menuPos++;
 			}
+			for (int i = menuPos; i < curMenuButtonsList.size(); i++)
+			{
+				curMenuButtonsList[i].isVisible = false;
+			}
+			if (hasPrev)
+			{
+				curMenuButtonsList[curMenuButtonsList.size() - 1].isVisible = true;
+			}
+			else
+			{
+				prevPageButtonNum = -1;
+			}
+			if (hasNext)
+			{
+				curMenuButtonsList[curMenuButtonsList.size() - 2].isVisible = true;
+			}
+			else
+			{
+				nextPageButtonNum = -1;
+			}
+			networkAdapterNamesButtonsGrid.draw(std::get<0>(Args));
 		}
 	}
-	else if (isInCoopOptionMenu)
+	else if (curSelectedMenuID == selectedMenu_CoopOptionMenu)
 	{
-		menuButtons.clear();
-		coopMenuIsButtonMouseOver = false;
-		menuButtons.push_back(coopMenuButtonsData({ "Host LAN Session", "Join LAN Session" }, 530, 104, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
-		drawCoopMenuButtons(std::get<0>(Args));
+		coopOptionButtonsGrid.draw(std::get<0>(Args));
 	}
-	else if (isInLobby && (isHost || hasObtainedClientID || isInSteamLobby))
+	else if (curSelectedMenuID == selectedMenu_Lobby)
 	{
-		if (isInSteamLobby && !isHost && !hasObtainedClientID)
+		if (!isHost && !hasObtainedClientID)
 		{
 			// Player is a client and hasn't connected to a host yet
 			// TODO: Kind of hacky way to display the names. Should probably fix this later
 			coopMenuIsButtonMouseOver = false;
-			menuButtons.push_back(coopMenuButtonsData({}, 0, 0, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
-			std::vector<std::string> lobbyPlayerNameList;
-			for (auto& curLobbyMember : steamLobbyBrowser->m_lobbyMemberList)
+			std::vector<coopMenuButtonsData>& lobbyPlayerNameButtonList = coopLobbyMenuButtonsGrid.menuButtonsColumnsList[0].menuButtonsList;
+			for (int i = 0; i < steamLobbyBrowser->m_lobbyMemberList.size(); i++)
 			{
-				lobbyPlayerNameList.push_back(curLobbyMember.m_memberName);
+				lobbyPlayerNameButtonList[i].isVisible = true;
+				lobbyPlayerNameButtonList[i].buttonText = steamLobbyBrowser->m_lobbyMemberList[i].m_memberName;
 			}
-			steamLobbyMenuIsButtonMouseOver = false;
-			menuButtons.push_back(coopMenuButtonsData(lobbyPlayerNameList, 160, 14, curSteamLobbyMemberIndex, steamLobbyMenuIsButtonMouseOver));
-			drawCoopMenuButtons(std::get<0>(Args));
+			for (size_t i = steamLobbyBrowser->m_lobbyMemberList.size(); i < lobbyPlayerNameButtonList.size(); i++)
+			{
+				lobbyPlayerNameButtonList[i].isVisible = false;
+			}
+
+			std::vector<coopMenuButtonsData>& lobbyOptionsMenuList = coopLobbyMenuButtonsGrid.menuButtonsColumnsList[2].menuButtonsList;
+			for (auto& curButton : lobbyOptionsMenuList)
+			{
+				curButton.isVisible = false;
+			}
+			curButtonMenu = &coopLobbyMenuButtonsGrid;
+			coopLobbyMenuButtonsGrid.draw(std::get<0>(Args));
 			return;
 		}
 		CInstance* Self = std::get<0>(Args);
-		menuButtons.clear();
 
 		RValue returnVal;
 		RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
@@ -2025,16 +2023,18 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 		{
 			g_ModuleInterface->CallBuiltin("draw_sprite", { lobbyPlayerDataMap[0].stageSprite, 0, 455, 10 });
 		}
-		std::vector<std::string> CoopOptionMenuTextList{ "Choose Character", "Ready" };
-		if (lobbyPlayerDataMap[clientID].isReady)
-		{
-			CoopOptionMenuTextList[1] = "Unready";
-		}
+
+		std::vector<coopMenuButtonsData>& lobbyOptionsMenuList = coopLobbyMenuButtonsGrid.menuButtonsColumnsList[2].menuButtonsList;
+		lobbyOptionsMenuList[1].buttonText = lobbyPlayerDataMap[clientID].isReady ? "Unready" : "Ready";
+		lobbyOptionsMenuList[0].isVisible = true;
+		lobbyOptionsMenuList[1].isVisible = true;
+		lobbyOptionsMenuList[2].isVisible = false;
+		lobbyOptionsMenuList[3].isVisible = false;
 		if (isHost)
 		{
 			if (!lobbyPlayerDataMap[clientID].charName.empty())
 			{
-				CoopOptionMenuTextList.push_back("Select Map");
+				lobbyOptionsMenuList[2].isVisible = true;
 				if (hasSelectedMap)
 				{
 					bool areAllPlayersReady = true;
@@ -2047,38 +2047,43 @@ void TitleScreenDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 							break;
 						}
 					}
-					if (areAllPlayersReady && lobbyPlayerDataMap.size() >= 2)
-					{
-						CoopOptionMenuTextList.push_back("Start");
-					}
+					lobbyOptionsMenuList[3].isVisible = areAllPlayersReady && lobbyPlayerDataMap.size() >= 2;
 				}
 			}
 		}
 		coopMenuIsButtonMouseOver = false;
-		menuButtons.push_back(coopMenuButtonsData(CoopOptionMenuTextList, 530, 104, curCoopOptionMenuIndex, coopMenuIsButtonMouseOver));
 
 		if (isHost)
 		{
-			std::vector<std::string> lobbyPlayerNameList;
-			for (auto& curLobbyMember : steamLobbyBrowser->m_lobbyMemberList)
+			std::vector<coopMenuButtonsData>& lobbyPlayerNameButtonList = coopLobbyMenuButtonsGrid.menuButtonsColumnsList[0].menuButtonsList;
+			for (int i = 0; i < steamLobbyBrowser->m_lobbyMemberList.size(); i++)
 			{
-				lobbyPlayerNameList.push_back(curLobbyMember.m_memberName);
+				lobbyPlayerNameButtonList[i].isVisible = true;
+				lobbyPlayerNameButtonList[i].buttonText = steamLobbyBrowser->m_lobbyMemberList[i].m_memberName;
 			}
-			steamLobbyMenuIsButtonMouseOver = false;
-			menuButtons.push_back(coopMenuButtonsData(lobbyPlayerNameList, 160, 14, curSteamLobbyMemberIndex, steamLobbyMenuIsButtonMouseOver));
+			for (size_t i = steamLobbyBrowser->m_lobbyMemberList.size(); i < lobbyPlayerNameButtonList.size(); i++)
+			{
+				lobbyPlayerNameButtonList[i].isVisible = false;
+			}
 			if (curSelectedSteamID.IsValid())
 			{
 				auto mapFind = steamIDToClientIDMap.find(curSelectedSteamID.ConvertToUint64());
 				if (mapFind == steamIDToClientIDMap.end() || mapFind->second == 0)
 				{
 					steamLobbyOptionMenuIsButtonMouseOver = false;
-					menuButtons.push_back(coopMenuButtonsData({ "Invite user" }, 340, 14, curSteamLobbyOptionMemberIndex, steamLobbyOptionMenuIsButtonMouseOver));
+					std::vector<coopMenuButtonsData>& lobbyPlayerInviteButtonList = coopLobbyMenuButtonsGrid.menuButtonsColumnsList[1].menuButtonsList;
+					for (int i = 0; i < lobbyPlayerInviteButtonList.size(); i++)
+					{
+						lobbyPlayerInviteButtonList[i].isVisible = false;
+					}
+					lobbyPlayerInviteButtonList[curSteamLobbyMemberIndex].isVisible = true;
 				}
 			}
 		}
 
 		int prevSteamLobbyMemberIndex = curSteamLobbyMemberIndex;
-		drawCoopMenuButtons(std::get<0>(Args));
+		curButtonMenu = &coopLobbyMenuButtonsGrid;
+		coopLobbyMenuButtonsGrid.draw(Self);
 		if (isHost && !steamLobbyMenuIsButtonMouseOver)
 		{
 			bool hasFoundSteamLobbyMember = false;
@@ -2110,11 +2115,11 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 		setInstanceVariable(Self, GML_canControl, RValue(false));
 		hasJoinedSteamLobby = false;
 	}
-	if (isInCoopOptionMenu || isInLobby || isSelectingCharacter || isSelectingMap)
+	if (curSelectedMenuID == selectedMenu_CoopOptionMenu || curSelectedMenuID == selectedMenu_Lobby || curSelectedMenuID == selectedMenu_SelectingCharacter || curSelectedMenuID == selectedMenu_SelectingMap)
 	{
 		CInstance* Self = std::get<0>(Args);
 		setInstanceVariable(Self, GML_idletime, RValue(0.0));
-		if (isInLobby || isSelectingCharacter || isSelectingMap)
+		if (curSelectedMenuID == selectedMenu_Lobby || curSelectedMenuID == selectedMenu_SelectingCharacter || curSelectedMenuID == selectedMenu_SelectingMap)
 		{
 			// TODO: replace this code with something better
 			if (isHost)
@@ -2142,7 +2147,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 				}
 			}
 		}
-		if (isInLobby)
+		if (curSelectedMenuID == selectedMenu_Lobby)
 		{
 			if (isHost)
 			{
@@ -2187,6 +2192,8 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 						uint32_t newClientID = curUnusedPlayerID;
 						curUnusedPlayerID++;
 						// TODO: Handle if the message isn't sent
+						// Workaround to get the code to recognize the client
+						clientIDToSteamIDMap[newClientID] = 0;
 						clientSocketMap[newClientID] = clientSocket;
 						playerPingMap[newClientID] = 0;
 						hasClientPlayerDisconnected[newClientID] = false;
@@ -2316,7 +2323,8 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 
 void TitleCharacterDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
-	if (isInLobby || isSelectingCharacter || isSelectingMap || (isInNetworkAdapterMenu && !hasReadNetworkAdapterDisclaimer))
+	if (curSelectedMenuID == selectedMenu_Lobby || curSelectedMenuID == selectedMenu_SelectingCharacter || curSelectedMenuID == selectedMenu_SelectingMap
+		|| curSelectedMenuID == selectedMenu_NetworkAdapterDisclaimerMenu)
 	{
 		callbackManagerInterfacePtr->CancelOriginalFunction();
 	}
@@ -2325,7 +2333,7 @@ void TitleCharacterDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
 	CInstance* Self = std::get<0>(Args);
-	if (isInLobby)
+	if (curSelectedMenuID == selectedMenu_Lobby)
 	{
 		// Should only happen after the host retries the game when it ends
 		setInstanceVariable(Self, GML_canControl, RValue(false));
@@ -2340,18 +2348,22 @@ void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 
 void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
-	if (isInGamemodeSelect || isInNetworkAdapterMenu || isInCoopOptionMenu || (isInLobby && (isHost || hasObtainedClientID || isInSteamLobby)))
+	if (curSelectedMenuID == selectedMenu_GamemodeSelect || curSelectedMenuID == selectedMenu_NetworkAdapterMenu || curSelectedMenuID == selectedMenu_NetworkAdapterDisclaimerMenu
+		|| curSelectedMenuID == selectedMenu_CoopOptionMenu || curSelectedMenuID == selectedMenu_Lobby)
 	{
 		CInstance* Self = std::get<0>(Args);
-		for (int i = 0; i < menuButtons.size(); i++)
+		for (auto& curMenuButtonsColumn : curButtonMenu->menuButtonsColumnsList)
 		{
-			coopMenuButtonsData curMenuButtonsData = menuButtons[i];
-			for (int j = 0; j < curMenuButtonsData.menuText.size(); j++)
+			for (auto& curMenuButton : curMenuButtonsColumn.menuButtonsList)
 			{
+				if (!curMenuButton.isVisible)
+				{
+					continue;
+				}
 				RValue** args = new RValue*[4];
 				RValue mouseOverType = "long";
-				RValue curButtonX = curMenuButtonsData.menuButtonsXPos;
-				RValue curButtonY = curMenuButtonsData.menuButtonsYPos + j * 29 - 3;
+				RValue curButtonX = curMenuButton.buttonXPos;
+				RValue curButtonY = curMenuButton.buttonYPos;
 				args[0] = &mouseOverType;
 				args[1] = &curButtonX;
 				args[2] = &curButtonY;
@@ -2359,7 +2371,7 @@ void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 				origMouseOverButtonScript(Self, nullptr, returnVal, 3, args);
 				if (returnVal.AsBool())
 				{
-					curMenuButtonsIndex = i;
+					curButtonID = curMenuButton.buttonID;
 					RValue ConfirmedMethod = getInstanceVariable(Self, GML_Confirmed);
 					RValue ConfirmedMethodArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
 					g_ModuleInterface->CallBuiltin("method_call", { ConfirmedMethod, ConfirmedMethodArr });

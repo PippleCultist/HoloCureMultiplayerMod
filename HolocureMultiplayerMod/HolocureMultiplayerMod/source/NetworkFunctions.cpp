@@ -8,8 +8,10 @@
 #include <semaphore>
 
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
+extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
+extern selectedMenuID curSelectedMenuID;
 
 messageInstancesCreate instancesCreateMessage;
 messageInstancesUpdate instancesUpdateMessage;
@@ -195,7 +197,7 @@ void hostReceiveMessageHandler()
 				}
 			} while (result > 0);
 		}
-		if (isInLobby || isSelectingCharacter || isSelectingMap)
+		if (curSelectedMenuID == selectedMenu_Lobby || curSelectedMenuID == selectedMenu_SelectingCharacter || curSelectedMenuID == selectedMenu_SelectingMap)
 		{
 			for (uint32_t disconnectedPlayerID : playerDisconnectedList)
 			{
@@ -324,7 +326,7 @@ inline void getInputState(const char* inputName, size_t playerIndex, RValue& res
 
 int receiveBytesFromPlayer(uint32_t playerID, char* outputBuffer, int length, bool loopUntilDone)
 {
-	if (clientIDToSteamIDMap.empty())
+	if (steamIDToClientIDMap.empty())
 	{
 		// Assume that it's not using steam and is using LAN
 		SOCKET curSocket = INVALID_SOCKET;
@@ -427,7 +429,7 @@ int receiveBytesFromPlayer(uint32_t playerID, char* outputBuffer, int length, bo
 
 int sendBytesToPlayer(uint32_t playerID, char* outputBuffer, int length, bool loopUntilDone)
 {
-	if (clientIDToSteamIDMap.empty())
+	if (steamIDToClientIDMap.empty())
 	{
 		// Assume that it's not using steam and is using LAN
 		SOCKET curSocket = INVALID_SOCKET;
@@ -2824,7 +2826,7 @@ void handleReturnToLobby()
 	ReturnToLobbyQueueLock.acquire();
 	if (hasReturnToLobby)
 	{
-		isInLobby = true;
+		switchToMenu(selectedMenu_Lobby);
 		g_ModuleInterface->CallBuiltin("room_restart", {});
 		g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });
 		g_ModuleInterface->CallBuiltin("instance_destroy", { playerManagerInstanceVar });

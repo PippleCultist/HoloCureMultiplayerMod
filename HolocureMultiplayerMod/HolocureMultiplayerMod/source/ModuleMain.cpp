@@ -9,6 +9,7 @@
 #include "NetworkFunctions.h"
 #include "BuiltinFunctions.h"
 #include "SteamLobbyBrowser.h"
+#include "Button.h"
 #include <iphlpapi.h>
 #include <iostream>
 #include <fstream>
@@ -117,6 +118,8 @@ int sprGameCursor2Index = -1;
 int sprSummonPointerIndex = -1;
 int sprHudInitButtonsIndex = -1;
 int sprKaelaMinerals = -1;
+int sprHudToggleButtonIndex = -1;
+int sprHudOptionButtonIndex = -1;
 int jpFont = -1;
 int rmTitle = -1;
 int rmCharSelect = -1;
@@ -136,6 +139,8 @@ EXPORTED AurieStatus ModuleInitialize(
 	IN const fs::path& ModulePath
 )
 {
+	initButtonMenus();
+
 	if (!SteamAPI_Init())
 	{
 		g_ModuleInterface->Print(CM_RED, "Couldn't initialize Steam api");
@@ -164,8 +169,7 @@ EXPORTED AurieStatus ModuleInitialize(
 				{
 					steamLobbyBrowser->setSteamLobbyID(steamIDLobby);
 					SteamMatchmaking()->JoinLobby(steamIDLobby);
-					isInLobby = true;
-					isInSteamLobby = true;
+					switchToMenu(selectedMenu_Lobby);
 					hasJoinedSteamLobby = true;
 				}
 				else
@@ -1023,6 +1027,8 @@ EXPORTED AurieStatus ModuleInitialize(
 	sprSummonPointerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_summonPointer" }).AsReal());
 	sprHudInitButtonsIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_initButtons" }).AsReal());
 	sprKaelaMinerals = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_KaelaMinerals" }).AsReal());
+	sprHudToggleButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_toggleButton" }).AsReal());
+	sprHudOptionButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_OptionButton" }).AsReal());
 	jpFont = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "jpFont" }).AsReal());
 	rmTitle = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_Title" }).AsReal());
 	rmCharSelect = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_CharSelect" }).AsReal());

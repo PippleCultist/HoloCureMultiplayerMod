@@ -9,6 +9,7 @@
 extern bool hasJoinedSteamLobby;
 extern std::thread messageHandlerThread;
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
+extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
 
 inline void strncpy_safe(char* pDest, char const* pSrc, size_t maxLen)
 {
@@ -255,6 +256,7 @@ void CSteamLobbyBrowser::OnNetConnectionStatusChanged(SteamNetConnectionStatusCh
 		printf("Connected to Host\n");
 		hasConnected = true;
 		clientIDToSteamIDMap[0] = getSteamLobbyHostID().ConvertToUint64();
+		steamIDToClientIDMap[getSteamLobbyHostID().ConvertToUint64()] = 0;
 		messageHandlerThread = std::thread(clientReceiveMessageHandler);
 	}
 
@@ -333,8 +335,7 @@ void CSteamLobbyBrowser::OnGameLobbyJoinRequested(GameLobbyJoinRequested_t* pCal
 	// TODO: Should probably check if the player is already in a lobby/other multiplayer menu
 	setSteamLobbyID(pCallback->m_steamIDLobby);
 	SteamMatchmaking()->JoinLobby(pCallback->m_steamIDLobby);
-	isInLobby = true;
-	isInSteamLobby = true;
+	switchToMenu(selectedMenu_Lobby);
 	hasJoinedSteamLobby = true;
 	printf("Joined lobby\n");
 }

@@ -10,15 +10,19 @@
 #include "SteamHost.h"
 #include "SteamClient.h"
 #include "SteamLobbyBrowser.h"
+#include "Button.h"
 #include <iphlpapi.h>
 #include <fstream>
 
 #define HOST_INDEX 0
 
-extern int curMenuButtonsIndex;
 extern CSteamID curSelectedSteamID;
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern int curSteamLobbyMemberIndex;
+extern ButtonIDs curButtonID;
+extern coopMenuButtonsGridData* curButtonMenu;
+
+selectedMenuID curSelectedMenuID = selectedMenu_NONE;
 
 inline PFUNC_YYGMLScript getScriptFunction(const char* name)
 {
@@ -50,6 +54,72 @@ inline void addWeapon(RValue& weapons, RValue& attacks, RValue& attackID)
 	g_RunnerInterface.StructCreate(&combos);
 	g_RunnerInterface.StructAddRValue(&mainWeapon, "combos", &combos);
 	g_RunnerInterface.StructAddRValue(&weapons, attackID.AsString().data(), &mainWeapon);
+}
+
+void switchToMenu(selectedMenuID menuID)
+{
+	switch (menuID)
+	{
+		case selectedMenu_NONE:
+		{
+			curButtonID = COOPMENU_NONE;
+			curButtonMenu = nullptr;
+			break;
+		}
+		case selectedMenu_SelectingCharacter:
+		{
+			curButtonID = COOPMENU_NONE;
+			curButtonMenu = nullptr;
+			break;
+		}
+		case selectedMenu_SelectingMap:
+		{
+			curButtonID = COOPMENU_NONE;
+			curButtonMenu = nullptr;
+			break;
+		}
+		case selectedMenu_Lobby:
+		{
+			curButtonID = COOPMENU_LOBBYMENU_LobbyReady;
+			curButtonMenu = &coopLobbyMenuButtonsGrid;
+			curButtonMenu->resetMenu();
+			break;
+		}
+		case selectedMenu_CoopOptionMenu:
+		{
+			curButtonID = COOPMENU_COOPOPTION_HostLanSession;
+			curButtonMenu = &coopOptionButtonsGrid;
+			curButtonMenu->resetMenu();
+			break;
+		}
+		case selectedMenu_NetworkAdapterDisclaimerMenu:
+		{
+			curButtonID = COOPMENU_NETWORKADAPTER_NetworkAdapterDisclaimerOk;
+			curButtonMenu = &networkAdapterDisclaimerButtonsGrid;
+			curButtonMenu->resetMenu();
+			break;
+		}
+		case selectedMenu_NetworkAdapterMenu:
+		{
+			curButtonID = COOPMENU_NETWORKADAPTER_NetworkAdapterNameOne;
+			curButtonMenu = &networkAdapterNamesButtonsGrid;
+			curButtonMenu->resetMenu();
+			break;
+		}
+		case selectedMenu_GamemodeSelect:
+		{
+			curButtonID = COOPMENU_GAMEMODESELECT_PlaySinglePlayer;
+			curButtonMenu = &gamemodeSelectButtonsGrid;
+			curButtonMenu->resetMenu();
+			break;
+		}
+		default:
+		{
+			g_ModuleInterface->Print(CM_RED, "Unrecognized selected menu type %d", menuID);
+			return;
+		}
+	}
+	curSelectedMenuID = menuID;
 }
 
 std::unordered_map<uint32_t, RValue> playerMap;
@@ -1122,7 +1192,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					if (pauseOption == 0)
 					{
 						// TODO: Change retry to just restart the game again with all the clients. For now, just bring everyone back to the lobby
-						isInLobby = true;
+						switchToMenu(selectedMenu_Lobby);
 						lobbyPlayerDataMap[HOST_INDEX].stageSprite = -1;
 						g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
 						g_ModuleInterface->CallBuiltin("room_restart", {});
@@ -1134,7 +1204,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					else if (pauseOption == 1)
 					{
 						// TODO: Bring everyone back to the lobby
-						isInLobby = true;
+						switchToMenu(selectedMenu_Lobby);
 						lobbyPlayerDataMap[HOST_INDEX].stageSprite = -1;
 						g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
 						g_ModuleInterface->CallBuiltin("room_restart", {});
@@ -1153,8 +1223,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 						hasConnected = false;
 						cleanupPlayerGameData();
 						cleanupPlayerClientData();
-						isInLobby = false;
-						isInCoopOptionMenu = false;
+						switchToMenu(selectedMenu_NONE);
 						hasSelectedMap = false;
 						g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
 						g_ModuleInterface->CallBuiltin("room_restart", {});
@@ -1176,8 +1245,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					hasConnected = false;
 					cleanupPlayerGameData();
 					cleanupPlayerClientData();
-					isInLobby = false;
-					isInCoopOptionMenu = false;
+					switchToMenu(selectedMenu_NONE);
 					hasSelectedMap = false;
 					g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
 					g_ModuleInterface->CallBuiltin("room_restart", {});
@@ -1597,14 +1665,6 @@ RValue& ApplyBuffsPlayerManagerBefore(CInstance* Self, CInstance* Other, RValue&
 	return ReturnValue;
 }
 
-bool isInNetworkAdapterMenu = false;
-bool hasReadNetworkAdapterDisclaimer = false;
-bool isInGamemodeSelect = false;
-bool isInCoopOptionMenu = false;
-bool isInLobby = false;
-bool isSelectingCharacter = false;
-bool isSelectingMap = false;
-bool isInSteamLobby = false;
 SOCKET listenSocket;
 
 SOCKET broadcastSocket = INVALID_SOCKET;
@@ -1618,83 +1678,83 @@ IP_ADAPTER_ADDRESSES* adapterAddresses(NULL);
 
 RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	if (isSelectingCharacter || isSelectingMap)
+	if (curSelectedMenuID == selectedMenu_SelectingCharacter || curSelectedMenuID == selectedMenu_SelectingMap)
 	{
 
 	}
-	else if (isInLobby)
+	else if (curSelectedMenuID == selectedMenu_Lobby)
 	{
-		if (curMenuButtonsIndex == 0)
+		if (curButtonID == COOPMENU_LOBBYMENU_LobbyChooseCharacter)
 		{
-			// In the modded lobby
-			if (curCoopOptionMenuIndex == 0)
+			// Choose character
+			switchToMenu(selectedMenu_SelectingCharacter);
+			lobbyPlayerDataMap[clientID].isReady = 0;
+			g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
+		}
+		else if (curButtonID == COOPMENU_LOBBYMENU_LobbyReady)
+		{
+			// Ready button
+			if (!lobbyPlayerDataMap[clientID].charName.empty())
 			{
-				// Choose character
-				isInLobby = false;
-				isSelectingCharacter = true;
-				lobbyPlayerDataMap[clientID].isReady = 0;
-				g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
-			}
-			else if (curCoopOptionMenuIndex == 1)
-			{
-				// Ready button
-				if (!lobbyPlayerDataMap[clientID].charName.empty())
-				{
-					lobbyPlayerDataMap[clientID].isReady = 1 - lobbyPlayerDataMap[clientID].isReady;
-				}
-			}
-			else if (curCoopOptionMenuIndex == 2)
-			{
-				// Choose map button
-				isInLobby = false;
-				isSelectingMap = true;
-				RValue charSelectInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
-				RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
-				RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName });
-				g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charData });
-				// TODO: Need to also set the outfit once I add that
-				RValue availableOutfitsArr = g_ModuleInterface->CallBuiltin("array_create", { 1, "default" });
-				setInstanceVariable(charSelectInstance, GML_availableOutfits, availableOutfitsArr);
-			}
-			else if (curCoopOptionMenuIndex == 3)
-			{
-				// Start game button
-				hasSelectedMap = false;
-				isInLobby = false;
-				closesocket(connectClientSocket);
-				connectClientSocket = INVALID_SOCKET;
-				closesocket(broadcastSocket);
-				broadcastSocket = INVALID_SOCKET;
-				g_ModuleInterface->CallBuiltin("room_goto", { curSelectedMap });
+				lobbyPlayerDataMap[clientID].isReady = 1 - lobbyPlayerDataMap[clientID].isReady;
 			}
 		}
-		else if (curMenuButtonsIndex == 1) // Should be only if the host is in a steam lobby and if they click on the lobby member list
+		else if (curButtonID == COOPMENU_LOBBYMENU_SelectMap)
+		{
+			// Choose map button
+			switchToMenu(selectedMenu_SelectingMap);
+			RValue charSelectInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
+			RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
+			RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName });
+			g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charData });
+			// TODO: Need to also set the outfit once I add that
+			RValue availableOutfitsArr = g_ModuleInterface->CallBuiltin("array_create", { 1, "default" });
+			setInstanceVariable(charSelectInstance, GML_availableOutfits, availableOutfitsArr);
+		}
+		else if (curButtonID == COOPMENU_LOBBYMENU_Start)
+		{
+			// Start game button
+			switchToMenu(selectedMenu_NONE);
+			closesocket(connectClientSocket);
+			connectClientSocket = INVALID_SOCKET;
+			closesocket(broadcastSocket);
+			broadcastSocket = INVALID_SOCKET;
+			g_ModuleInterface->CallBuiltin("room_goto", { curSelectedMap });
+		}
+		else if (curButtonID >= COOPMENU_STEAMLOBBY_LobbyPlayerOne && curButtonID <= COOPMENU_STEAMLOBBY_LobbyPlayerTen) // Should be only if the host is in a steam lobby and if they click on the lobby member list
 		{
 			curSelectedSteamID = steamLobbyBrowser->m_lobbyMemberList[curSteamLobbyMemberIndex].m_steamIDMember;
 		}
-		else if (curMenuButtonsIndex == 2) // Should be only if the host has clicked on a lobby member and clicked on an option
+		else if (curButtonID >= COOPMENU_STEAMLOBBY_LobbyPlayerInviteOne && curButtonID <= COOPMENU_STEAMLOBBY_LobbyPlayerInviteTen) // Should be only if the host has clicked on a lobby member and clicked on an option
 		{
 			if (!curSelectedSteamID.IsValid())
 			{
 				g_ModuleInterface->Print(CM_RED, "Steam ID isn't valid");
 				return ReturnValue;
 			}
+			// TODO: Can probably have a better way to disable buttons
+			curButtonMenu->menuButtonsColumnsList[1].menuButtonsList[curButtonID - COOPMENU_STEAMLOBBY_LobbyPlayerInviteOne].isVisible = false;
 			uint64 inviteeSteamID = curSelectedSteamID.ConvertToUint64();
 			steamIDToClientIDMap[inviteeSteamID] = 0;
 			SteamMatchmaking()->SendLobbyChatMsg(steamLobbyBrowser->getSteamLobbyID(), &inviteeSteamID, sizeof(inviteeSteamID));
+			curSelectedSteamID = CSteamID();
 			printf("Pressed invite button\n");
 		}
+		else
+		{
+			g_ModuleInterface->Print(CM_RED, "Unrecognized button id in lobby");
+		}
 	}
-	else if (isInCoopOptionMenu)
+	else if (curSelectedMenuID == selectedMenu_CoopOptionMenu)
 	{
 		// In the modded coop option menu
 		playerPingMap.clear();
 		lobbyPlayerDataMap.clear();
-		if (curCoopOptionMenuIndex == 0)
+		if (curButtonID == COOPMENU_COOPOPTION_HostLanSession)
 		{
 			hasClientPlayerDisconnected.clear();
 			lobbyPlayerDataMap[0] = lobbyPlayerData();
-			struct addrinfo hints, *servinfo, *p = NULL;
+			struct addrinfo hints, * servinfo, * p = NULL;
 			memset(&hints, 0, sizeof(hints));
 			hints.ai_family = AF_INET;
 			hints.ai_socktype = SOCK_STREAM;
@@ -1721,160 +1781,159 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 			// TODO: Let the host decide their own name eventually
 			lobbyPlayerDataMap[0].playerName = "0";
 			isHost = true;
+			switchToMenu(selectedMenu_Lobby);
 		}
-		else
+		else if (curButtonID == COOPMENU_COOPOPTION_JoinLanSession)
 		{
 			isHost = false;
-		}
-		isInLobby = true;
-		isInCoopOptionMenu = false;
-	}
-	else if (isInNetworkAdapterMenu)
-	{
-		if (!hasReadNetworkAdapterDisclaimer)
-		{
-			hasReadNetworkAdapterDisclaimer = true;
-			adapterPageNum = 0;
-			prevPageButtonNum = -1;
-			nextPageButtonNum = -1;
-			DWORD adapterAddressesBufferSize = 16 * 1024;
-
-			for (int i = 0; i < 3; i++)
-			{
-				adapterAddresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(malloc(adapterAddressesBufferSize));
-				DWORD error = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME, NULL, adapterAddresses, &adapterAddressesBufferSize);
-				if (error == ERROR_SUCCESS)
-				{
-					break;
-				}
-				else if (error == ERROR_BUFFER_OVERFLOW)
-				{
-					free(adapterAddresses);
-					adapterAddresses = NULL;
-					continue;
-				}
-				else
-				{
-					free(adapterAddresses);
-					adapterAddresses = NULL;
-					continue;
-				}
-			}
+			switchToMenu(selectedMenu_Lobby);
 		}
 		else
 		{
-			if (curCoopOptionMenuIndex == prevPageButtonNum)
+			g_ModuleInterface->Print(CM_RED, "Unrecognized button id in coop option menu");
+		}
+	}
+	else if (curSelectedMenuID == selectedMenu_NetworkAdapterDisclaimerMenu)
+	{
+		switchToMenu(selectedMenu_NetworkAdapterMenu);
+		adapterPageNum = 0;
+		prevPageButtonNum = -1;
+		nextPageButtonNum = -1;
+		DWORD adapterAddressesBufferSize = 16 * 1024;
+
+		for (int i = 0; i < 3; i++)
+		{
+			adapterAddresses = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(malloc(adapterAddressesBufferSize));
+			DWORD error = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME, NULL, adapterAddresses, &adapterAddressesBufferSize);
+			if (error == ERROR_SUCCESS)
 			{
-				prevPageButtonNum = -1;
-				nextPageButtonNum = -1;
-				adapterPageNum--;
+				break;
 			}
-			else if (curCoopOptionMenuIndex == nextPageButtonNum)
+			else if (error == ERROR_BUFFER_OVERFLOW)
 			{
-				prevPageButtonNum = -1;
-				nextPageButtonNum = -1;
-				adapterPageNum++;
+				free(adapterAddresses);
+				adapterAddresses = NULL;
+				continue;
 			}
 			else
 			{
-				IP_ADAPTER_ADDRESSES* adapter(NULL);
-
-				int count = -1;
-				for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
-				{
-					if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
-					{
-						continue;
-					}
-
-					bool isValidAddress = true;
-					for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
-					{
-						auto family = address->Address.lpSockaddr->sa_family;
-						if (family == AF_INET)
-						{
-							SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
-							inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
-
-							if (strncmp("169.254", broadcastAddressBuffer, 7) == 0)
-							{
-								isValidAddress = false;
-							}
-							break;
-						}
-					}
-
-					if (!isValidAddress)
-					{
-						continue;
-					}
-
-					count++;
-					if (adapterPageNum * 5 + curCoopOptionMenuIndex != count)
-					{
-						continue;
-					}
-
-					CreateDirectory(L"MultiplayerMod", NULL);
-					std::ofstream outFile;
-					outFile.open("MultiplayerMod/lastUsedNetworkAdapter");
-					int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), NULL, 0, NULL, NULL);
-					std::string resString(sizeNeeded, 0);
-					WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), &resString[0], sizeNeeded, NULL, NULL);
-					outFile << resString;
-					outFile.close();
-
-					for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
-					{
-						auto family = address->Address.lpSockaddr->sa_family;
-						if (family == AF_INET)
-						{
-							SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
-							ULONG subnetMask;
-							ConvertLengthToIpv4Mask(address->OnLinkPrefixLength, &subnetMask);
-							ipv4->sin_addr.s_addr |= ~subnetMask;
-							inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
-
-							struct addrinfo* res = nullptr, * it;
-							struct addrinfo hints;
-							memset(&hints, 0, sizeof(struct addrinfo));
-							hints.ai_family = AF_INET;
-							hints.ai_socktype = SOCK_DGRAM;
-
-							getaddrinfo(broadcastAddressBuffer, BROADCAST_PORT, &hints, &res);
-
-							for (it = res; it != NULL; it = it->ai_next)
-							{
-								broadcastSocket = socket(it->ai_family, it->ai_socktype, it->ai_protocol);
-								char enable = '1';
-								setsockopt(broadcastSocket, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
-								u_long mode = 1;
-								ioctlsocket(broadcastSocket, FIONBIO, &mode);
-								broadcastSocketAddr = it->ai_addr;
-								broadcastSocketLen = it->ai_addrlen;
-								break;
-							}
-							break;
-						}
-					}
-					break;
-				}
-
-				isInCoopOptionMenu = true;
-				isInNetworkAdapterMenu = false;
-				hasReadNetworkAdapterDisclaimer = false;
+				free(adapterAddresses);
+				adapterAddresses = NULL;
+				continue;
 			}
 		}
 	}
-	else if (isInGamemodeSelect)
+	else if (curSelectedMenuID == selectedMenu_NetworkAdapterMenu)
 	{
-		if (curCoopOptionMenuIndex == 0)
+		if (curButtonID == COOPMENU_NETWORKADAPTER_NetworkAdapterNamePrev)
+		{
+			adapterPageNum--;
+		}
+		else if (curButtonID == COOPMENU_NETWORKADAPTER_NetworkAdapterNameNext)
+		{
+			adapterPageNum++;
+		}
+		else if (curButtonID >= COOPMENU_NETWORKADAPTER_NetworkAdapterNameOne && curButtonID <= COOPMENU_NETWORKADAPTER_NetworkAdapterNameFive)
+		{
+			IP_ADAPTER_ADDRESSES* adapter(NULL);
+
+			int count = -1;
+			for (adapter = adapterAddresses; adapter != NULL; adapter = adapter->Next)
+			{
+				if (adapter->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
+				{
+					continue;
+				}
+
+				bool isValidAddress = true;
+				for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
+				{
+					auto family = address->Address.lpSockaddr->sa_family;
+					if (family == AF_INET)
+					{
+						SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
+						inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
+
+						if (strncmp("169.254", broadcastAddressBuffer, 7) == 0)
+						{
+							isValidAddress = false;
+						}
+						break;
+					}
+				}
+
+				if (!isValidAddress)
+				{
+					continue;
+				}
+
+				count++;
+				if (adapterPageNum * 5 + curButtonID - COOPMENU_NETWORKADAPTER_NetworkAdapterNameOne != count)
+				{
+					continue;
+				}
+
+				CreateDirectory(L"MultiplayerMod", NULL);
+				std::ofstream outFile;
+				outFile.open("MultiplayerMod/lastUsedNetworkAdapter");
+				int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), NULL, 0, NULL, NULL);
+				std::string resString(sizeNeeded, 0);
+				WideCharToMultiByte(CP_UTF8, 0, adapter->FriendlyName, static_cast<int>(wcslen(adapter->FriendlyName)), &resString[0], sizeNeeded, NULL, NULL);
+				outFile << resString;
+				outFile.close();
+
+				for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
+				{
+					auto family = address->Address.lpSockaddr->sa_family;
+					if (family == AF_INET)
+					{
+						SOCKADDR_IN* ipv4 = reinterpret_cast<SOCKADDR_IN*>(address->Address.lpSockaddr);
+						ULONG subnetMask;
+						ConvertLengthToIpv4Mask(address->OnLinkPrefixLength, &subnetMask);
+						ipv4->sin_addr.s_addr |= ~subnetMask;
+						inet_ntop(AF_INET, &(ipv4->sin_addr), broadcastAddressBuffer, 16);
+
+						struct addrinfo* res = nullptr, * it;
+						struct addrinfo hints;
+						memset(&hints, 0, sizeof(struct addrinfo));
+						hints.ai_family = AF_INET;
+						hints.ai_socktype = SOCK_DGRAM;
+
+						getaddrinfo(broadcastAddressBuffer, BROADCAST_PORT, &hints, &res);
+
+						for (it = res; it != NULL; it = it->ai_next)
+						{
+							broadcastSocket = socket(it->ai_family, it->ai_socktype, it->ai_protocol);
+							char enable = '1';
+							setsockopt(broadcastSocket, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
+							u_long mode = 1;
+							ioctlsocket(broadcastSocket, FIONBIO, &mode);
+							broadcastSocketAddr = it->ai_addr;
+							broadcastSocketLen = it->ai_addrlen;
+							break;
+						}
+						break;
+					}
+				}
+				break;
+			}
+
+			switchToMenu(selectedMenu_CoopOptionMenu);
+		}
+		else
+		{
+			g_ModuleInterface->Print(CM_RED, "Unrecognized button id in network adapter menu");
+		}
+	}
+	else if (curSelectedMenuID == selectedMenu_GamemodeSelect)
+	{
+		if (curButtonID == COOPMENU_GAMEMODESELECT_PlaySinglePlayer)
 		{
 			// Single player
 			g_ModuleInterface->CallBuiltin("room_goto", { rmCharSelect });
-			isInGamemodeSelect = false;
+			switchToMenu(selectedMenu_NONE);
 		}
-		else if (curCoopOptionMenuIndex == 1)
+		else if (curButtonID == COOPMENU_GAMEMODESELECT_UseSavedNetworkAdapter)
 		{
 			// Use saved adapter
 			CreateDirectory(L"MultiplayerMod", NULL);
@@ -1934,8 +1993,7 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 					continue;
 				}
 
-				isInCoopOptionMenu = true;
-				isInGamemodeSelect = false;
+				switchToMenu(selectedMenu_CoopOptionMenu);
 
 				for (IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; address != NULL; address = address->Next)
 				{
@@ -1981,14 +2039,12 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 			g_ModuleInterface->Print(CM_RED, "Couldn't find network adapter %s", line);
 			inFile.close();
 		}
-		else if (curCoopOptionMenuIndex == 2)
+		else if (curButtonID == COOPMENU_GAMEMODESELECT_SelectNetworkAdapter)
 		{
 			// Choose an adapter
-			isInGamemodeSelect = false;
-			isInNetworkAdapterMenu = true;
-			hasReadNetworkAdapterDisclaimer = false;
+			switchToMenu(selectedMenu_NetworkAdapterDisclaimerMenu);
 		}
-		else if (curCoopOptionMenuIndex == 3)
+		else if (curButtonID == COOPMENU_GAMEMODESELECT_CreateFriendsSteamLobby)
 		{
 			printf("Hosting via steam\n");
 			steamHost = new CSteamHost();
@@ -2000,6 +2056,10 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 			// TODO: Let the host decide their own name eventually
 			lobbyPlayerDataMap[0].playerName = "0";
 		}
+		else
+		{
+			g_ModuleInterface->Print(CM_RED, "Unrecognized button id in gamemode select menu");
+		}
 	}
 	else
 	{
@@ -2007,7 +2067,7 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 		int currentOption = static_cast<int>(lround(getInstanceVariable(Self, GML_currentOption).m_Real));
 		if (currentOption == 0)
 		{
-			isInGamemodeSelect = true;
+			switchToMenu(selectedMenu_GamemodeSelect);
 			setInstanceVariable(Self, GML_canControl, RValue(false));
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
@@ -2103,29 +2163,26 @@ bool hasReturnedFromSelectingCharacter = false;
 bool hasReturnedFromSelectingMap = false;
 RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	curCoopOptionMenuIndex = 0;
+	curButtonID = COOPMENU_NONE;
 	curSteamLobbyMemberIndex = 0;
 	curSelectedSteamID = CSteamID();
-	if (isInGamemodeSelect)
+	if (curSelectedMenuID == selectedMenu_GamemodeSelect)
 	{
-		isInGamemodeSelect = false;
+		switchToMenu(selectedMenu_NONE);
 		setInstanceVariable(Self, GML_canControl, RValue(true));
 	}
-	else if (isInNetworkAdapterMenu)
+	else if (curSelectedMenuID == selectedMenu_NetworkAdapterMenu || curSelectedMenuID == selectedMenu_NetworkAdapterDisclaimerMenu)
 	{
-		isInGamemodeSelect = true;
-		isInNetworkAdapterMenu = false;
-		hasReadNetworkAdapterDisclaimer = false;
+		switchToMenu(selectedMenu_GamemodeSelect);
 		if (adapterAddresses != NULL)
 		{
 			free(adapterAddresses);
 		}
 		adapterAddresses = NULL;
 	}
-	else if (isInCoopOptionMenu)
+	else if (curSelectedMenuID == selectedMenu_CoopOptionMenu)
 	{
-		isInGamemodeSelect = true;
-		isInCoopOptionMenu = false;
+		switchToMenu(selectedMenu_GamemodeSelect);
 		closesocket(broadcastSocket);
 		broadcastSocket = INVALID_SOCKET;
 		if (adapterAddresses != NULL)
@@ -2134,7 +2191,7 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 		}
 		adapterAddresses = NULL;
 	}
-	else if (isInLobby)
+	else if (curSelectedMenuID == selectedMenu_Lobby)
 	{
 		if (isHost)
 		{
@@ -2154,32 +2211,29 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 		hasConnected = false;
 		cleanupPlayerGameData();
 		cleanupPlayerClientData();
-		isInLobby = false;
-		isInCoopOptionMenu = true;
+		switchToMenu(selectedMenu_CoopOptionMenu);
 		hasSelectedMap = false;
 	}
-	else if (isSelectingCharacter)
+	else if (curSelectedMenuID == selectedMenu_SelectingCharacter)
 	{
 		if (hasReturnedFromSelectingCharacter)
 		{
 			hasReturnedFromSelectingCharacter = false;
-			isSelectingCharacter = false;
-			isInLobby = true;
+			switchToMenu(selectedMenu_Lobby);
 			curSelectedSteamID = CSteamID();
-			curCoopOptionMenuIndex = 0;
+			curButtonID = COOPMENU_NONE;
 			curSteamLobbyMemberIndex = 0;
 			g_ModuleInterface->CallBuiltin("instance_destroy", { objCharSelectIndex });
 		}
 	}
-	else if (isSelectingMap)
+	else if (curSelectedMenuID == selectedMenu_SelectingMap)
 	{
 		if (hasReturnedFromSelectingMap)
 		{
 			hasReturnedFromSelectingMap = false;
-			isSelectingMap = false;
-			isInLobby = true;
+			switchToMenu(selectedMenu_Lobby);
 			curSelectedSteamID = CSteamID();
-			curCoopOptionMenuIndex = 0;
+			curButtonID = COOPMENU_NONE;
 			curSteamLobbyMemberIndex = 0;
 			g_ModuleInterface->CallBuiltin("instance_destroy", { objCharSelectIndex });
 		}
@@ -2189,7 +2243,7 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 
 RValue& ReturnCharSelectCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	if (isSelectingCharacter || isSelectingMap)
+	if (curSelectedMenuID == selectedMenu_SelectingCharacter || curSelectedMenuID == selectedMenu_SelectingMap)
 	{
 		RValue charSelected = g_ModuleInterface->CallBuiltin("variable_global_get", { "charSelected" });
 		if (charSelected.m_Kind != VALUE_OBJECT)
@@ -2215,7 +2269,7 @@ RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& R
 	RValue holoHouseMode = g_ModuleInterface->CallBuiltin("variable_global_get", { "holoHouseMode" });
 	if (!holoHouseMode.AsBool())
 	{
-		if (isSelectingCharacter)
+		if (curSelectedMenuID == selectedMenu_SelectingCharacter)
 		{
 			RValue charSelected = g_ModuleInterface->CallBuiltin("variable_global_get", { "charSelected" });
 			if (charSelected.m_Kind == VALUE_OBJECT)
@@ -2225,15 +2279,14 @@ RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& R
 				// TODO: There might be an issue if the player left clicks and right clicks at the same time?
 				lobbyPlayerDataMap[clientID].charName = getInstanceVariable(charSelected, GML_id).AsString();
 				lobbyPlayerDataMap[clientID].stageSprite = curSelectedStageSprite;
-				isSelectingCharacter = false;
-				isInLobby = true;
+				switchToMenu(selectedMenu_Lobby);
 				curSelectedSteamID = CSteamID();
-				curCoopOptionMenuIndex = 0;
+				curButtonID = COOPMENU_NONE;
 				curSteamLobbyMemberIndex = 0;
 				g_ModuleInterface->CallBuiltin("instance_destroy", { objCharSelectIndex });
 			}
 		}
-		else if (isSelectingMap)
+		else if (curSelectedMenuID == selectedMenu_SelectingMap)
 		{
 			int stageSelected = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "playingStage" }).m_Real));
 			if (stageSelected != -1)
@@ -2249,10 +2302,9 @@ RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& R
 					curSelectedStageSprite = static_cast<int>(lround(getInstanceVariable(whichSet[selectedStage], GML_stageSprite).m_Real));
 					lobbyPlayerDataMap[HOST_INDEX].stageSprite = curSelectedStageSprite;
 				}
-				isSelectingMap = false;
-				isInLobby = true;
+				switchToMenu(selectedMenu_Lobby);
 				curSelectedSteamID = CSteamID();
-				curCoopOptionMenuIndex = 0;
+				curButtonID = COOPMENU_NONE;
 				curSteamLobbyMemberIndex = 0;
 				g_ModuleInterface->CallBuiltin("instance_destroy", { objCharSelectIndex });
 			}
