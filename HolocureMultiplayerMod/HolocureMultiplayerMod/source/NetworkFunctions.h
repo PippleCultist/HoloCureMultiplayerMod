@@ -4,6 +4,11 @@
 #include "MessageStructs.h"
 #include "ScriptFunctions.h"
 
+enum networkingMessageSendType
+{
+	NETWORKING_MESSAGE_USING_TCP,
+	NETWORKING_MESSAGE_USING_UDP
+};
 
 struct clientMovementData
 {
@@ -226,7 +231,7 @@ void handleHostHasPaused();
 void handleHostHasUnpaused();
 void handleKaelaOreAmount();
 int receiveBytesFromPlayer(uint32_t playerID, char* outputBuffer, int length, bool loopUntilDone = true);
-int sendBytesToPlayer(uint32_t playerID, char* outputBuffer, int length, bool loopUntilDone = true);
+int sendBytesToPlayer(uint32_t playerID, char* outputBuffer, int length, networkingMessageSendType networkingMessageType, bool loopUntilDone = true);
 int receiveMessage(uint32_t playerID);
 int sendInputMessage(uint32_t playerID);
 int sendAllRoomMessage();

@@ -107,3 +107,9 @@ void SummonStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 void OreDepositStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void GetFishAlarm0Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void GetFishAlarm1Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void ShionPortalCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void AcerolaJuiceCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void SaplingCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void LangOrbCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void HololiveMerchCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void CoronetCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

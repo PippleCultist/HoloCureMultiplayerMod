@@ -639,9 +639,10 @@ struct messageGameData
 	uint32_t enemyDefeated;
 	float experience;
 	float toNextLevel;
+	float moneyGain;
 	short playerLevel;
 
-	messageGameData() : frameNum(0), coinCount(0), enemyDefeated(0), experience(0), toNextLevel(0), playerLevel(0)
+	messageGameData() : frameNum(0), coinCount(0), enemyDefeated(0), experience(0), toNextLevel(0), moneyGain(0), playerLevel(0)
 	{
 	}
 
@@ -653,11 +654,12 @@ struct messageGameData
 		readByteBufferToLong(&enemyDefeated, messageBuffer, startBufferPos);
 		readByteBufferToFloat(&experience, messageBuffer, startBufferPos);
 		readByteBufferToFloat(&toNextLevel, messageBuffer, startBufferPos);
+		readByteBufferToFloat(&moneyGain, messageBuffer, startBufferPos);
 		readByteBufferToShort(&playerLevel, messageBuffer, startBufferPos);
 	}
 
-	messageGameData(uint32_t frameNum, uint32_t coinCount, uint32_t enemyDefeated, float experience, float toNextLevel, short playerLevel) :
-		frameNum(frameNum), coinCount(coinCount), enemyDefeated(enemyDefeated), experience(experience), toNextLevel(toNextLevel), playerLevel(playerLevel)
+	messageGameData(uint32_t frameNum, uint32_t coinCount, uint32_t enemyDefeated, float experience, float toNextLevel, float moneyGain, short playerLevel) :
+		frameNum(frameNum), coinCount(coinCount), enemyDefeated(enemyDefeated), experience(experience), toNextLevel(toNextLevel), moneyGain(moneyGain), playerLevel(playerLevel)
 	{
 	}
 
@@ -670,6 +672,7 @@ struct messageGameData
 		writeLongToByteBuffer(messageBuffer, enemyDefeated, startBufferPos);
 		writeFloatToByteBuffer(messageBuffer, experience, startBufferPos);
 		writeFloatToByteBuffer(messageBuffer, toNextLevel, startBufferPos);
+		writeFloatToByteBuffer(messageBuffer, moneyGain, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, playerLevel, startBufferPos);
 	}
 };

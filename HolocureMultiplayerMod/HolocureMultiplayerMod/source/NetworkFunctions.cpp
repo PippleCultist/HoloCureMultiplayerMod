@@ -427,10 +427,11 @@ int receiveBytesFromPlayer(uint32_t playerID, char* outputBuffer, int length, bo
 	return length;
 }
 
-int sendBytesToPlayer(uint32_t playerID, char* outputBuffer, int length, bool loopUntilDone)
+int sendBytesToPlayer(uint32_t playerID, char* outputBuffer, int length, networkingMessageSendType networkingMessageType, bool loopUntilDone)
 {
 	if (steamIDToClientIDMap.empty())
 	{
+		// TODO: Should use UDP for winsocks
 		// Assume that it's not using steam and is using LAN
 		SOCKET curSocket = INVALID_SOCKET;
 		if (playerID == 0)
@@ -485,7 +486,8 @@ int sendBytesToPlayer(uint32_t playerID, char* outputBuffer, int length, bool lo
 			steamPlayerID = clientIDToSteamIDMap[playerID];
 			steamPlayerConnection = steamIDToConnectionMap[steamPlayerID];
 		}
-		EResult res = SteamNetworkingSockets()->SendMessageToConnection(steamPlayerConnection.curConnection, outputBuffer, length, k_nSteamNetworkingSend_Reliable, nullptr);
+		int messageSendFlags = networkingMessageType == NETWORKING_MESSAGE_USING_UDP ? k_nSteamNetworkingSend_UnreliableNoNagle : k_nSteamNetworkingSend_Reliable;
+		EResult res = SteamNetworkingSockets()->SendMessageToConnection(steamPlayerConnection.curConnection, outputBuffer, length, messageSendFlags, nullptr);
 		if (res != k_EResultOK)
 		{
 			g_ModuleInterface->Print(CM_RED, "Failed to send message");
@@ -856,6 +858,10 @@ void handleInstanceUpdateMessage()
 		for (int i = 0; i < curInstances.numInstances; i++)
 		{
 			instanceData curData = curInstances.data[i];
+			if (instanceArr[curData.instanceID].m_Kind == VALUE_UNDEFINED)
+			{
+				continue;
+			}
 			RValue instance = instanceArr[curData.instanceID];
 			setInstanceVariable(instance, GML_x, RValue(curData.xPos));
 			setInstanceVariable(instance, GML_y, RValue(curData.yPos));
@@ -928,6 +934,7 @@ void handleInstanceDeleteMessage()
 			int instanceID = curInstances.instanceIDArr[i];
 			// TODO: Could probably cache the instance or deactivate it instead of destroying it
 			g_ModuleInterface->CallBuiltin("instance_destroy", { instanceArr[instanceID] });
+			instanceArr[instanceID] = RValue();
 		}
 
 	} while (true);
@@ -1008,6 +1015,7 @@ void handleClientPlayerDataMessage()
 				setInstanceVariable(playerSnapshot, GML_crit, RValue(clientPlayerData.curCrit));
 				setInstanceVariable(playerSnapshot, GML_haste, RValue(clientPlayerData.curHaste));
 				setInstanceVariable(playerSnapshot, GML_pickupRange, RValue(clientPlayerData.curPickupRange));
+				setInstanceVariable(playerSnapshot, GML_moneyGain, RValue(moneyGainMultiplier));
 			}
 		}
 
@@ -1291,6 +1299,10 @@ void handlePickupableUpdateMessage()
 		updatePickupableMessageQueueLock.release();
 
 		pickupableData curData = curPickupable.data;
+		if (pickupableArr[curData.pickupableID].m_Kind == VALUE_UNDEFINED)
+		{
+			continue;
+		}
 		RValue instance = pickupableArr[curData.pickupableID];
 		setInstanceVariable(instance, GML_x, RValue(curData.xPos));
 		setInstanceVariable(instance, GML_y, RValue(curData.yPos));
@@ -1333,6 +1345,7 @@ void handlePickupableDeleteMessage()
 		int instanceID = curPickupable.pickupableID;
 		// TODO: Could probably cache the instance or deactivate it instead of destroying it
 		g_ModuleInterface->CallBuiltin("instance_destroy", { pickupableArr[instanceID] });
+		pickupableArr[instanceID] = RValue();
 	} while (true);
 }
 
@@ -3195,7 +3208,7 @@ int sendInputMessage(uint32_t playerID)
 			float direction = static_cast<float>(g_ModuleInterface->CallBuiltin("point_direction", { xPos, yPos, mouseX, mouseY }).m_Real);
 			messageInputMouseFollow sendMessage = messageInputMouseFollow(isDirHeld, direction);
 			sendMessage.serialize(inputMessage);
-			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen);
+			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 		}
 		else
 		{
@@ -3203,7 +3216,7 @@ int sendInputMessage(uint32_t playerID)
 			char inputMessage[inputMessageLen];
 			messageInputNoAim sendMessage = messageInputNoAim(isDirHeld, static_cast<float>(getInstanceVariable(playerMap[clientID], GML_direction).m_Real));
 			sendMessage.serialize(inputMessage);
-			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen);
+			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 		}
 	}
 	else
@@ -3212,7 +3225,7 @@ int sendInputMessage(uint32_t playerID)
 		char inputMessage[inputMessageLen];
 		messageInputAim sendMessage = messageInputAim(isDirHeld, static_cast<float>(returnVal.m_Real));
 		sendMessage.serialize(inputMessage);
-		return sendBytesToPlayer(playerID, inputMessage, inputMessageLen);
+		return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 	}
 }
 
@@ -3229,7 +3242,7 @@ int sendAllRoomMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	return inputMessageLen;
 }
@@ -3247,7 +3260,7 @@ int sendAllInstanceCreateMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	instancesCreateMessage.numInstances = 0;
 	return inputMessageLen;
@@ -3266,7 +3279,7 @@ int sendAllInstanceUpdateMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 	}
 	instancesUpdateMessage.numInstances = 0;
 	delete[] inputMessage;
@@ -3286,7 +3299,7 @@ int sendAllInstanceDeleteMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	instancesDeleteMessage.numInstances = 0;
 	return inputMessageLen;
@@ -3333,7 +3346,7 @@ int sendAllClientPlayerDataMessage()
 		sendMessage.serialize(inputMessage);
 		for (auto& curClientIDMapping : clientIDToSteamIDMap)
 		{
-			sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+			sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 		}
 	}
 
@@ -3353,7 +3366,7 @@ int sendAllAttackCreateMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	attackCreateMessage.numAttacks = 0;
 	return inputMessageLen;
@@ -3372,7 +3385,7 @@ int sendAllAttackUpdateMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 	}
 	attackUpdateMessage.numAttacks = 0;
 	delete[] inputMessage;
@@ -3392,7 +3405,7 @@ int sendAllAttackDeleteMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	attackDeleteMessage.numAttacks = 0;
 	return inputMessageLen;
@@ -3405,7 +3418,7 @@ int sendClientIDMessage(uint32_t playerID)
 	messageClientID clientNumberID = messageClientID(playerID);
 	clientNumberID.serialize(inputMessage);
 
-	return sendBytesToPlayer(playerID, inputMessage, inputMessageLen);
+	return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_TCP);
 }
 
 int sendAllPickupableCreateMessage(pickupableData data)
@@ -3418,7 +3431,7 @@ int sendAllPickupableCreateMessage(pickupableData data)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	return inputMessageLen;
 }
@@ -3433,7 +3446,7 @@ int sendAllPickupableUpdateMessage(pickupableData data)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 	}
 	return inputMessageLen;
 }
@@ -3448,7 +3461,7 @@ int sendAllPickupableDeleteMessage(short pickupableID)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	return inputMessageLen;
 }
@@ -3471,7 +3484,7 @@ int sendAllGameDataMessage()
 	float experience = static_cast<float>(g_ModuleInterface->CallBuiltin("variable_global_get", { "experience" }).m_Real);
 	float toNextLevel = static_cast<float>(getInstanceVariable(playerManagerInstanceVar, GML_toNextLevel).m_Real);
 
-	messageGameData data(timeNum, coinCount, enemyDefeated, experience, toNextLevel, playerLevel);
+	messageGameData data(timeNum, coinCount, enemyDefeated, experience, toNextLevel, static_cast<float>(moneyGainMultiplier), playerLevel);
 	const int inputMessageLen = sizeof(messageGameData) + 1;
 	char inputMessage[inputMessageLen];
 	data.serialize(inputMessage);
@@ -3479,7 +3492,7 @@ int sendAllGameDataMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen);
+		sendBytesToPlayer(curClientIDMapping.first, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	return inputMessageLen;
 }
@@ -3576,7 +3589,7 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 
 
 	clientNumberMessage.serialize(inputMessage);
-	int sentLen = sendBytesToPlayer(playerID, inputMessage, static_cast<int>(inputMessageLen));
+	int sentLen = sendBytesToPlayer(playerID, inputMessage, static_cast<int>(inputMessageLen), NETWORKING_MESSAGE_USING_TCP);
 
 	delete[] inputMessage;
 
@@ -3589,7 +3602,7 @@ int sendLevelUpClientChoiceMessage(uint32_t playerID, char levelUpOption)
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3600,7 +3613,7 @@ int sendPing(uint32_t playerID)
 	const int messageBufferLen = 1;
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_UDP);
 
 	startPingTime = std::chrono::high_resolution_clock::now();
 	return sentLen;
@@ -3612,7 +3625,7 @@ int sendPong(uint32_t playerID)
 	const int messageBufferLen = 1;
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_UDP);
 	return sentLen;
 }
 
@@ -3625,7 +3638,7 @@ int sendAllDestructableCreateMessage(destructableData data)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 
 	delete[] messageBuffer;
@@ -3641,7 +3654,7 @@ int sendAllDestructableBreakMessage(destructableData data)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 
 	delete[] messageBuffer;
@@ -3654,7 +3667,7 @@ int sendEliminateLevelUpClientChoiceMessage(uint32_t playerID, char levelUpOptio
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3665,7 +3678,7 @@ int sendClientSpecialAttackMessage(uint32_t playerID)
 	const int messageBufferLen = 1;
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	return sentLen;
 }
 
@@ -3678,7 +3691,7 @@ int sendAllCautionCreateMessage(cautionData data)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	return messageBufferLen;
 }
@@ -3692,7 +3705,7 @@ int sendAllPreCreateUpdateMessage(preCreateData data)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_UDP);
 	}
 	return messageBufferLen;
 }
@@ -3706,7 +3719,7 @@ int sendAllVFXUpdateMessage(vfxData data)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_UDP);
 	}
 	return messageBufferLen;
 }
@@ -3720,7 +3733,7 @@ int sendAllInteractableCreateMessage(interactableData data)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	return messageBufferLen;
 }
@@ -3734,7 +3747,7 @@ int sendAllInteractableDeleteMessage(short id, char type)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	return messageBufferLen;
 }
@@ -3748,7 +3761,7 @@ int sendAllInteractablePlayerInteractedMessage(uint32_t playerID, short id, char
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	return messageBufferLen;
 }
@@ -3762,7 +3775,7 @@ int sendAllStickerPlayerInteractedMessage(uint32_t playerID, std::string_view st
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	delete[] messageBuffer;
 	return messageBufferLen;
@@ -3777,7 +3790,7 @@ int sendAllBoxPlayerInteractedMessage(uint32_t playerID, levelUpOption* levelUpO
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 	delete[] messageBuffer;
 	return messageBufferLen;
@@ -3789,7 +3802,7 @@ int sendInteractFinishedMessage(uint32_t playerID)
 	const int messageBufferLen = 1;
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	return sentLen;
 }
 
@@ -3799,7 +3812,7 @@ int sendBoxTakeOptionMessage(uint32_t playerID, char boxItemNum)
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3810,7 +3823,7 @@ int sendAnvilChooseOptionMessage(uint32_t playerID, std::string_view optionID, s
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3821,7 +3834,7 @@ int sendClientGainMoneyMessage(uint32_t playerID, uint32_t money)
 	const int messageBufferLen = static_cast<int>(sizeof(messageClientGainMoney) + 1);
 	char messageBuffer[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	return sentLen;
 }
 
@@ -3831,7 +3844,7 @@ int sendClientAnvilEnchantMessage(uint32_t playerID, std::string_view optionID, 
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3842,7 +3855,7 @@ int sendStickerChooseOptionMessage(uint32_t playerID, char stickerOption, char s
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3853,7 +3866,7 @@ int sendChooseCollabMessage(uint32_t playerID, levelUpOption collab)
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3864,7 +3877,7 @@ int sendBuffDataMessage(uint32_t playerID, std::vector<buffData> buffDataList)
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3875,7 +3888,7 @@ int sendCharDataMessage(uint32_t playerID, lobbyPlayerData playerData, uint32_t 
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }
@@ -3889,7 +3902,7 @@ int sendAllReturnToLobbyMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 
 	return messageBufferLen;
@@ -3904,7 +3917,7 @@ int sendAllLobbyPlayerDisconnectedMessage(uint32_t playerID)
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 
 	return messageBufferLen;
@@ -3919,7 +3932,7 @@ int sendAllHostHasPausedMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 
 	return messageBufferLen;
@@ -3934,7 +3947,7 @@ int sendAllHostHasUnpausedMessage()
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)
 	{
-		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen);
+		sendBytesToPlayer(curClientIDMapping.first, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	}
 
 	return messageBufferLen;
@@ -3946,7 +3959,7 @@ int sendKaelaOreAmountMessage(uint32_t playerID, short oreA, short oreB, short o
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);
-	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
 	delete[] messageBuffer;
 	return sentLen;
 }

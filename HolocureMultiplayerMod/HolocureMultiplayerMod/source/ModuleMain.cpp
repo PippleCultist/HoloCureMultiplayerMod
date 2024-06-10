@@ -551,7 +551,37 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_GetFish_Alarm_1");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_ShionPortal_Collision_obj_Player", ShionPortalCollisionPlayerBefore, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_ShionPortal_Collision_obj_Player");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_AcerolaJuice_Collision_obj_Player", AcerolaJuiceCollisionPlayerBefore, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_AcerolaJuice_Collision_obj_Player");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_sapling_Collision_obj_Player", SaplingCollisionPlayerBefore, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_sapling_Collision_obj_Player");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_langOrb_Collision_obj_Player", LangOrbCollisionPlayerBefore, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_langOrb_Collision_obj_Player");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_hololiveMerch_Collision_obj_Player", HololiveMerchCollisionPlayerBefore, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_hololiveMerch_Collision_obj_Player");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Coronet_Collision_obj_Player", CoronetCollisionPlayerBefore, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Coronet_Collision_obj_Player");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	
 
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_input_binding_set", nullptr, nullptr, &origInputBindingSetScript)))
@@ -927,9 +957,10 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Improve ping by changing some messages to be sent via UDP
 	// TODO: Probably should reduce attack speed
 	// TODO: Need to prevent player from moving outside the map and actually collide with stuff (first need to rewrite the message handler)
-	// TODO: Fix buttons not being selectable by controller
 
 	// Lower priority
+	// TODO: Fix some stuff not being visible on the client side like polyglot's lang orbs
+	// TODO: Should probably scale back the amount of updates being sent when there's a lot of enemies on screen and the connection isn't that good (Seems like the client can still send inputs without delay while it's lagging, so need to investigate further)
 	// TODO: Add verbose file logs
 	// TODO: Some weapons aren't added on the client side when chosen as a level up option because the client hasn't unlocked it yet. It's still added on the host side
 	// Does affect being able to choose the weapons as a collab option, so should probably fix this

@@ -2659,3 +2659,99 @@ void GetFishAlarm1Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 		}
 	}
 }
+
+void ShionPortalCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Other = std::get<1>(Args);
+			uint32_t otherPlayerID = getPlayerID(getInstanceVariable(Other, GML_id).m_Object);
+			if (lobbyPlayerDataMap[otherPlayerID].charName.compare("shion") != 0)
+			{
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+	}
+}
+
+void AcerolaJuiceCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Other = std::get<1>(Args);
+			uint32_t otherPlayerID = getPlayerID(getInstanceVariable(Other, GML_id).m_Object);
+			if (lobbyPlayerDataMap[otherPlayerID].charName.compare("mel") != 0)
+			{
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+	}
+}
+
+void SaplingCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Other = std::get<1>(Args);
+			uint32_t otherPlayerID = getPlayerID(getInstanceVariable(Other, GML_id).m_Object);
+			if (lobbyPlayerDataMap[otherPlayerID].charName.compare("fauna") != 0)
+			{
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+	}
+}
+
+void LangOrbCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Other = std::get<1>(Args);
+			uint32_t otherPlayerID = getPlayerID(getInstanceVariable(Other, GML_id).m_Object);
+			if (lobbyPlayerDataMap[otherPlayerID].charName.compare("iofi") != 0)
+			{
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+	}
+}
+
+void HololiveMerchCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Other = std::get<1>(Args);
+			uint32_t otherPlayerID = getPlayerID(getInstanceVariable(Other, GML_id).m_Object);
+			if (lobbyPlayerDataMap[otherPlayerID].charName.compare("ollie") != 0)
+			{
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+	}
+}
+
+void CoronetCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Other = std::get<1>(Args);
+			uint32_t otherPlayerID = getPlayerID(getInstanceVariable(Other, GML_id).m_Object);
+			if (lobbyPlayerDataMap[otherPlayerID].charName.compare("korone") != 0)
+			{
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+	}
+}
