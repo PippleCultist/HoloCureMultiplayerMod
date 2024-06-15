@@ -139,7 +139,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(ProjectDir)include</AdditionalLibraryDirectories>
-      <AdditionalDependencies>steam_api64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -151,6 +151,7 @@
     <ClCompile Include="source\ModuleMain.cpp" />
     <ClCompile Include="source\NetworkFunctions.cpp" />
     <ClCompile Include="source\ScriptFunctions.cpp" />
+    <ClCompile Include="source\SteamAPIWrapper.cpp" />
     <ClCompile Include="source\SteamClient.cpp" />
     <ClCompile Include="source\SteamHost.cpp" />
     <ClCompile Include="source\SteamLobbyBrowser.cpp" />
@@ -214,6 +215,7 @@
     <ClInclude Include="source\ModuleMain.h" />
     <ClInclude Include="source\NetworkFunctions.h" />
     <ClInclude Include="source\ScriptFunctions.h" />
+    <ClInclude Include="source\SteamAPIWrapper.h" />
     <ClInclude Include="source\SteamClient.h" />
     <ClInclude Include="source\SteamHost.h" />
     <ClInclude Include="source\SteamLobbyBrowser.h" />

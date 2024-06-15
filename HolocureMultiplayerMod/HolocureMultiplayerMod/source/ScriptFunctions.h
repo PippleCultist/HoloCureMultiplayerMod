@@ -145,3 +145,5 @@ RValue& OnDeathBaseMobCreateAfter(CInstance* Self, CInstance* Other, RValue& Ret
 RValue& UpdatePlayerPlayerManagerOtherBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& AddPerkPlayerManagerOtherAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& ParseAndPushCommandTypePlayerManagerOtherBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
+RValue& CreateSummonMobManagerCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
+RValue& CreateSummonMobManagerCreateAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);

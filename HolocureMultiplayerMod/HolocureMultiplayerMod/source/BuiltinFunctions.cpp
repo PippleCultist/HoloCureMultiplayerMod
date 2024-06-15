@@ -4,6 +4,8 @@
 #include "CommonFunctions.h"
 #include "CodeEvents.h"
 
+extern bool isInCreateSummon;
+
 void InstanceCreateLayerBefore(RValue* Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args)
 {
 	if (hasConnected && !isHost)
@@ -25,7 +27,7 @@ void InstanceCreateLayerBefore(RValue* Result, CInstance* Self, CInstance* Other
 				printf("created client %p\n", createdInstance.m_Object);
 				currentClientPlayerAttacks = g_ModuleInterface->CallBuiltin("variable_global_get", { "playerAttacks" });
 			}
-			
+
 			for (auto& curPlayerData: playerDataMap)
 			{
 				uint32_t clientPlayerID = curPlayerData.first;
@@ -52,6 +54,17 @@ void InstanceCreateLayerBefore(RValue* Result, CInstance* Self, CInstance* Other
 
 			*Result = playerMap[clientID];
 			callbackManagerInterfacePtr->CancelOriginalFunction();
+		}
+	}
+}
+
+void InstanceCreateLayerAfter(RValue* Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args)
+{
+	if (hasConnected && isHost)
+	{
+		if (isInCreateSummon)
+		{
+			setInstanceVariable(*Result, GML_playerID, RValue(curPlayerID));
 		}
 	}
 }

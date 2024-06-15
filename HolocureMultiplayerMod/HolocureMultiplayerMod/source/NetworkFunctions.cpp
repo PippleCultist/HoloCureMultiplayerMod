@@ -12,6 +12,7 @@ extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
 extern selectedMenuID curSelectedMenuID;
+extern double foodMultiplier;
 
 messageInstancesCreate instancesCreateMessage;
 messageInstancesUpdate instancesUpdateMessage;
@@ -932,6 +933,10 @@ void handleInstanceDeleteMessage()
 		for (int i = 0; i < curInstances.numInstances; i++)
 		{
 			int instanceID = curInstances.instanceIDArr[i];
+			if (instanceArr[instanceID].m_Kind == VALUE_UNDEFINED)
+			{
+				continue;
+			}
 			// TODO: Could probably cache the instance or deactivate it instead of destroying it
 			g_ModuleInterface->CallBuiltin("instance_destroy", { instanceArr[instanceID] });
 			instanceArr[instanceID] = RValue();
@@ -1005,6 +1010,7 @@ void handleClientPlayerDataMessage()
 			setInstanceVariable(instance, GML_haste, RValue(clientPlayerData.curHaste));
 			setInstanceVariable(instance, GML_pickupRange, RValue(clientPlayerData.curPickupRange));
 			setInstanceVariable(instance, GML_specialMeter, RValue(clientPlayerData.specialMeter));
+			setInstanceVariable(instance, GML_food, RValue(foodMultiplier));
 			// Need to set the playersnapshot for some stats to make sure it displays in the pause menu
 			// Seems like it is possible for this to still be nullptr if the player manager step doesn't run early enough
 			if (playerManagerInstanceVar != nullptr)
@@ -1344,6 +1350,10 @@ void handlePickupableDeleteMessage()
 
 		int instanceID = curPickupable.pickupableID;
 		// TODO: Could probably cache the instance or deactivate it instead of destroying it
+		if (pickupableArr[instanceID].m_Kind == VALUE_UNDEFINED)
+		{
+			continue;
+		}
 		g_ModuleInterface->CallBuiltin("instance_destroy", { pickupableArr[instanceID] });
 		pickupableArr[instanceID] = RValue();
 	} while (true);
@@ -1387,6 +1397,10 @@ void handleGameDataMessage()
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "PLAYERLEVEL", static_cast<double>(curMessage.playerLevel) });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "experience", static_cast<double>(curMessage.experience) });
 		setInstanceVariable(playerManagerInstanceVar, GML_toNextLevel, RValue(curMessage.toNextLevel));
+		RValue playerSnapshot = getInstanceVariable(playerManagerInstanceVar, GML_playerSnapshot);
+		// TODO: Maybe change this in the future to not just overwrite the client data with the host data?
+		moneyGainMultiplier = curMessage.moneyGain;
+		foodMultiplier = curMessage.food;
 
 		timeNum = curMessage.frameNum;
 		int numFrames = timeNum % 60;
@@ -3484,7 +3498,7 @@ int sendAllGameDataMessage()
 	float experience = static_cast<float>(g_ModuleInterface->CallBuiltin("variable_global_get", { "experience" }).m_Real);
 	float toNextLevel = static_cast<float>(getInstanceVariable(playerManagerInstanceVar, GML_toNextLevel).m_Real);
 
-	messageGameData data(timeNum, coinCount, enemyDefeated, experience, toNextLevel, static_cast<float>(moneyGainMultiplier), playerLevel);
+	messageGameData data(timeNum, coinCount, enemyDefeated, experience, toNextLevel, static_cast<float>(moneyGainMultiplier), static_cast<float>(foodMultiplier), playerLevel);
 	const int inputMessageLen = sizeof(messageGameData) + 1;
 	char inputMessage[inputMessageLen];
 	data.serialize(inputMessage);

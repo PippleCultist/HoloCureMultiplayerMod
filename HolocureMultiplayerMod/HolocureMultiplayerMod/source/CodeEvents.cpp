@@ -71,6 +71,7 @@ std::thread messageHandlerThread;
 
 extern std::binary_semaphore lastTimeReceivedMoveDataMapLock;
 extern std::unordered_map<uint32_t, clientMovementQueueData> lastTimeReceivedMoveDataMap;
+extern bool isSteamInitialized;
 
 extern RValue instanceArr[maxNumAvailableInstanceIDs];
 
@@ -324,7 +325,10 @@ void serverDisconnected()
 
 void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
-	SteamAPI_RunCallbacks();
+	if (isSteamInitialized)
+	{
+		SteamAPI_RunCallbacks();
+	}
 	CInstance* Self = std::get<0>(Args);
 	CInstance* Other = std::get<1>(Args);
 	RValue returnVal;
@@ -844,12 +848,14 @@ void PlayerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		}
 		else
 		{
+			CInstance* Self = std::get<0>(Args);
+			uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
 			// TODO: Can probably make this update every time the timer goes down a second or if it gains a new stack instead
 			// TODO: Seems like if it sends the message too early, the player instance might not have been created yet. Could potentially queue up the message until it does exist
 			if (timeNum >= 180 && timeNum % 10 == 0)
 			{
-				CInstance* Self = std::get<0>(Args);
-				uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
 				if (playerID != 100000 && playerID != 0)
 				{
 					RValue buffs = getInstanceVariable(Self, GML_buffs);
@@ -889,6 +895,8 @@ void PlayerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 		RValue hostMaxHP = getInstanceVariable(playerMap[0], GML_HP);
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentHP", hostCurHP });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "maxHP", hostMaxHP });
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+		swapPlayerData(playerManagerInstanceVar, attackController, 0);
 	}
 }
 
@@ -2398,6 +2406,9 @@ void SummonStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		{
 			// TODO: Use UDP in order to send these messages
 			CInstance* Self = std::get<0>(Args);
+			RValue varPlayerID = getInstanceVariable(Self, GML_playerID);
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			swapPlayerData(playerManagerInstanceVar, attackController, varPlayerID.m_i32);
 			auto mapInstance = instanceToIDMap.find(Self);
 			if (mapInstance == instanceToIDMap.end())
 			{
@@ -2451,6 +2462,18 @@ void SummonStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 			CInstance* Self = std::get<0>(Args);
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 			g_ModuleInterface->CallBuiltin("instance_destroy", { RValue(Self) });
+		}
+	}
+}
+
+void SummonStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			swapPlayerData(playerManagerInstanceVar, attackController, 0);
 		}
 	}
 }

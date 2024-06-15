@@ -42,7 +42,13 @@
     <ClCompile Include="source\SteamHost.cpp">
       <Filter>Zdrojové soubory</Filter>
     </ClCompile>
-    <ClCompile Include="source\CLobbyBrowser.cpp">
+    <ClCompile Include="source\Button.cpp">
+      <Filter>Zdrojové soubory</Filter>
+    </ClCompile>
+    <ClCompile Include="source\SteamLobbyBrowser.cpp">
+      <Filter>Zdrojové soubory</Filter>
+    </ClCompile>
+    <ClCompile Include="source\SteamAPIWrapper.cpp">
       <Filter>Zdrojové soubory</Filter>
     </ClCompile>
   </ItemGroup>
@@ -224,7 +230,13 @@
     <ClInclude Include="source\SteamClient.h">
       <Filter>Hlavičkové soubory</Filter>
     </ClInclude>
-    <ClInclude Include="source\CLobbyBrowser.h">
+    <ClInclude Include="source\Button.h">
+      <Filter>Hlavičkové soubory</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SteamLobbyBrowser.h">
+      <Filter>Hlavičkové soubory</Filter>
+    </ClInclude>
+    <ClInclude Include="source\SteamAPIWrapper.h">
       <Filter>Hlavičkové soubory</Filter>
     </ClInclude>
   </ItemGroup>

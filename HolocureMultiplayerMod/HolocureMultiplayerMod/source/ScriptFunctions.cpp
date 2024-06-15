@@ -21,6 +21,7 @@ extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern int curSteamLobbyMemberIndex;
 extern ButtonIDs curButtonID;
 extern coopMenuButtonsGridData* curButtonMenu;
+extern bool isSteamInitialized;
 
 selectedMenuID curSelectedMenuID = selectedMenu_NONE;
 
@@ -111,6 +112,7 @@ void switchToMenu(selectedMenuID menuID)
 			curButtonID = COOPMENU_GAMEMODESELECT_PlaySinglePlayer;
 			curButtonMenu = &gamemodeSelectButtonsGrid;
 			curButtonMenu->resetMenu();
+			curButtonMenu->menuButtonsColumnsList[0].menuButtonsList[3].isVisible = isSteamInitialized;
 			break;
 		}
 		default:
@@ -151,6 +153,7 @@ std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
 CSteamHost* steamHost = nullptr;
 
 double moneyGainMultiplier = 0;
+double foodMultiplier = 0;
 
 int curPlayerID = 0;
 
@@ -535,6 +538,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				setInstanceVariable(newCreatedChar, GML_challenge, getInstanceVariable(charData, GML_challenge));
 				RValue baseStats = getInstanceVariable(Self, GML_baseStats);
 				moneyGainMultiplier = getInstanceVariable(baseStats, GML_moneyGain).m_Real;
+				foodMultiplier = getInstanceVariable(baseStats, GML_food).m_Real;
 				setInstanceVariable(newCreatedChar, GML_HP, getInstanceVariable(baseStats, GML_HP));
 				setInstanceVariable(newCreatedChar, GML_currentHP, getInstanceVariable(baseStats, GML_HP));
 				setInstanceVariable(newCreatedChar, GML_ATK, getInstanceVariable(baseStats, GML_ATK));
@@ -1431,7 +1435,15 @@ RValue& ExecuteAttackBefore(CInstance* Self, CInstance* Other, RValue& ReturnVal
 	if (hasConnected && isHost)
 	{
 		RValue* creator = Args[1];
-		size_t playerID = getPlayerID(getInstanceVariable(*creator, GML_id).m_Object);
+		size_t playerID = 100000;
+		if (creator->m_Kind == VALUE_REAL && static_cast<int>(lround(creator->m_Real)) == 227)
+		{
+			playerID = curPlayerID;
+		}
+		else
+		{
+			playerID = getPlayerID(getInstanceVariable(*creator, GML_id).m_Object);
+		}
 		// Check if the index is a valid player or not
 		if (playerID != 100000)
 		{
@@ -1457,7 +1469,15 @@ RValue& ExecuteAttackAfter(CInstance* Self, CInstance* Other, RValue& ReturnValu
 	if (hasConnected && isHost)
 	{
 		RValue* creator = Args[1];
-		size_t playerID = getPlayerID(getInstanceVariable(*creator, GML_id).m_Object);
+		size_t playerID = 100000;
+		if (creator->m_Kind == VALUE_REAL && static_cast<int>(lround(creator->m_Real)) == 227)
+		{
+			playerID = curPlayerID;
+		}
+		else
+		{
+			playerID = getPlayerID(getInstanceVariable(*creator, GML_id).m_Object);
+		}
 		// Check if the index is a valid player or not
 		if (playerID != 100000 && playerID != 0)
 		{
@@ -2379,6 +2399,25 @@ RValue& ParseAndPushCommandTypePlayerManagerOtherBefore(CInstance* Self, CInstan
 		{
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
+	}
+	return ReturnValue;
+}
+
+bool isInCreateSummon = false;
+RValue& CreateSummonMobManagerCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected && isHost)
+	{
+		isInCreateSummon = true;
+	}
+	return ReturnValue;
+}
+
+RValue& CreateSummonMobManagerCreateAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected && isHost)
+	{
+		isInCreateSummon = false;
 	}
 	return ReturnValue;
 }

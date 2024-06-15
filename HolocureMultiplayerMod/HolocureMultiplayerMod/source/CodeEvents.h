@@ -104,6 +104,7 @@ void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void SummonCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void SummonStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void SummonStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void OreDepositStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void GetFishAlarm0Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void GetFishAlarm1Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

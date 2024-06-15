@@ -9,17 +9,21 @@
 #include "NetworkFunctions.h"
 #include "BuiltinFunctions.h"
 #include "SteamLobbyBrowser.h"
+#include "CommonFunctions.h"
+#include "SteamAPIWrapper.h"
 #include "Button.h"
 #include <iphlpapi.h>
 #include <iostream>
 #include <fstream>
 #include <Windows.h>
 #include <string>
+#include <semaphore>
 #include "steam/steam_api.h"
 using namespace Aurie;
 using namespace YYTK;
 
 extern bool hasJoinedSteamLobby;
+extern bool isSteamInitialized;
 
 RValue GMLVarIndexMapGMLHash[1001];
 
@@ -75,6 +79,22 @@ PFUNC_YYGMLScript origAddEnchantScript = nullptr;
 PFUNC_YYGMLScript origAddCollabScript = nullptr;
 PFUNC_YYGMLScript origAddSuperCollabScript = nullptr;
 PFUNC_YYGMLScript origMouseOverButtonScript = nullptr;
+
+using PFUNC_YYGML_Variable_GetValue = void(*)(int arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6);
+PVOID yyGMLVariableGetValueAddress = nullptr;
+PFUNC_YYGML_Variable_GetValue origYYGMLVariableGetValueFunc = nullptr;
+std::binary_semaphore initYYGMLVariableGetValueFuncSemaphore(1);
+
+using PFUNC_YYGML_ErrCheck_Variable_GetValue = void(*)(int arg1, void* arg2, void* arg3, void* arg4);
+PVOID yyGMLErrCheckVariableGetValueAddress = nullptr;
+PFUNC_YYGML_ErrCheck_Variable_GetValue origYYGMLErrCheckVariableGetValueFunc = nullptr;
+std::binary_semaphore initYYGMLErrCheckVariableGetValueFuncSemaphore(1);
+
+using PFUNC_YYGML_Instance_Destroy = void(*)(CInstance* Self, CInstance* Other, int arg3, void* arg4);
+PVOID yyGMLInstanceDestroyAddress = nullptr;
+PFUNC_YYGML_Instance_Destroy origYYGMLInstanceDestroyFunc = nullptr;
+std::binary_semaphore initYYGMLInstanceDestroyFuncSemaphore(1);
+
 CInstance* globalInstance = nullptr;
 
 SOCKET serverSocket = INVALID_SOCKET;
@@ -134,6 +154,128 @@ std::string ConvertLPCWSTRToString(LPCWSTR lpcwszStr)
 	return resString;
 }
 
+AurieStatus FindMemoryPatternAddress(const unsigned char* Pattern, const char* PatternMask, PVOID& outMemoryAddress)
+{
+	AurieStatus status = AURIE_SUCCESS;
+	std::wstring gameName;
+	if (!AurieSuccess(status = MdGetImageFilename(g_ArInitialImage, gameName)))
+	{
+		return status;
+	}
+
+	// Scan for pattern
+	size_t patternMatch = MmSigscanModule(
+		gameName.c_str(),
+		Pattern,
+		PatternMask
+	);
+	if (!patternMatch)
+	{
+		g_ModuleInterface->Print(CM_RED, "Couldn't find pattern %s", Pattern);
+		return AURIE_OBJECT_NOT_FOUND;
+	}
+
+	outMemoryAddress = reinterpret_cast<PVOID>(patternMatch);
+	return AURIE_SUCCESS;
+}
+
+void YYGMLVariableGetValueHookFunc(int arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6)
+{
+	// Sometimes the hook might happen before the originalFunc is set
+	if (origYYGMLVariableGetValueFunc == nullptr)
+	{
+		initYYGMLVariableGetValueFuncSemaphore.acquire();
+		initYYGMLVariableGetValueFuncSemaphore.release();
+		if (origYYGMLVariableGetValueFunc == nullptr)
+		{
+			// Shouldn't ever occur, but might as well check for it
+			g_ModuleInterface->Print(CM_RED, "Still couldn't get the original function for YYGMLVariableGetValueHookFunc. Expect undefined behavior.");
+			return;
+		}
+	}
+	if (hasConnected && isHost)
+	{
+		if (arg1 == objPlayerIndex)
+		{
+			// Prevent it from swapping if the map hasn't been initialized yet
+			auto playerMapFind = playerMap.find(curPlayerID);
+			if (playerMapFind != playerMap.end())
+			{
+				// swap player to the actual current player
+				arg1 = playerMap[curPlayerID].m_i32;
+			}
+		}
+	}
+	origYYGMLVariableGetValueFunc(arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+void YYGMLErrCheckVariableGetValueHookFunc(int arg1, void* arg2, void* arg3, void* arg4)
+{
+	// Sometimes the hook might happen before the originalFunc is set
+	if (origYYGMLErrCheckVariableGetValueFunc == nullptr)
+	{
+		initYYGMLErrCheckVariableGetValueFuncSemaphore.acquire();
+		initYYGMLErrCheckVariableGetValueFuncSemaphore.release();
+		if (origYYGMLErrCheckVariableGetValueFunc == nullptr)
+		{
+			// Shouldn't ever occur, but might as well check for it
+			g_ModuleInterface->Print(CM_RED, "Still couldn't get the original function for YYGMLErrCheckVariableGetValueFunc. Expect undefined behavior.");
+			return;
+		}
+	}
+	if (hasConnected && isHost)
+	{
+		if (arg1 == objPlayerIndex)
+		{
+			// Prevent it from swapping if the map hasn't been initialized yet
+			auto playerMapFind = playerMap.find(curPlayerID);
+			if (playerMapFind != playerMap.end())
+			{
+				// swap player to the actual current player
+				arg1 = playerMap[curPlayerID].m_i32;
+			}
+		}
+	}
+	origYYGMLErrCheckVariableGetValueFunc(arg1, arg2, arg3, arg4);
+}
+
+void YYGMLInstanceDestroyHookFunc(CInstance* Self, CInstance* Other, int arg3, void* arg4)
+{
+	// Sometimes the hook might happen before the originalFunc is set
+	if (origYYGMLInstanceDestroyFunc == nullptr)
+	{
+		initYYGMLInstanceDestroyFuncSemaphore.acquire();
+		initYYGMLInstanceDestroyFuncSemaphore.release();
+		if (origYYGMLInstanceDestroyFunc == nullptr)
+		{
+			// Shouldn't ever occur, but might as well check for it
+			g_ModuleInterface->Print(CM_RED, "Still couldn't get the original function for YYGMLInstanceDestroyHookFunc. Expect undefined behavior.");
+			return;
+		}
+	}
+	if (hasConnected && isHost)
+	{
+		if (arg3 == 0)
+		{
+			// Current instance is being destroyed
+			auto mapInstance = instanceToIDMap.find(Self);
+			if (mapInstance != instanceToIDMap.end())
+			{
+				uint16_t instanceID = mapInstance->second;
+				instanceToIDMap.erase(Self);
+
+				instancesDeleteMessage.addInstance(instanceID);
+				if (instancesDeleteMessage.numInstances >= instanceDeleteDataLen)
+				{
+					sendAllInstanceDeleteMessage();
+				}
+				availableInstanceIDs.push(instanceID);
+			}
+		}
+	}
+	origYYGMLInstanceDestroyFunc(Self, Other, arg3, arg4);
+}
+
 EXPORTED AurieStatus ModuleInitialize(
 	IN AurieModule* Module,
 	IN const fs::path& ModulePath
@@ -141,13 +283,45 @@ EXPORTED AurieStatus ModuleInitialize(
 {
 	initButtonMenus();
 
-	if (!SteamAPI_Init())
+	AurieStatus status = AURIE_SUCCESS;
+	status = ObGetInterface("callbackManager", (AurieInterfaceBase*&)callbackManagerInterfacePtr);
+	if (!AurieSuccess(status))
 	{
-		g_ModuleInterface->Print(CM_RED, "Couldn't initialize Steam api");
-		return AURIE_EXTERNAL_ERROR;
+		printf("Failed to get callback manager interface. Make sure that CallbackManagerMod is located in the mods/Aurie directory.\n");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	// Gets a handle to the interface exposed by YYTK
+	// You can keep this pointer for future use, as it will not change unless YYTK is unloaded.
+	status = ObGetInterface(
+		"YYTK_Main",
+		(AurieInterfaceBase*&)(g_ModuleInterface)
+	);
+
+	// If we can't get the interface, we fail loading.
+	if (!AurieSuccess(status))
+	{
+		printf("Failed to get YYTK Interface\n");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 
-	SteamNetworkingUtils()->InitRelayNetworkAccess();
+	initSteamAPIWrapperFuncs();
+
+	if (isSteamInitialized)
+	{
+		if (!SteamAPI_Init())
+		{
+			g_ModuleInterface->Print(CM_RED, "Couldn't initialize Steam api");
+			isSteamInitialized = false;
+		}
+		else
+		{
+			SteamNetworkingUtils()->InitRelayNetworkAccess();
+		}
+	}
+	else
+	{
+		g_ModuleInterface->Print(CM_RED, "Couldn't initialize functions from Steam API dll. Disabling Steam features.");
+	}
 
 	steamLobbyBrowser = new CSteamLobbyBrowser();
 	int numCommandLineArgs = 0;
@@ -178,27 +352,6 @@ EXPORTED AurieStatus ModuleInitialize(
 				}
 			}
 		}
-	}
-
-	AurieStatus status = AURIE_SUCCESS;
-	status = ObGetInterface("callbackManager", (AurieInterfaceBase*&)callbackManagerInterfacePtr);
-	if (!AurieSuccess(status))
-	{
-		printf("Failed to get callback manager interface. Make sure that CallbackManagerMod is located in the mods/Aurie directory.\n");
-		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
-	}
-	// Gets a handle to the interface exposed by YYTK
-	// You can keep this pointer for future use, as it will not change unless YYTK is unloaded.
-	status = ObGetInterface(
-		"YYTK_Main",
-		(AurieInterfaceBase*&)(g_ModuleInterface)
-	);
-
-	// If we can't get the interface, we fail loading.
-	if (!AurieSuccess(status))
-	{
-		printf("Failed to get YYTK Interface\n");
-		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_InputManager_Step_0", nullptr, InputManagerStepAfter)))
@@ -531,7 +684,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Summon_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Summon_Step_0", SummonStepBefore, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Summon_Step_0", SummonStepBefore, SummonStepAfter)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Summon_Step_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
@@ -924,6 +1077,11 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_ParseAndPushCommandType_gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CreateSummon_gml_Object_obj_MobManager_Create_0", CreateSummonMobManagerCreateBefore, CreateSummonMobManagerCreateAfter, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_CreateSummon_gml_Object_obj_MobManager_Create_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 	
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "struct_get_from_hash", nullptr, nullptr, &origStructGetFromHashFunc)))
@@ -936,7 +1094,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "struct_set_from_hash");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "instance_create_layer", InstanceCreateLayerBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "instance_create_layer", InstanceCreateLayerBefore, InstanceCreateLayerAfter, nullptr)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "instance_create_layer");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
@@ -951,6 +1109,123 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "instance_exists");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+
+	status = FindMemoryPatternAddress(
+		UTEXT(
+			"\x48\x89\x5C\x24\x08"			// MOV qword ptr [RSP + local_res8], RBX
+			"\x48\x89\x6C\x24\x10"			// MOV qword ptr [RSP + local_res10], RBP
+			"\x48\x89\x74\x24\x18"			// MOV qword ptr [RSP + local_res18], RSI
+			"\x57"							// PUSH RDI
+			"\x48\x83\xEC\x40"				// SUB RSP, 0x40
+			"\x48\x63\xD9"					// MOVSXD RBX, param_1
+			"\x40\x32\xFF"					// XOR DIL, DIL
+			"\x41\x8B\xE8"					// MOV EBP, param_3
+			"\x8B\xF2"						// MOV ESI, param_2
+			"\x83\xFB\xFD"					// CMP EBX, -0x3
+			"\x0F\x00\x00\x00\x00\x00"		// JNZ
+			"\x48\x8b\x00\x00\x00\x00\x00"	// MOV RAX, qword ptr [Should be ptr to instance array]
+			"\x48\x85\xC0"					// TEST RAX, RAX 
+		),
+		"xxxxx"
+		"xxxxx"
+		"xxxxx"
+		"x"
+		"xxxx"
+		"xxx"
+		"xxx"
+		"xxx"
+		"xx"
+		"xxx"
+		"x?????"
+		"xx?????"
+		"xxx",
+		yyGMLVariableGetValueAddress
+	);
+	if (!AurieSuccess(status))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to find memory address for %s", "YYGML_Variable_GetValue");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+
+	PVOID YYGMLVariableGetValueTrampolineFunc = nullptr;
+	// Critical section to make sure origYYGMLVariableGetValueFunc is set before the hooked code runs
+	initYYGMLVariableGetValueFuncSemaphore.acquire();
+	status = MmCreateHook(Module, "YYGML_Variable_GetValue", yyGMLVariableGetValueAddress, YYGMLVariableGetValueHookFunc, &YYGMLVariableGetValueTrampolineFunc);
+	origYYGMLVariableGetValueFunc = static_cast<PFUNC_YYGML_Variable_GetValue>(YYGMLVariableGetValueTrampolineFunc);
+	initYYGMLVariableGetValueFuncSemaphore.release();
+
+	status = FindMemoryPatternAddress(
+		UTEXT(
+			"\x48\x89\x5C\x24\x08"			// MOV qword ptr [RSP + local_res8], RBX
+			"\x48\x89\x74\x24\x10"			// MOV qword ptr [RSP + local_res10], RSI
+			"\x57"							// PUSH RDI
+			"\x48\x83\xEC\x40"				// SUB RSP, 0x40
+			"\xC6\x44\x24\x28\x00"			// MOV byte ptr[RSP + local_20], 0x0
+			"\x41\x8B\xF0"					// MOV ESI, R8D
+			"\xC6\x44\x24\x20\x00"			// MOV byte ptr[RSP + local_28], 0x0
+			"\x8B\xFA"						// MOV EDI, EDX
+			"\x8B\xD9"						// MOV EBX, ECX
+		),
+		"xxxxx"
+		"xxxxx"
+		"x"
+		"xxxx"
+		"xxxxx"
+		"xxx"
+		"xxxxx"
+		"xx"
+		"xx",
+		yyGMLErrCheckVariableGetValueAddress
+	);
+	if (!AurieSuccess(status))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to find memory address for %s", "YYGML_ErrCheck_Variable_GetValue");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+
+	PVOID YYGMLErrCheckVariableGetValueTrampolineFunc = nullptr;
+	// Critical section to make sure origYYGMLVariableGetValueFunc is set before the hooked code runs
+	initYYGMLErrCheckVariableGetValueFuncSemaphore.acquire();
+	status = MmCreateHook(Module, "YYGML_ErrCheck_Variable_GetValue", yyGMLErrCheckVariableGetValueAddress, YYGMLErrCheckVariableGetValueHookFunc, &YYGMLErrCheckVariableGetValueTrampolineFunc);
+	origYYGMLErrCheckVariableGetValueFunc = static_cast<PFUNC_YYGML_ErrCheck_Variable_GetValue>(YYGMLErrCheckVariableGetValueTrampolineFunc);
+	initYYGMLErrCheckVariableGetValueFuncSemaphore.release();
+
+	status = FindMemoryPatternAddress(
+		UTEXT(
+			"\x48\x89\x5C\x24\x08"			// MOV qword ptr [RSP + local_res8], RBX
+			"\x48\x89\x6C\x24\x10"			// MOV qword ptr [RSP + local_res10], RBP
+			"\x48\x89\x74\x24\x18"			// MOV qword ptr [RSP + local_res18], RSI
+			"\x57"							// PUSH RDI
+			"\x48\x83\xEC\x30"				// SUB RSP, 0x30
+			"\x49\x8B\xF9"					// MOV RDI, R9
+			"\x48\x8B\xF2"					// MOV RSI, RDX
+			"\x48\x8B\xE9"					// MOV RBP, RCX
+			"\x41\x83\xF8\x02"				// CMP R8D, 0x2
+		),
+		"xxxxx"
+		"xxxxx"
+		"xxxxx"
+		"x"
+		"xxxx"
+		"xxx"
+		"xxx"
+		"xxx"
+		"xxxx",
+		yyGMLInstanceDestroyAddress
+	);
+	if (!AurieSuccess(status))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to find memory address for %s", "YYGML_Instance_Destroy");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+
+	PVOID YYGMLInstanceDestroyTrampolineFunc = nullptr;
+	// Critical section to make sure origYYGMLVariableGetValueFunc is set before the hooked code runs
+	initYYGMLInstanceDestroyFuncSemaphore.acquire();
+	status = MmCreateHook(Module, "YYGML_Instance_Destroy", yyGMLInstanceDestroyAddress, YYGMLInstanceDestroyHookFunc, &YYGMLInstanceDestroyTrampolineFunc);
+	origYYGMLInstanceDestroyFunc = static_cast<PFUNC_YYGML_Instance_Destroy>(YYGMLInstanceDestroyTrampolineFunc);
+	initYYGMLInstanceDestroyFuncSemaphore.release();
+	
 
 	// TODO: Fix various crashes
 	// TODO: Fix stage ending sometimes not actually pausing (Might be because a player picks up a box at the same time)
