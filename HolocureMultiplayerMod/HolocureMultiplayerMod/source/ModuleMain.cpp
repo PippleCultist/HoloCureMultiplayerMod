@@ -439,7 +439,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Attack_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Attack_Step_0", AttackStepBefore, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Attack_Step_0", AttackStepBefore, AttackStepAfter)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Attack_Step_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
@@ -732,6 +732,11 @@ EXPORTED AurieStatus ModuleInitialize(
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Coronet_Collision_obj_Player", CoronetCollisionPlayerBefore, nullptr)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Coronet_Collision_obj_Player");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_PlayerManager_Other_23", PlayerManagerOther23Before, PlayerManagerOther23After)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	
@@ -1109,6 +1114,11 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "instance_exists");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "ds_map_find_value", DsMapFindValueBefore, nullptr, nullptr)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "ds_map_find_value");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 
 	status = FindMemoryPatternAddress(
 		UTEXT(
@@ -1237,8 +1247,6 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Fix some stuff not being visible on the client side like polyglot's lang orbs
 	// TODO: Should probably scale back the amount of updates being sent when there's a lot of enemies on screen and the connection isn't that good (Seems like the client can still send inputs without delay while it's lagging, so need to investigate further)
 	// TODO: Add verbose file logs
-	// TODO: Some weapons aren't added on the client side when chosen as a level up option because the client hasn't unlocked it yet. It's still added on the host side
-	// Does affect being able to choose the weapons as a collab option, so should probably fix this
 	// TODO: Fix some attacks not being deleted properly. Probably due to the attack id being reused and overwriting the last attack using that id before it got deleted
 	// TODO: Optimize message sizes for update messages to reduce the amount of upload needed (pickupable, attack, vfx)
 	// TODO: Extrapolate positional data to reduce the amount of messages being sent

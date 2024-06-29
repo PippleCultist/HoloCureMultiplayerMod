@@ -692,6 +692,7 @@ void processInputMessage(clientMovementData data, uint32_t playerID)
 		}
 		setInstanceVariable(playerMap[playerID], GML_x, playerX);
 		setInstanceVariable(playerMap[playerID], GML_y, playerY);
+		setInstanceVariable(playerMap[playerID], GML_isMoving, RValue(data.isPlayerMoving));
 
 		if (data.isPlayerMoving && data.messageType == MESSAGE_INPUT_NO_AIM)
 		{
@@ -1396,6 +1397,8 @@ void handleGameDataMessage()
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "enemyDefeated", static_cast<double>(curMessage.enemyDefeated) });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "PLAYERLEVEL", static_cast<double>(curMessage.playerLevel) });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "experience", static_cast<double>(curMessage.experience) });
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "goldenHammer", static_cast<double>(curMessage.goldenHammer) });
+		g_ModuleInterface->CallBuiltin("variable_global_set", { "goldenHammerPieces", static_cast<double>(curMessage.goldenHammerPieces) });
 		setInstanceVariable(playerManagerInstanceVar, GML_toNextLevel, RValue(curMessage.toNextLevel));
 		RValue playerSnapshot = getInstanceVariable(playerManagerInstanceVar, GML_playerSnapshot);
 		// TODO: Maybe change this in the future to not just overwrite the client data with the host data?
@@ -2758,6 +2761,7 @@ void handleChooseCollabMessage()
 
 		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curOption.optionType), curOption.optionID);
 		levelUpPausedList.push_back(curPausedData);
+		setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
 	} while (true);
 }
 
@@ -3498,7 +3502,10 @@ int sendAllGameDataMessage()
 	float experience = static_cast<float>(g_ModuleInterface->CallBuiltin("variable_global_get", { "experience" }).m_Real);
 	float toNextLevel = static_cast<float>(getInstanceVariable(playerManagerInstanceVar, GML_toNextLevel).m_Real);
 
-	messageGameData data(timeNum, coinCount, enemyDefeated, experience, toNextLevel, static_cast<float>(moneyGainMultiplier), static_cast<float>(foodMultiplier), playerLevel);
+	short goldenHammer = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammer" }).m_Real));
+	short goldenHammerPieces = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammerPieces" }).m_Real));
+
+	messageGameData data(timeNum, coinCount, enemyDefeated, experience, toNextLevel, static_cast<float>(moneyGainMultiplier), static_cast<float>(foodMultiplier), playerLevel, goldenHammer, goldenHammerPieces);
 	const int inputMessageLen = sizeof(messageGameData) + 1;
 	char inputMessage[inputMessageLen];
 	data.serialize(inputMessage);

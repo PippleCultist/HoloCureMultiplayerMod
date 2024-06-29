@@ -56,6 +56,7 @@ void CloudMakerAlarmBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 void BaseMobCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AttackCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void AttackStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AttackCollisionBaseMobBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AttackCollisionObstacleBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AttackCollisionAttackBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
@@ -114,3 +115,5 @@ void SaplingCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 void LangOrbCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void HololiveMerchCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void CoronetCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void PlayerManagerOther23Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void PlayerManagerOther23After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

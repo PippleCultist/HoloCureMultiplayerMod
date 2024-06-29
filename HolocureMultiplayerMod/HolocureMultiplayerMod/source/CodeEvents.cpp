@@ -694,6 +694,11 @@ void AttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		{
 			// TODO: Use UDP in order to send these messages
 			CInstance* Self = std::get<0>(Args);
+			RValue creator = getInstanceVariable(Self, GML_creator);
+			uint32_t playerID = getPlayerID(creator.m_Object);
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+
 			auto mapAttack = attackToIDMap.find(Self);
 			if (mapAttack == attackToIDMap.end())
 			{
@@ -758,6 +763,15 @@ void AttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		{
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
+	}
+}
+
+void AttackStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected && isHost)
+	{
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+		swapPlayerData(playerManagerInstanceVar, attackController, 0);
 	}
 }
 
@@ -2776,5 +2790,22 @@ void CoronetCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 				callbackManagerInterfacePtr->CancelOriginalFunction();
 			}
 		}
+	}
+}
+
+bool isInPlayerManagerOther23 = false;
+void PlayerManagerOther23Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		isInPlayerManagerOther23 = true;
+	}
+}
+
+void PlayerManagerOther23After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		isInPlayerManagerOther23 = false;
 	}
 }

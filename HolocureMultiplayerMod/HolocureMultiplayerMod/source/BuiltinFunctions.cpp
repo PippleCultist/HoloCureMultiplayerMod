@@ -5,6 +5,7 @@
 #include "CodeEvents.h"
 
 extern bool isInCreateSummon;
+extern bool isInPlayerManagerOther23;
 
 void InstanceCreateLayerBefore(RValue* Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args)
 {
@@ -104,6 +105,37 @@ void InstanceExistsBefore(RValue* Result, CInstance* Self, CInstance* Other, int
 					*Result = RValue(true);
 				}
 				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+	}
+}
+
+void DsMapFindValueBefore(RValue* Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args)
+{
+	if (hasConnected && !isHost)
+	{
+		if (isInPlayerManagerOther23)
+		{
+			if (Args[1].AsString().compare("unlockedWeapons") == 0)
+			{
+				RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+				RValue attacksMap = getInstanceVariable(attackController, GML_attackIndex);
+				RValue unlockedWeaponsArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
+				RValue attacksKeyArr = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { attacksMap });
+				int attacksKeyArrLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { attacksKeyArr }).m_Real));
+				for (int i = 0; i < attacksKeyArrLen; i++)
+				{
+					RValue attackID = attacksKeyArr[i];
+					RValue curAttack = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attacksMap, attackID });
+					RValue attacksConfig = getInstanceVariable(curAttack, GML_config);
+					RValue attacksOptionType = getInstanceVariable(attacksConfig, GML_optionType);
+					if (attacksOptionType.AsString().compare("Weapon") == 0)
+					{
+						g_ModuleInterface->CallBuiltin("array_push", { unlockedWeaponsArr, attackID });
+					}
+				}
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+				*Result = unlockedWeaponsArr;
 			}
 		}
 	}

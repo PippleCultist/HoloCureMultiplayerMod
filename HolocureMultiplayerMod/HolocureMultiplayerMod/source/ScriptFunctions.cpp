@@ -133,6 +133,8 @@ std::unordered_map<uint32_t, RValue> playerAttackIndexMapMap;
 std::unordered_map<uint32_t, RValue> playerPerksMap;
 std::unordered_map<uint32_t, RValue> playerPerksMapMap;
 std::unordered_map<uint32_t, RValue> playerStatUpsMap;
+std::unordered_map<uint32_t, RValue> playerAvailableWeaponCollabsMap;
+std::unordered_map<uint32_t, RValue> playerWeaponCollabsMap;
 std::unordered_map<uint32_t, RValue> attacksCopyMap;
 std::unordered_map<uint32_t, RValue> removedItemsMap;
 std::unordered_map<uint32_t, RValue> eliminatedAttacksMap;
@@ -350,6 +352,8 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			playerCharPerksMap.clear();
 			playerPerksMap.clear();
 			playerPerksMapMap.clear();
+			playerAvailableWeaponCollabsMap.clear();
+			playerWeaponCollabsMap.clear();
 			playerStatUpsMap.clear();
 			summonMap.clear();
 			customDrawScriptMap.clear();
@@ -427,6 +431,8 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			charSelectedMap[HOST_INDEX] = prevCharData;
 			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevCharData });
 
+			RValue prevAttackID = getInstanceVariable(prevCharData, GML_attackID);
+
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 			RValue attacks = getInstanceVariable(attackController, GML_attackIndex);
 			playerAttackIndexMapMap[HOST_INDEX] = attacks;
@@ -440,9 +446,17 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevWeapons });
 			playerWeaponMap[HOST_INDEX] = prevWeapons;
 
-			RValue prevCharPerks = g_ModuleInterface->CallBuiltin("variable_clone", { getInstanceVariable(prevCharData, GML_perks) });
+			RValue prevCharPerks = getInstanceVariable(Self, GML_charPerks);
 			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevCharPerks });
 			playerCharPerksMap[HOST_INDEX] = prevCharPerks;
+
+			RValue prevAvailableWeaponCollabs = getInstanceVariable(Self, GML_availableWeaponCollabs);
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevAvailableWeaponCollabs });
+			playerAvailableWeaponCollabsMap[HOST_INDEX] = prevAvailableWeaponCollabs;
+
+			RValue prevWeaponCollabs = getInstanceVariable(Self, GML_weaponCollabs);
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevWeaponCollabs });
+			playerWeaponCollabsMap[HOST_INDEX] = prevWeaponCollabs;
 
 			RValue perks = getInstanceVariable(Self, GML_perks);
 			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, perks });
@@ -571,17 +585,15 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				// Initialize weapons struct for client
 				RValue weapons;
 				g_RunnerInterface.StructCreate(&weapons);
+				args[0] = &prevWeapons;
+				args[1] = &weapons;
+
+				getScriptFunction("gml_Script_variable_struct_copy")(Self, Other, returnVal, 2, args);
+
+				g_ModuleInterface->CallBuiltin("struct_remove", { weapons, prevAttackID });
 
 				addWeapon(weapons, newAttackIndexMap, attackID);
 
-				for (int i = 0; i < unlockedWeaponsLength; i++)
-				{
-					addWeapon(weapons, newAttackIndexMap, unlockedWeapons[i]);
-				}
-
-				addCollabData(weapons, newAttackIndexMap);
-
-				// TODO: Make this scalable for more players
 				RValue clientMainWeaponStruct = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerAttackIndexMapMap[clientID], attackID });
 				RValue clientMainWeaponConfig = getInstanceVariable(clientMainWeaponStruct, GML_config);
 				setInstanceVariable(clientMainWeaponConfig, GML_optionType, RValue("Weapon"));
@@ -590,7 +602,14 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				playerWeaponMap[clientID] = weapons;
 				setInstanceVariable(Self, GML_weapons, weapons);
 
-				RValue charPerks = g_ModuleInterface->CallBuiltin("variable_clone", { getInstanceVariable(charData, GML_perks) });
+				RValue charPerks;
+				g_RunnerInterface.StructCreate(&charPerks);
+				RValue perksNamesArr = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { getInstanceVariable(charData, GML_perks) });
+				int perksNamesArrLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { perksNamesArr }).m_Real));
+				for (int i = 0; i < perksNamesArrLen; i++)
+				{
+					g_ModuleInterface->CallBuiltin("variable_instance_set", { charPerks, perksNamesArr[i], 0.0 });
+				}
 				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, charPerks });
 				playerCharPerksMap[clientID] = charPerks;
 
@@ -606,6 +625,20 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				RValue newPlayerStatUps = g_ModuleInterface->CallBuiltin("variable_clone", { playerStatUps });
 				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newPlayerStatUps });
 				playerStatUpsMap[clientID] = newPlayerStatUps;
+
+				RValue newAvailableWeaponCollabs;
+				g_RunnerInterface.StructCreate(&newAvailableWeaponCollabs);
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newAvailableWeaponCollabs });
+				playerAvailableWeaponCollabsMap[clientID] = newAvailableWeaponCollabs;
+
+				RValue weaponCollabs;
+				g_RunnerInterface.StructCreate(&weaponCollabs);
+				args[0] = &prevWeaponCollabs;
+				args[1] = &weaponCollabs;
+
+				getScriptFunction("gml_Script_variable_struct_copy")(Self, Other, returnVal, 2, args);
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, weaponCollabs });
+				playerWeaponCollabsMap[clientID] = weaponCollabs;
 
 				// swap attackIndex for the client player
 				setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[clientID]);
@@ -878,6 +911,8 @@ void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, u
 	setInstanceVariable(playerManagerInstance, GML_rerollContainer, rerollContainerMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_playerSummon, summonMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_customDrawScript, customDrawScriptMap[playerID]);
+	setInstanceVariable(playerManagerInstance, GML_availableWeaponCollabs, playerAvailableWeaponCollabsMap[playerID]);
+	setInstanceVariable(playerManagerInstance, GML_weaponCollabs, playerWeaponCollabsMap[playerID]);
 	setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[playerID]);
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentStickers", currentStickersMap[playerID] });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charSelectedMap[playerID] });
@@ -1439,6 +1474,7 @@ RValue& ExecuteAttackBefore(CInstance* Self, CInstance* Other, RValue& ReturnVal
 		if (creator->m_Kind == VALUE_REAL && static_cast<int>(lround(creator->m_Real)) == 227)
 		{
 			playerID = curPlayerID;
+			*Args[1] = playerMap[static_cast<uint32_t>(playerID)];
 		}
 		else
 		{
@@ -2109,6 +2145,8 @@ void cleanupPlayerGameData()
 	playerPerksMap.clear();
 	playerPerksMapMap.clear();
 	playerStatUpsMap.clear();
+	playerAvailableWeaponCollabsMap.clear();
+	playerWeaponCollabsMap.clear();
 	attacksCopyMap.clear();
 	removedItemsMap.clear();
 	eliminatedAttacksMap.clear();

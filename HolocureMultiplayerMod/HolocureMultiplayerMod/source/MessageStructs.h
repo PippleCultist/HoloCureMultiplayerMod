@@ -642,8 +642,10 @@ struct messageGameData
 	float moneyGain;
 	float food;
 	short playerLevel;
+	short goldenHammer;
+	short goldenHammerPieces;
 
-	messageGameData() : frameNum(0), coinCount(0), enemyDefeated(0), experience(0), toNextLevel(0), moneyGain(0), food(0), playerLevel(0)
+	messageGameData() : frameNum(0), coinCount(0), enemyDefeated(0), experience(0), toNextLevel(0), moneyGain(0), food(0), playerLevel(0), goldenHammer(0), goldenHammerPieces(0)
 	{
 	}
 
@@ -658,10 +660,12 @@ struct messageGameData
 		readByteBufferToFloat(&moneyGain, messageBuffer, startBufferPos);
 		readByteBufferToFloat(&food, messageBuffer, startBufferPos);
 		readByteBufferToShort(&playerLevel, messageBuffer, startBufferPos);
+		readByteBufferToShort(&goldenHammer, messageBuffer, startBufferPos);
+		readByteBufferToShort(&goldenHammerPieces, messageBuffer, startBufferPos);
 	}
 
-	messageGameData(uint32_t frameNum, uint32_t coinCount, uint32_t enemyDefeated, float experience, float toNextLevel, float moneyGain, float food, short playerLevel) :
-		frameNum(frameNum), coinCount(coinCount), enemyDefeated(enemyDefeated), experience(experience), toNextLevel(toNextLevel), moneyGain(moneyGain), food(food), playerLevel(playerLevel)
+	messageGameData(uint32_t frameNum, uint32_t coinCount, uint32_t enemyDefeated, float experience, float toNextLevel, float moneyGain, float food, short playerLevel, short goldenHammer, short goldenHammerPieces) :
+		frameNum(frameNum), coinCount(coinCount), enemyDefeated(enemyDefeated), experience(experience), toNextLevel(toNextLevel), moneyGain(moneyGain), food(food), playerLevel(playerLevel), goldenHammer(goldenHammer), goldenHammerPieces(goldenHammerPieces)
 	{
 	}
 
@@ -677,6 +681,8 @@ struct messageGameData
 		writeFloatToByteBuffer(messageBuffer, moneyGain, startBufferPos);
 		writeFloatToByteBuffer(messageBuffer, food, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, playerLevel, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, goldenHammer, startBufferPos);
+		writeShortToByteBuffer(messageBuffer, goldenHammerPieces, startBufferPos);
 	}
 };
 
