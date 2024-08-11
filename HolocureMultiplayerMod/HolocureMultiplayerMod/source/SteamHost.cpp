@@ -7,6 +7,7 @@
 #include "MessageStructs.h"
 #include "NetworkFunctions.h"
 #include <random>
+#include <thread>
 
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
@@ -48,7 +49,7 @@ enum EMessage
 	k_EForceDWORD = 0x7fffffff,
 };
 
-CSteamHost::CSteamHost() : lobbyNum(-1)
+CSteamHost::CSteamHost(bool isNewLobby)
 {
 	// zero the client connection data
 	memset(&m_rgClientData, 0, sizeof(m_rgClientData));
@@ -64,15 +65,19 @@ CSteamHost::CSteamHost() : lobbyNum(-1)
 //		m_hNetPollGroup = SteamNetworkingSockets()->CreatePollGroup();
 		g_ModuleInterface->Print(CM_BLUE, "Finished initializing host");
 
-		SteamAPICall_t hSteamAPICall = SteamMatchmaking()->CreateLobby(k_ELobbyTypeFriendsOnly, MAX_PLAYERS_PER_LOBBY);
-		// set the function to call when this completes
-		m_SteamCallResultLobbyCreated.Set(hSteamAPICall, this, &CSteamHost::OnLobbyCreated);
+		if (isNewLobby)
+		{
+			SteamAPICall_t hSteamAPICall = SteamMatchmaking()->CreateLobby(k_ELobbyTypeFriendsOnly, MAX_PLAYERS_PER_LOBBY);
+			// set the function to call when this completes
+			m_SteamCallResultLobbyCreated.Set(hSteamAPICall, this, &CSteamHost::OnLobbyCreated);
+		}
 	}
 	printf("Listen Socket %d\n", m_hListenSocket);
 }
 
 CSteamHost::~CSteamHost()
 {
+	steamLobbyBrowser->leaveLobby();
 	SteamNetworkingSockets()->CloseListenSocket(m_hListenSocket);
 	SteamNetworkingSockets()->DestroyPollGroup(m_hNetPollGroup);
 }
@@ -101,8 +106,13 @@ void CSteamHost::OnLobbyCreated(LobbyCreated_t* pCallback, bool bIOFailure)
 		std::random_device rd;
 		std::default_random_engine generator(rd());
 		std::uniform_int_distribution<uint32_t> distribution(0);
-		lobbyNum = distribution(generator);
+		uint32_t lobbyNum = distribution(generator);
 		SteamMatchmaking()->SetLobbyData(pCallback->m_ulSteamIDLobby, "name", std::format("Lobby {}", lobbyNum).c_str());
+
+		if (SteamMatchmaking()->GetLobbyOwner(pCallback->m_ulSteamIDLobby) != SteamUser()->GetSteamID())
+		{
+			g_ModuleInterface->PrintWarning("Lobby owner doesn't match current steam id. Potential issue with steamworks not giving the correct lobby id.");
+		}
 
 		// Setting this to NULL removes the key pair
 		SteamFriends()->SetRichPresence("connect", std::format("+connect_lobby {}", pCallback->m_ulSteamIDLobby).c_str());
@@ -171,24 +181,14 @@ void CSteamHost::OnNetConnectionStatusChanged(SteamNetConnectionStatusChangedCal
 				sendClientIDMessage(newClientID);
 				if (!hasConnected)
 				{
+					// Just to make sure that the thread has ended before trying to create a new thread
+					if (messageHandlerThread.joinable())
+					{
+						messageHandlerThread.join();
+					}
 					hasConnected = true;
 					messageHandlerThread = std::thread(hostReceiveMessageHandler);
 				}
-				/*
-				// TODO: Handle if the message isn't sent
-				sendClientIDMessage(clientSocket, newClientID);
-				clientSocketMap[newClientID] = clientSocket;
-				playerPingMap[newClientID] = 0;
-				hasClientPlayerDisconnected[newClientID] = false;
-				lobbyPlayerDataMap[newClientID] = lobbyPlayerData();
-				if (!hasConnected)
-				{
-					hasConnected = true;
-					messageHandlerThread = std::thread(hostReceiveMessageHandler);
-				}
-				*/
-				// TODO: Need to rewrite the socket code to use client ID to send messages to support both sockets and steam sockets
-				// TODO: Would need to rewrite quite a lot ngl
 				printf("Successfully accepted connection\n");
 			}
 			else

@@ -5,11 +5,15 @@
 #include "ScriptFunctions.h"
 #include "CodeEvents.h"
 #include "NetworkFunctions.h"
+#include "SteamHost.h"
+#include <thread>
 
+extern CSteamHost* steamHost;
 extern bool hasJoinedSteamLobby;
 extern std::thread messageHandlerThread;
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
+extern int numClientsInGame;
 
 inline void strncpy_safe(char* pDest, char const* pSrc, size_t maxLen)
 {
@@ -155,9 +159,8 @@ void CSteamLobbyBrowser::OnLobbyChatUpdate(LobbyChatUpdate_t* pCallback)
 {
 	// callbacks are broadcast to all listeners, so we'll get this for every lobby we're requesting
 	CSteamID steamLobbyID = getSteamLobbyID();
-	if (steamLobbyID != pCallback->m_ulSteamIDLobby)
+	if (steamLobbyID.ConvertToUint64() != pCallback->m_ulSteamIDLobby)
 		return;
-
 	if (pCallback->m_ulSteamIDUserChanged == SteamUser()->GetSteamID().ConvertToUint64() &&
 		(pCallback->m_rgfChatMemberStateChange &
 			(k_EChatMemberStateChangeLeft |
@@ -168,11 +171,48 @@ void CSteamLobbyBrowser::OnLobbyChatUpdate(LobbyChatUpdate_t* pCallback)
 		// we've left the lobby, so it is now invalid
 		setSteamLobbyID(CSteamID());
 	}
+	CSteamID curUserID = SteamUser()->GetSteamID();
+
+	// Only create the steam host for the current user if they're now the lobby owner and didn't have steamHost set up before
+	if (SteamMatchmaking()->GetLobbyOwner(steamLobbyID) == curUserID && steamHost == nullptr)
+	{
+		if (hasConnected)
+		{
+			clientID = 0;
+			hasConnected = false;
+			if (messageHandlerThread.joinable())
+			{
+				messageHandlerThread.join();
+			}
+			cleanupPlayerClientData();
+		}
+		steamHost = new CSteamHost(false);
+		isHost = true;
+		playerPingMap.clear();
+		lobbyPlayerDataMap.clear();
+		hasClientPlayerDisconnected.clear();
+		lobbyPlayerDataMap[0] = lobbyPlayerData();
+		// TODO: Let the host decide their own name eventually
+		lobbyPlayerDataMap[0].playerName = "0";
+		switchToMenu(selectedMenu_Lobby);
+	}
+	if (numClientsInGame >= 0)
+	{
+		// TODO: Should probably make this more robust, but it's fine to just count for now
+		if (steamIDToClientIDMap.find(curUserID.ConvertToUint64()) != steamIDToClientIDMap.end())
+		{
+			numClientsInGame++;
+		}
+		if (numClientsInGame >= steamIDToClientIDMap.size())
+		{
+			leaveLobby();
+		}
+	}
 
 	printf("Lobby chat update\n");
 	int cLobbyMembers = SteamMatchmaking()->GetNumLobbyMembers(steamLobbyID);
 	m_lobbyMemberList.clear();
-	CSteamID curUserID = SteamUser()->GetSteamID();
+	
 	for (int i = 0; i < cLobbyMembers; i++)
 	{
 		CSteamID steamIDLobbyMember = SteamMatchmaking()->GetLobbyMemberByIndex(steamLobbyID, i);
@@ -254,6 +294,13 @@ void CSteamLobbyBrowser::OnNetConnectionStatusChanged(SteamNetConnectionStatusCh
 	if ((m_eOldState == k_ESteamNetworkingConnectionState_Connecting || m_eOldState == k_ESteamNetworkingConnectionState_FindingRoute) && m_info.m_eState == k_ESteamNetworkingConnectionState_Connected)
 	{
 		printf("Connected to Host\n");
+		// Just to make sure that the thread has ended before trying to create a new thread
+		hasConnected = false;
+		if (messageHandlerThread.joinable())
+		{
+			messageHandlerThread.join();
+		}
+
 		hasConnected = true;
 		clientIDToSteamIDMap[0] = getSteamLobbyHostID().ConvertToUint64();
 		steamIDToClientIDMap[getSteamLobbyHostID().ConvertToUint64()] = 0;
@@ -337,7 +384,6 @@ void CSteamLobbyBrowser::OnGameLobbyJoinRequested(GameLobbyJoinRequested_t* pCal
 	SteamMatchmaking()->JoinLobby(pCallback->m_steamIDLobby);
 	switchToMenu(selectedMenu_Lobby);
 	hasJoinedSteamLobby = true;
-	printf("Joined lobby\n");
 }
 
 void CSteamLobbyBrowser::setSteamLobbyID(CSteamID steamLobbyID)
@@ -365,19 +411,29 @@ steamConnection& CSteamLobbyBrowser::getSteamLobbyHostConnection()
 	return m_steamLobbyHostConnection;
 }
 
+void CSteamLobbyBrowser::leaveLobby()
+{
+	if (!m_steamLobbyID.IsValid())
+	{
+		return;
+	}
+	SteamMatchmaking()->LeaveLobby(m_steamLobbyID);
+	m_steamLobbyID = CSteamID();
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: Received message from Steam lobby. Is only used for inviting clients
 //			to a host game for now
 //-----------------------------------------------------------------------------
 void CSteamLobbyBrowser::OnLobbyChatMessage(LobbyChatMsg_t* pCallback)
 {
-	if (pCallback->m_ulSteamIDLobby != getSteamLobbyID() || isHost)
+	if (pCallback->m_ulSteamIDLobby != getSteamLobbyID().ConvertToUint64() || isHost)
 	{
 		return;
 	}
 	uint64 receivedSteamID = 0;
 	SteamMatchmaking()->GetLobbyChatEntry(getSteamLobbyID(), pCallback->m_iChatID, nullptr, &receivedSteamID, sizeof(receivedSteamID), nullptr);
-	if (receivedSteamID != SteamUser()->GetSteamID())
+	if (receivedSteamID != SteamUser()->GetSteamID().ConvertToUint64())
 	{
 		return;
 	}

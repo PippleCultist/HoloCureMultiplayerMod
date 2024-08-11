@@ -34,7 +34,7 @@ extern levelUpOption randomWeaponArr[3];
 
 extern uint32_t curUnusedPlayerID;
 
-void serverDisconnected();
+void clientLeaveGame(bool isHostDisconnected);
 
 void InputManagerCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void InputManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
@@ -117,3 +117,4 @@ void HololiveMerchCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode
 void CoronetCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerManagerOther23Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerManagerOther23After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void StickerAlarm1After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

@@ -25,7 +25,7 @@ class CSteamHost
 {
 public:
 	//Constructor
-	CSteamHost();
+	CSteamHost(bool isNewLobby);
 
 	// Destructor
 	~CSteamHost();
@@ -33,8 +33,6 @@ private:
 
 	HSteamListenSocket m_hListenSocket;
 	HSteamNetPollGroup m_hNetPollGroup;
-
-	uint32_t lobbyNum;
 
 	// Vector to keep track of client connections
 	ClientConnectionData_t m_rgClientData[MAX_PLAYERS_PER_LOBBY];

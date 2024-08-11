@@ -2,7 +2,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.1.4"
+#define VERSION_NUM "v1.1.5"
 #define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
 #define BROADCAST_PORT "27015"
 #define GAME_PORT "27016"

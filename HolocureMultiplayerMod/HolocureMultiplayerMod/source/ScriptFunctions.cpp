@@ -13,6 +13,7 @@
 #include "Button.h"
 #include <iphlpapi.h>
 #include <fstream>
+#include <thread>
 
 #define HOST_INDEX 0
 
@@ -22,6 +23,9 @@ extern int curSteamLobbyMemberIndex;
 extern ButtonIDs curButtonID;
 extern coopMenuButtonsGridData* curButtonMenu;
 extern bool isSteamInitialized;
+extern std::thread messageHandlerThread;
+
+int numClientsInGame = -1;
 
 selectedMenuID curSelectedMenuID = selectedMenu_NONE;
 
@@ -1155,13 +1159,8 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					sendStickerChooseOptionMessage(HOST_INDEX, stickerOption, stickerAction);
 					if (stickerAction == 1)
 					{
-						// Check to make sure to swap the sticker sprite after swapping
-						RValue selectedSticker = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentStickers" })[stickerOption - 1];
-						if (selectedSticker.m_Kind == VALUE_OBJECT)
-						{
-							RValue stickerID = getInstanceVariable(playerManagerInstanceVar, GML_stickerID);
-							setInstanceVariable(stickerID, GML_sprite_index, getInstanceVariable(selectedSticker, GML_optionIcon));
-						}
+						// Remove the sticker locally since it will be recreated on the host side
+						g_ModuleInterface->CallBuiltin("variable_global_get", { "currentStickers" })[stickerOption - 1] = -1.0;
 					}
 				}
 			}
@@ -1185,7 +1184,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					int pauseOption = static_cast<int>(lround(getInstanceVariable(Self, GML_pauseOption).m_Real));
 					if (pauseOption == 2)
 					{
-						serverDisconnected();
+						clientLeaveGame(false);
 						callbackManagerInterfacePtr->CancelOriginalFunction();
 					}
 					else
@@ -1200,7 +1199,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				int quitOption = static_cast<int>(lround(getInstanceVariable(Self, GML_quitOption).m_Real));
 				if (quitOption == 0)
 				{
-					serverDisconnected();
+					clientLeaveGame(false);
 					callbackManagerInterfacePtr->CancelOriginalFunction();
 				}
 			}
@@ -1260,8 +1259,19 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 							closesocket(clientSocket.second);
 						}
 						hasConnected = false;
+						if (messageHandlerThread.joinable())
+						{
+							messageHandlerThread.join();
+						}
+						steamLobbyBrowser->leaveLobby();
 						cleanupPlayerGameData();
 						cleanupPlayerClientData();
+						if (steamHost)
+						{
+							delete steamHost;
+							steamHost = nullptr;
+							isHost = false;
+						}
 						switchToMenu(selectedMenu_NONE);
 						hasSelectedMap = false;
 						g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
@@ -1282,8 +1292,19 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 						closesocket(clientSocket.second);
 					}
 					hasConnected = false;
+					if (messageHandlerThread.joinable())
+					{
+						messageHandlerThread.join();
+					}
+					steamLobbyBrowser->leaveLobby();
 					cleanupPlayerGameData();
 					cleanupPlayerClientData();
+					if (steamHost)
+					{
+						delete steamHost;
+						steamHost = nullptr;
+						isHost = false;
+					}
 					switchToMenu(selectedMenu_NONE);
 					hasSelectedMap = false;
 					g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
@@ -1487,7 +1508,7 @@ RValue& ExecuteAttackBefore(CInstance* Self, CInstance* Other, RValue& ReturnVal
 			// TODO: Check if this works properly in all cases
 			RValue* overrideConfig = Args[2];
 			// TODO: Seems like this can crash if overrideConfig is nullptr (Mio ult). Maybe consider creating a struct and setting it to the args?
-			if (overrideConfig != nullptr && overrideConfig->m_Kind == VALUE_OBJECT)
+			if (numArgs > 2 && overrideConfig != nullptr && overrideConfig->m_Kind == VALUE_OBJECT)
 			{
 				g_ModuleInterface->CallBuiltin("variable_instance_set", { *overrideConfig, "summonSource", *creator });
 			}
@@ -1620,31 +1641,6 @@ RValue& DestroyGoldenAnvilBefore(CInstance* Self, CInstance* Other, RValue& Retu
 	return ReturnValue;
 }
 
-RValue& RollStickerAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
-{
-	if (hasConnected && isHost)
-	{
-		if (!getInstanceVariable(Self, GML_destroyIfNoneLeft).AsBool())
-		{
-			short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-			RValue interactableMapIndex = getInstanceVariable(Self, GML_interactableMapIndex);
-			if (interactableMapIndex.m_Kind == VALUE_UNSET || interactableMapIndex.m_Kind == VALUE_UNDEFINED)
-			{
-				short interactableID = availableInteractableIDs.front();
-				availableInteractableIDs.pop();
-				interactableMapIndex = RValue(static_cast<double>(interactableID));
-				setInstanceVariable(Self, GML_interactableMapIndex, interactableMapIndex);
-			}
-
-			short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.m_Real));
-			sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, spriteIndex, 4));
-		}
-	}
-	return ReturnValue;
-}
-
 RValue& DestroyStickerBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
 	if (hasConnected && isHost)
@@ -1770,6 +1766,7 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 		else if (curButtonID == COOPMENU_LOBBYMENU_Start)
 		{
 			// Start game button
+			numClientsInGame = 0;
 			switchToMenu(selectedMenu_NONE);
 			closesocket(connectClientSocket);
 			connectClientSocket = INVALID_SOCKET;
@@ -2103,7 +2100,7 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 		else if (curButtonID == COOPMENU_GAMEMODESELECT_CreateFriendsSteamLobby)
 		{
 			printf("Hosting via steam\n");
-			steamHost = new CSteamHost();
+			steamHost = new CSteamHost(true);
 			isHost = true;
 			playerPingMap.clear();
 			lobbyPlayerDataMap.clear();
@@ -2111,6 +2108,7 @@ RValue& ConfirmedTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& Re
 			lobbyPlayerDataMap[0] = lobbyPlayerData();
 			// TODO: Let the host decide their own name eventually
 			lobbyPlayerDataMap[0].playerName = "0";
+			switchToMenu(selectedMenu_Lobby);
 		}
 		else
 		{
@@ -2195,6 +2193,7 @@ void cleanupPlayerGameData()
 
 void cleanupPlayerClientData()
 {
+	numClientsInGame = -1;
 	hasObtainedClientID = false;
 	curUnusedPlayerID = 1;
 	playerPingMap.clear();
@@ -2204,10 +2203,25 @@ void cleanupPlayerClientData()
 	hasClientPlayerDisconnected.clear();
 	steamIDToClientIDMap.clear();
 	clientIDToSteamIDMap.clear();
-	for (auto& messageQueue : steamIDToConnectionMap)
+	if (isHost)
 	{
-		SteamNetworkingSockets()->CloseConnection(messageQueue.second.curConnection, 0, nullptr, false);
-		messageQueue.second.curMessage->Release();
+		for (auto& messageQueue : steamIDToConnectionMap)
+		{
+			if (messageQueue.second.curMessage != nullptr)
+			{
+				messageQueue.second.curMessage->Release();
+			}
+			SteamNetworkingSockets()->CloseConnection(messageQueue.second.curConnection, 0, nullptr, false);
+		}
+	}
+	else
+	{
+		steamConnection& curSteamConnection = steamLobbyBrowser->getSteamLobbyHostConnection();
+		if (curSteamConnection.curMessage != nullptr)
+		{
+			curSteamConnection.curMessage->Release();
+		}
+		SteamNetworkingSockets()->CloseConnection(curSteamConnection.curConnection, 0, nullptr, false);
 	}
 	steamIDToConnectionMap.clear();
 	for (auto& listenForClientSocket : listenForClientSocketMap)
@@ -2267,8 +2281,19 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 			serverSocket = INVALID_SOCKET;
 		}
 		hasConnected = false;
+		if (messageHandlerThread.joinable())
+		{
+			messageHandlerThread.join();
+		}
+		steamLobbyBrowser->leaveLobby();
 		cleanupPlayerGameData();
 		cleanupPlayerClientData();
+		if (steamHost)
+		{
+			delete steamHost;
+			steamHost = nullptr;
+			isHost = false;
+		}
 		switchToMenu(selectedMenu_CoopOptionMenu);
 		hasSelectedMap = false;
 	}

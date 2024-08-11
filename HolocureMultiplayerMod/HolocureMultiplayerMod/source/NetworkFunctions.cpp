@@ -6,6 +6,7 @@
 #include "steam/steam_api.h"
 #include "SteamLobbyBrowser.h"
 #include <semaphore>
+#include <thread>
 
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
@@ -172,7 +173,8 @@ void clientReceiveMessageHandler()
 			if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
 			{
 				g_ModuleInterface->Print(CM_RED, "Server disconnected");
-				serverDisconnected();
+				clientLeaveGame(true);
+				return;
 			}
 		} while (result > 0);
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -207,6 +209,10 @@ void hostReceiveMessageHandler()
 				clientSocketMap.erase(disconnectedPlayerID);
 				lobbyPlayerDataMap.erase(disconnectedPlayerID);
 				hasClientPlayerDisconnected.erase(disconnectedPlayerID);
+				uint64 steamID = clientIDToSteamIDMap[disconnectedPlayerID];
+				clientIDToSteamIDMap.erase(disconnectedPlayerID);
+				steamIDToConnectionMap.erase(steamID);
+				steamIDToClientIDMap.erase(steamID);
 				sendAllLobbyPlayerDisconnectedMessage(disconnectedPlayerID);
 			}
 		}
@@ -390,17 +396,27 @@ int receiveBytesFromPlayer(uint32_t playerID, char* outputBuffer, int length, bo
 			// TODO: Can probably increase the amount of messages received later
 			SteamNetworkingMessage_t* messageArr[1];
 			int numMessages = 0;
-			while ((numMessages = SteamNetworkingSockets()->ReceiveMessagesOnConnection(steamPlayerConnection->curConnection, messageArr, 1)) == 0 && loopUntilDone)
+			while (hasConnected && (numMessages = SteamNetworkingSockets()->ReceiveMessagesOnConnection(steamPlayerConnection->curConnection, messageArr, 1)) == 0 && loopUntilDone)
 			{
 				std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
-			if (numMessages != 0)
+			if (hasConnected && numMessages > 0)
 			{
 				steamPlayerConnection->curMessage = messageArr[0];
 				steamPlayerConnection->curBytePos = 0;
 			}
 			else
 			{
+				SteamNetConnectionRealTimeStatus_t status;
+				// Check to see if the connection has been closed if no message was received
+				if (SteamNetworkingSockets()->GetConnectionRealTimeStatus(steamPlayerConnection->curConnection, &status, 0, NULL) == k_EResultNoConnection)
+				{
+					return 0;
+				}
+				if (status.m_eState == k_ESteamNetworkingConnectionState_ClosedByPeer)
+				{
+					return 0;
+				}
 				return -1;
 			}
 		}
@@ -770,6 +786,8 @@ void handleRoomMessage()
 		roomMessageLock.acquire();
 		g_ModuleInterface->CallBuiltin("room_goto", { roomMessage.roomNum });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "gameMode", roomMessage.gameMode });
+		switchToMenu(selectedMenu_NONE);
+		steamLobbyBrowser->leaveLobby();
 		hasReceivedRoomMessage = false;
 		roomMessageLock.release();
 	}
@@ -1223,6 +1241,7 @@ void handleClientIDMessage()
 		clientIDMessageQueueLock.release();
 
 		clientID = clientNumber.clientID;
+		curPlayerID = clientID;
 		hasObtainedClientID = true;
 		lobbyPlayerDataMap[clientID] = lobbyPlayerData();
 		// TODO: Let the client decide their own name eventually
@@ -2637,7 +2656,9 @@ void handleStickerChooseOptionMessage()
 		stickerChooseOptionMessageQueue.pop();
 		stickerChooseOptionMessageQueueLock.release();
 
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 		uint32_t playerID = curMessage.m_playerID;
+		swapPlayerData(playerManagerInstanceVar, attackController, playerID);
 		switch (curMessage.stickerOptionType)
 		{
 			case 0:
@@ -2695,7 +2716,9 @@ void handleStickerChooseOptionMessage()
 				{
 					collidedStickerID = "";
 				}
+				// TODO: Should probably test if it's possible that the host can't have a sticker at the same time a client tries to drop one for this
 				g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", currentSticker });
+				setInstanceVariable(playerManagerInstanceVar, GML_usedSticker, true);
 				currentStickersArr[curMessage.stickerOption - 1] = stickerData;
 
 				break;
@@ -2726,6 +2749,7 @@ void handleStickerChooseOptionMessage()
 				break;
 			}
 		}
+		swapPlayerData(playerManagerInstanceVar, attackController, 0);
 	} while (true);
 }
 

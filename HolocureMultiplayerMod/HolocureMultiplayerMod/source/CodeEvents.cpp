@@ -13,6 +13,7 @@
 #include <fstream>
 #include <iphlpapi.h>
 #include <semaphore>
+#include <thread>
 
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
@@ -144,6 +145,13 @@ void PlayerMouse53After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>
 
 void PlayerDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
+	if (hasConnected && isHost)
+	{
+		CInstance* Self = std::get<0>(Args);
+		uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+		swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+	}
 }
 
 void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
@@ -238,6 +246,12 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 				}
 			}
 		}
+
+		if (isHost)
+		{
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			swapPlayerData(playerManagerInstanceVar, attackController, 0);
+		}
 	}
 }
 
@@ -298,10 +312,16 @@ void resetAllData()
 	customDrawScriptMap.clear();
 }
 
-void serverDisconnected()
+void clientLeaveGame(bool isHostDisconnected)
 {
 	hasHostPaused = false;
 	hasConnected = false;
+	if (!isHostDisconnected && messageHandlerThread.joinable())
+	{
+		// TODO: Maybe potential race condition where it tries to join when it already joined?
+		messageHandlerThread.join();
+	}
+	steamLobbyBrowser->leaveLobby();
 	closesocket(serverSocket);
 	serverSocket = INVALID_SOCKET;
 	closesocket(connectClientSocket);
@@ -321,6 +341,8 @@ void serverDisconnected()
 	g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
 	resetAllData();
+	cleanupPlayerGameData();
+	cleanupPlayerClientData();
 }
 
 void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
@@ -1813,9 +1835,10 @@ void StickerCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 				sendAllHostHasPausedMessage();
 
 				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
-				RValue stickerID = getInstanceVariable(Self, GML_stickerID);
+				RValue stickerData = getInstanceVariable(Self, GML_stickerData);
+				RValue stickerID = getInstanceVariable(stickerData, GML_id);
 				collidedStickerID = stickerID.AsString();
-				g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", getInstanceVariable(Self, GML_stickerData) });
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", stickerData });
 
 				setInstanceVariable(playerManagerInstanceVar, GML_stickerID, RValue(Self));
 
@@ -2223,6 +2246,11 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 						sendClientIDMessage(newClientID);
 						if (!hasConnected)
 						{
+							// Just to make sure that the thread has ended before trying to create a new thread
+							if (messageHandlerThread.joinable())
+							{
+								messageHandlerThread.join();
+							}
 							hasConnected = true;
 							messageHandlerThread = std::thread(hostReceiveMessageHandler);
 						}
@@ -2300,6 +2328,12 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 						{
 							printf("Connected to host\n");
 
+							// Just to make sure that the thread has ended before trying to create a new thread
+							if (messageHandlerThread.joinable())
+							{
+								messageHandlerThread.join();
+							}
+
 							numTimesFailedToConnect = 0;
 							hasConnected = true;
 							messageHandlerThread = std::thread(clientReceiveMessageHandler);
@@ -2331,6 +2365,12 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 					if (result > 0 && FD_ISSET(serverSocket, &writeFDSet))
 					{
 						printf("Connected to host\n");
+
+						// Just to make sure that the thread has ended before trying to create a new thread
+						if (messageHandlerThread.joinable())
+						{
+							messageHandlerThread.join();
+						}
 
 						numTimesFailedToConnect = 0;
 						hasConnected = true;
@@ -2807,5 +2847,30 @@ void PlayerManagerOther23After(std::tuple<CInstance*, CInstance*, CCode*, int, R
 	if (hasConnected)
 	{
 		isInPlayerManagerOther23 = false;
+	}
+}
+
+void StickerAlarm1After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected && isHost)
+	{
+		CInstance* Self = std::get<0>(Args);
+		if (!getInstanceVariable(Self, GML_destroyIfNoneLeft).AsBool())
+		{
+			short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
+			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
+			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+			RValue interactableMapIndex = getInstanceVariable(Self, GML_interactableMapIndex);
+			if (interactableMapIndex.m_Kind == VALUE_UNSET || interactableMapIndex.m_Kind == VALUE_UNDEFINED)
+			{
+				short interactableID = availableInteractableIDs.front();
+				availableInteractableIDs.pop();
+				interactableMapIndex = RValue(static_cast<double>(interactableID));
+				setInstanceVariable(Self, GML_interactableMapIndex, interactableMapIndex);
+			}
+
+			short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.m_Real));
+			sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, spriteIndex, 4));
+		}
 	}
 }

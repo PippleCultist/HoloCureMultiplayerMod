@@ -32,6 +32,8 @@ public:
 	void setSteamLobbyHostID(CSteamID steamLobbyHostID);
 	CSteamID getSteamLobbyHostID();
 
+	void leaveLobby();
+
 	steamConnection& getSteamLobbyHostConnection();
 private:
 	CSteamID m_steamLobbyID;

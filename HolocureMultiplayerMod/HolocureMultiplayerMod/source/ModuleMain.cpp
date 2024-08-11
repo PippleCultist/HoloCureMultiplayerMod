@@ -193,7 +193,7 @@ void YYGMLVariableGetValueHookFunc(int arg1, void* arg2, void* arg3, void* arg4,
 			return;
 		}
 	}
-	if (hasConnected && isHost)
+	if (hasConnected)
 	{
 		if (arg1 == objPlayerIndex)
 		{
@@ -223,7 +223,7 @@ void YYGMLErrCheckVariableGetValueHookFunc(int arg1, void* arg2, void* arg3, voi
 			return;
 		}
 	}
-	if (hasConnected && isHost)
+	if (hasConnected)
 	{
 		if (arg1 == objPlayerIndex)
 		{
@@ -739,6 +739,11 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Sticker_Alarm_1", nullptr, StickerAlarm1After)))
+	{
+		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Sticker_Alarm_1");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 	
 
 
@@ -1002,11 +1007,6 @@ EXPORTED AurieStatus ModuleInitialize(
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_getSticker_gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_RollSticker_gml_Object_obj_Sticker_Create_0", nullptr, RollStickerAfter, nullptr)))
-	{
-		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_RollSticker_gml_Object_obj_Sticker_Create_0");
-		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
-	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Destroy_gml_Object_obj_Sticker_Create_0", DestroyStickerBefore, nullptr, &origDestroyStickerScript)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Script_Destroy_gml_Object_obj_Sticker_Create_0");
@@ -1088,7 +1088,7 @@ EXPORTED AurieStatus ModuleInitialize(
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	
-
+	
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "struct_get_from_hash", nullptr, nullptr, &origStructGetFromHashFunc)))
 	{
 		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "struct_get_from_hash");
@@ -1236,6 +1236,7 @@ EXPORTED AurieStatus ModuleInitialize(
 	origYYGMLInstanceDestroyFunc = static_cast<PFUNC_YYGML_Instance_Destroy>(YYGMLInstanceDestroyTrampolineFunc);
 	initYYGMLInstanceDestroyFuncSemaphore.release();
 	
+	// TODO: Probably should add a check if the players have the same version number when connecting
 
 	// TODO: Fix various crashes
 	// TODO: Fix stage ending sometimes not actually pausing (Might be because a player picks up a box at the same time)
@@ -1256,7 +1257,6 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Add better way of assigning ids to players
 	// TODO: Profile the mod to see if it's causing a significant increase in lag (show_debug_overlay as well)
 	// TODO: Sometimes random crashing when the game starts up. Investigate further
-	// TODO: Add player name selection in lobby
 	// TODO: Game crashes when trying to upgrade in addAttack after retrying the game
 	// TODO: Restarting a game after the game already restarted crashes
 	// TODO: Make the networking system more robust to disconnections/edge cases
@@ -1264,7 +1264,6 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Sending 255 as a char ended up being received as -1. Check to make sure this isn't causing issues anywhere
 	// TODO: Fix crash with korone's yubiApply
 	// TODO: ^ Fix apply buffs not being able to figure out which player to apply the buff to and thus causing a crash
-	// TODO: Should add a visible version number for the mod
 	// TODO: Get different host and client languages working
 	// TODO: Seems like interacting with the holobox didn't remove it for some reason on the client side? Check more into why this happens
 	// TODO: Seems like the self destruct red circle is drawn inside the self destruct function through draw functions and isn't a separate thing (gml_Object_obj_MobManager_Other_12)
