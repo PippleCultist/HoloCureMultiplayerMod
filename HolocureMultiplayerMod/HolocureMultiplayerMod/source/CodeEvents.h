@@ -5,7 +5,7 @@
 
 inline uint32_t getPlayerID(CInstance* currentPlayerPtr);
 
-extern std::unordered_map<CInstance*, uint16_t> instanceToIDMap;
+extern std::unordered_map<CInstance*, instanceData> instanceToIDMap;
 extern std::unordered_map<CInstance*, uint16_t> pickupableToIDMap;
 extern std::unordered_map<short, RValue> preCreateMap;
 extern std::unordered_map<short, RValue> vfxMap;
@@ -37,7 +37,6 @@ extern uint32_t curUnusedPlayerID;
 void clientLeaveGame(bool isHostDisconnected);
 
 void InputManagerCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
-void InputManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerMouse53After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

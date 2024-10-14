@@ -8,11 +8,13 @@
 #include <semaphore>
 #include <thread>
 
+extern menuGrid lobbyMenuGrid;
+extern menuGrid selectingCharacterMenuGrid;
+extern menuGrid selectingMapMenuGrid;
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
-extern selectedMenuID curSelectedMenuID;
 extern double foodMultiplier;
 
 messageInstancesCreate instancesCreateMessage;
@@ -200,7 +202,9 @@ void hostReceiveMessageHandler()
 				}
 			} while (result > 0);
 		}
-		if (curSelectedMenuID == selectedMenu_Lobby || curSelectedMenuID == selectedMenu_SelectingCharacter || curSelectedMenuID == selectedMenu_SelectingMap)
+		std::shared_ptr<menuGridData> curMenuGridPtr;
+		holoCureMenuInterfacePtr->GetCurrentMenuGrid(MODNAME, curMenuGridPtr);
+		if (curMenuGridPtr == lobbyMenuGrid.menuGridPtr || curMenuGridPtr == selectingCharacterMenuGrid.menuGridPtr || curMenuGridPtr == selectingMapMenuGrid.menuGridPtr)
 		{
 			for (uint32_t disconnectedPlayerID : playerDisconnectedList)
 			{
@@ -226,6 +230,7 @@ void hostReceiveMessageHandler()
 
 void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInstance)
 {
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "Processing level up %s for client %d", std::string(levelUpData.levelUpName.AsString()).c_str(), curPlayerID);
 	RValue levelUpName = levelUpData.levelUpName;
 	RValue returnVal;
 	switch (levelUpData.levelUpType)
@@ -786,7 +791,8 @@ void handleRoomMessage()
 		roomMessageLock.acquire();
 		g_ModuleInterface->CallBuiltin("room_goto", { roomMessage.roomNum });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "gameMode", roomMessage.gameMode });
-		switchToMenu(selectedMenu_NONE);
+		std::shared_ptr<menuGridData> nullptrMenu = nullptr;
+		holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, nullptrMenu);
 		steamLobbyBrowser->leaveLobby();
 		hasReceivedRoomMessage = false;
 		roomMessageLock.release();
@@ -883,34 +889,22 @@ void handleInstanceUpdateMessage()
 				continue;
 			}
 			RValue instance = instanceArr[curData.instanceID];
-			setInstanceVariable(instance, GML_x, RValue(curData.xPos));
-			setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+			if ((curData.hasVarChanged & 0b001) != 0)
+			{
+				setInstanceVariable(instance, GML_x, RValue(curData.xPos));
+				setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+			}
 
-			int pos = -1;
-			double minDis = 1e20;
-			for (int j = 0; j < playerPosList.size(); j++)
+			if ((curData.hasVarChanged & 0b010) != 0)
 			{
-				double curDis = (curData.xPos - playerPosList[j].first) * (curData.xPos - playerPosList[j].first) + (curData.yPos - playerPosList[j].second) * (curData.yPos - playerPosList[j].second);
-				if (curDis < minDis)
-				{
-					pos = j;
-					minDis = curDis;
-				}
+				setInstanceVariable(instance, GML_image_xscale, RValue(curData.imageXScale));
+				setInstanceVariable(instance, GML_image_yscale, RValue(curData.imageYScale));
 			}
-			if (playerPosList[pos].first > curData.xPos)
+			
+			if ((curData.hasVarChanged & 0b100) != 0)
 			{
-				// TODO: Could probably have some data for each instance to not require getting and then setting
-				double imageXScale = getInstanceVariable(instance, GML_image_xscale).m_Real;
-				setInstanceVariable(instance, GML_image_xscale, abs(imageXScale));
+				setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
 			}
-			else
-			{
-				// TODO: Could probably have some data for each instance to not require getting and then setting
-				double imageXScale = getInstanceVariable(instance, GML_image_xscale).m_Real;
-				setInstanceVariable(instance, GML_image_xscale, -abs(imageXScale));
-			}
-			// TODO: Calculate which direction the instance should be facing
-			setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
 			setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
 		}
 
@@ -1150,10 +1144,28 @@ void handleAttackUpdateMessage()
 			if (attackFind != attackMap.end())
 			{
 				RValue instance = attackFind->second;
-				setInstanceVariable(instance, GML_x, RValue(curData.xPos));
-				setInstanceVariable(instance, GML_y, RValue(curData.yPos));
-				setInstanceVariable(instance, GML_image_angle, RValue(curData.imageAngle));
-				setInstanceVariable(instance, GML_image_alpha, RValue(curData.imageAlpha));
+				if ((curData.hasVarChanged & 0b00001) != 0)
+				{
+					setInstanceVariable(instance, GML_x, RValue(curData.xPos));
+					setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+				}
+				if ((curData.hasVarChanged & 0b00010) != 0)
+				{
+					setInstanceVariable(instance, GML_image_angle, RValue(curData.imageAngle));
+				}
+				if ((curData.hasVarChanged & 0b00100) != 0)
+				{
+					setInstanceVariable(instance, GML_image_alpha, RValue(curData.imageAlpha));
+				}
+				if ((curData.hasVarChanged & 0b01000) != 0)
+				{
+					setInstanceVariable(instance, GML_image_xscale, RValue(curData.imageXScale));
+					setInstanceVariable(instance, GML_image_yscale, RValue(curData.imageYScale));
+				}
+				if ((curData.hasVarChanged & 0b10000) != 0)
+				{
+					setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
+				}
 				setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
 			}
 		}
@@ -1241,6 +1253,7 @@ void handleClientIDMessage()
 		clientIDMessageQueueLock.release();
 
 		clientID = clientNumber.clientID;
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Received client id %d", clientID);
 		curPlayerID = clientID;
 		hasObtainedClientID = true;
 		lobbyPlayerDataMap[clientID] = lobbyPlayerData();
@@ -2881,7 +2894,7 @@ void handleReturnToLobby()
 	ReturnToLobbyQueueLock.acquire();
 	if (hasReturnToLobby)
 	{
-		switchToMenu(selectedMenu_Lobby);
+		holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
 		g_ModuleInterface->CallBuiltin("room_restart", {});
 		g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });
 		g_ModuleInterface->CallBuiltin("instance_destroy", { playerManagerInstanceVar });
@@ -3280,6 +3293,11 @@ int sendAllRoomMessage()
 	char gameMode = static_cast<char>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "gameMode" }).m_Real));
 	messageRoom sendMessage = messageRoom(static_cast<char>(lround(room.m_Real)), gameMode);
 	sendMessage.serialize(inputMessage);
+
+	for (auto& player : lobbyPlayerDataMap)
+	{
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "player id %d char name %s", player.first, player.second.charName.data());
+	}
 
 	// TODO: Should probably do something to check if it's unable to send to only some sockets
 	for (auto& curClientIDMapping : clientIDToSteamIDMap)

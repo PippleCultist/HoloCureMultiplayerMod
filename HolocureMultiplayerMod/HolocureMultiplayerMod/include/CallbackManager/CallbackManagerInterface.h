@@ -30,6 +30,18 @@ struct CallbackManagerInterface : AurieInterfaceBase
 	);
 
 	/*
+	* Call this to register a routine that will run before the code event happens and another routine that will run after.
+	* This will run the code event after all before routines run and before any after routines run.
+	*/
+	virtual AurieStatus RegisterCodeEventCallback(
+		IN const std::string& ModName,
+		IN const std::string& CodeEventName,
+		IN CodeEvent BeforeCodeEventRoutine,
+		IN CodeEvent AfterCodeEventRoutine,
+		OUT int& CodeEventIndex
+	);
+
+	/*
 	* Call this to register a routine that will run before the script function happens and another routine that will run after.
 	* This will run the script function after all before routines run and before any after routines run.
 	*/
@@ -42,6 +54,19 @@ struct CallbackManagerInterface : AurieInterfaceBase
 	);
 
 	/*
+	* Call this to register a routine that will run before the script function happens and another routine that will run after.
+	* This will run the script function after all before routines run and before any after routines run.
+	*/
+	virtual AurieStatus RegisterScriptFunctionCallback(
+		IN const std::string& ModName,
+		IN const std::string& ScriptFunctionName,
+		IN PFUNC_YYGMLScript BeforeScriptFunctionRoutine,
+		IN PFUNC_YYGMLScript AfterScriptFunctionRoutine,
+		OUT PFUNC_YYGMLScript* OriginalScriptFunctionRoutine,
+		OUT int& ScriptFunctionIndex
+	);
+
+	/*
 	* Call this to register a routine that will run before the builtin function happens and another routine that will run after.
 	* This will run the script function after all before routines run and before any after routines run.
 	*/
@@ -51,6 +76,55 @@ struct CallbackManagerInterface : AurieInterfaceBase
 		IN TRoutine BeforeBuiltinFunctionRoutine,
 		IN TRoutine AfterBuiltinFunctionRoutine,
 		OUT TRoutine* OriginalBuiltinFunctionRoutine
+	);
+
+	/*
+	* Call this to register a routine that will run before the builtin function happens and another routine that will run after.
+	* This will run the script function after all before routines run and before any after routines run.
+	*/
+	virtual AurieStatus RegisterBuiltinFunctionCallback(
+		IN const std::string& ModName,
+		IN const std::string& BuiltinFunctionName,
+		IN TRoutine BeforeBuiltinFunctionRoutine,
+		IN TRoutine AfterBuiltinFunctionRoutine,
+		OUT TRoutine* OriginalBuiltinFunctionRoutine,
+		OUT int& BuiltinFunctionIndex
+	);
+
+	/*
+	* Call this to get the current Code Event index/name
+	*/
+	virtual AurieStatus GetCurrentCodeEventInfo(
+		IN const std::string& ModName,
+		OUT const char** CodeEventName,
+		OUT int& CodeEventIndex
+	);
+
+	/*
+	* Call this to get the current Script Function index/name
+	*/
+	virtual AurieStatus GetCurrentScriptFunctionInfo(
+		IN const std::string& ModName,
+		OUT const char** ScriptFunctionName,
+		OUT int& ScriptFunctionIndex
+	);
+
+	/*
+	* Call this to get the current Builtin Function index/name
+	*/
+	virtual AurieStatus GetCurrentBuiltinFunctionInfo(
+		IN const std::string& ModName,
+		OUT const char** BuiltinFunctionName,
+		OUT int& BuiltinFunctionIndex
+	);
+
+	/*
+	* Call this to log to the Logs file in the game's directory
+	*/
+	virtual AurieStatus LogToFile(
+		IN const std::string& ModName,
+		IN const char* LogFormat,
+		...
 	);
 
 	/*

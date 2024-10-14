@@ -9,6 +9,7 @@
 #include <random>
 #include <thread>
 
+extern menuGrid lobbyMenuGrid;
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
@@ -64,9 +65,11 @@ CSteamHost::CSteamHost(bool isNewLobby)
 		// create the poll group
 //		m_hNetPollGroup = SteamNetworkingSockets()->CreatePollGroup();
 		g_ModuleInterface->Print(CM_BLUE, "Finished initializing host");
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Initializing host");
 
 		if (isNewLobby)
 		{
+			callbackManagerInterfacePtr->LogToFile(MODNAME, "Creating lobby");
 			SteamAPICall_t hSteamAPICall = SteamMatchmaking()->CreateLobby(k_ELobbyTypeFriendsOnly, MAX_PLAYERS_PER_LOBBY);
 			// set the function to call when this completes
 			m_SteamCallResultLobbyCreated.Set(hSteamAPICall, this, &CSteamHost::OnLobbyCreated);
@@ -100,6 +103,7 @@ void CSteamHost::OnLobbyCreated(LobbyCreated_t* pCallback, bool bIOFailure)
 		// set the name of the lobby if it's ours
 //		char rgchLobbyName[256];
 //		sprintf_safe(rgchLobbyName, "%s's lobby", SteamFriends()->GetPersonaName());
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Lobby created");
 		printf("Setting lobby data\n");
 		// TODO: Probably should improve on the lobby name
 		// Currently just generate a random number for the lobby name
@@ -111,6 +115,7 @@ void CSteamHost::OnLobbyCreated(LobbyCreated_t* pCallback, bool bIOFailure)
 
 		if (SteamMatchmaking()->GetLobbyOwner(pCallback->m_ulSteamIDLobby) != SteamUser()->GetSteamID())
 		{
+			callbackManagerInterfacePtr->LogToFile(MODNAME, "Lobby owner doesn't match current steam id. Potential issue with steamworks not giving the correct lobby id.");
 			g_ModuleInterface->PrintWarning("Lobby owner doesn't match current steam id. Potential issue with steamworks not giving the correct lobby id.");
 		}
 
@@ -118,7 +123,7 @@ void CSteamHost::OnLobbyCreated(LobbyCreated_t* pCallback, bool bIOFailure)
 		SteamFriends()->SetRichPresence("connect", std::format("+connect_lobby {}", pCallback->m_ulSteamIDLobby).c_str());
 
 		steamLobbyBrowser->setSteamLobbyID(pCallback->m_ulSteamIDLobby);
-		switchToMenu(selectedMenu_Lobby);
+		holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
 		// TODO: Problem is if the lobby owner is keeping track of the ids of each player, then that information will be lost if they leave the lobby
 		// TODO: Might need to assign a new owner and give the ids to them? Problem is if there is a bad actor that gets assigned as the owner
 		// TODO: I guess for now since it's a friend lobby, showing the steam name directly is okay.
@@ -129,6 +134,7 @@ void CSteamHost::OnLobbyCreated(LobbyCreated_t* pCallback, bool bIOFailure)
 	else
 	{
 		// failed, show error
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to create lobby (lost connection to Steam back-end servers.");
 		g_ModuleInterface->Print(CM_RED, "Failed to create lobby (lost connection to Steam back-end servers.");
 		//		SetGameState(k_EClientGameConnectionFailure);
 	}
@@ -164,6 +170,7 @@ void CSteamHost::OnNetConnectionStatusChanged(SteamNetConnectionStatusChangedCal
 				EResult res = SteamNetworkingSockets()->AcceptConnection(hConn);
 				if (res != k_EResultOK)
 				{
+					callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to accept connection");
 					g_ModuleInterface->Print(CM_RED, "Failed to accept connection");
 					SteamNetworkingSockets()->CloseConnection(hConn, k_ESteamNetConnectionEnd_AppException_Generic, "Failed to accept connection", false);
 					return;
@@ -189,15 +196,18 @@ void CSteamHost::OnNetConnectionStatusChanged(SteamNetConnectionStatusChangedCal
 					hasConnected = true;
 					messageHandlerThread = std::thread(hostReceiveMessageHandler);
 				}
+				callbackManagerInterfacePtr->LogToFile(MODNAME, "Successfully accepted connection");
 				printf("Successfully accepted connection\n");
 			}
 			else
 			{
+				callbackManagerInterfacePtr->LogToFile(MODNAME, "Client is trying to connect again");
 				printf("Client %llu is trying to connect again", steamClientID.ConvertToUint64());
 			}
 		}
 		else
 		{
+			callbackManagerInterfacePtr->LogToFile(MODNAME, "Connection rejected from client");
 			g_ModuleInterface->Print(CM_RED, "Connection rejected from %llu", steamClientID.ConvertToUint64());
 		}
 		// Connection from a new client

@@ -239,5 +239,8 @@
     <ClInclude Include="source\SteamAPIWrapper.h">
       <Filter>Hlavičkové soubory</Filter>
     </ClInclude>
+    <ClInclude Include="include\HoloCureMenuInterface\HoloCureMenuInterface.h">
+      <Filter>Hlavičkové soubory</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

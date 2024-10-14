@@ -694,32 +694,67 @@ int messageInstancesUpdate::receiveMessage(uint32_t playerID)
 	for (int i = 0; i < numInstances; i++)
 	{
 		instanceData& curInstance = data[i];
-		char xPosArr[4];
-		if ((result = receiveBytesFromPlayer(playerID, xPosArr, sizeof(xPosArr))) <= 0)
-		{
-			return result;
-		}
+		
 		int startBufferPos = 0;
-		readByteBufferToFloat(&curInstance.xPos, xPosArr, startBufferPos);
-		messageLen += result;
-
-		char yPosArr[4];
-		if ((result = receiveBytesFromPlayer(playerID, yPosArr, sizeof(yPosArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, &curInstance.hasVarChanged, sizeof(curInstance.hasVarChanged))) <= 0)
 		{
 			return result;
 		}
-		startBufferPos = 0;
-		readByteBufferToFloat(&curInstance.yPos, yPosArr, startBufferPos);
-		messageLen += result;
+		messageLen++;
 
-		char spriteIndexArr[2];
-		if ((result = receiveBytesFromPlayer(playerID, spriteIndexArr, sizeof(spriteIndexArr))) <= 0)
+		if ((data[i].hasVarChanged & 0b001) != 0)
 		{
-			return result;
+			char xPosArr[4];
+			if ((result = receiveBytesFromPlayer(playerID, xPosArr, sizeof(xPosArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToFloat(&curInstance.xPos, xPosArr, startBufferPos);
+			messageLen += result;
+
+			char yPosArr[4];
+			if ((result = receiveBytesFromPlayer(playerID, yPosArr, sizeof(yPosArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToFloat(&curInstance.yPos, yPosArr, startBufferPos);
+			messageLen += result;
 		}
-		startBufferPos = 0;
-		readByteBufferToShort(&curInstance.spriteIndex, spriteIndexArr, startBufferPos);
-		messageLen += result;
+
+		if ((data[i].hasVarChanged & 0b010) != 0)
+		{
+			char imageXScaleArr[4];
+			if ((result = receiveBytesFromPlayer(playerID, imageXScaleArr, sizeof(imageXScaleArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToFloat(&curInstance.imageXScale, imageXScaleArr, startBufferPos);
+			messageLen += result;
+
+			char imageYScaleArr[4];
+			if ((result = receiveBytesFromPlayer(playerID, imageYScaleArr, sizeof(imageYScaleArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToFloat(&curInstance.imageYScale, imageYScaleArr, startBufferPos);
+			messageLen += result;
+		}
+
+		if ((data[i].hasVarChanged & 0b100) != 0)
+		{
+			char spriteIndexArr[2];
+			if ((result = receiveBytesFromPlayer(playerID, spriteIndexArr, sizeof(spriteIndexArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToShort(&curInstance.spriteIndex, spriteIndexArr, startBufferPos);
+			messageLen += result;
+		}
 
 		char instanceIDArr[2];
 		if ((result = receiveBytesFromPlayer(playerID, instanceIDArr, sizeof(instanceIDArr))) <= 0)
@@ -752,34 +787,91 @@ int messageAttackUpdate::receiveMessage(uint32_t playerID)
 	for (int i = 0; i < numAttacks; i++)
 	{
 		attackData& curAttack = data[i];
-		char xPosArr[4];
-		if ((result = receiveBytesFromPlayer(playerID, xPosArr, sizeof(xPosArr))) <= 0)
+		if ((result = receiveBytesFromPlayer(playerID, &curAttack.hasVarChanged, sizeof(curAttack.hasVarChanged))) <= 0)
 		{
 			return result;
 		}
+		messageLen++;
+
 		int startBufferPos = 0;
-		readByteBufferToFloat(&curAttack.xPos, xPosArr, startBufferPos);
-		messageLen += result;
-
-		char yPosArr[4];
-		if ((result = receiveBytesFromPlayer(playerID, yPosArr, sizeof(yPosArr))) <= 0)
+		if ((data[i].hasVarChanged & 0b00001) != 0)
 		{
-			return result;
-		}
-		startBufferPos = 0;
-		readByteBufferToFloat(&curAttack.yPos, yPosArr, startBufferPos);
-		messageLen += result;
+			char xPosArr[4];
+			if ((result = receiveBytesFromPlayer(playerID, xPosArr, sizeof(xPosArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToFloat(&curAttack.xPos, xPosArr, startBufferPos);
+			messageLen += result;
 
-		char imageAngleApproxArr[2];
-		if ((result = receiveBytesFromPlayer(playerID, imageAngleApproxArr, sizeof(imageAngleApproxArr))) <= 0)
-		{
-			return result;
+			char yPosArr[4];
+			if ((result = receiveBytesFromPlayer(playerID, yPosArr, sizeof(yPosArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToFloat(&curAttack.yPos, yPosArr, startBufferPos);
+			messageLen += result;
 		}
-		startBufferPos = 0;
-		short imageAngleApprox = 0;
-		readByteBufferToShort(&imageAngleApprox, imageAngleApproxArr, startBufferPos);
-		curAttack.imageAngle = imageAngleApprox / 10.0f;
-		messageLen += result;
+
+		if ((data[i].hasVarChanged & 0b00010) != 0)
+		{
+			char imageAngleApproxArr[2];
+			if ((result = receiveBytesFromPlayer(playerID, imageAngleApproxArr, sizeof(imageAngleApproxArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			short imageAngleApprox = 0;
+			readByteBufferToShort(&imageAngleApprox, imageAngleApproxArr, startBufferPos);
+			curAttack.imageAngle = imageAngleApprox / 10.0f;
+			messageLen += result;
+		}
+
+		if ((data[i].hasVarChanged & 0b00100) != 0)
+		{
+			char imageAlphaApprox = 0;
+			if ((result = receiveBytesFromPlayer(playerID, &imageAlphaApprox, sizeof(imageAlphaApprox))) <= 0)
+			{
+				return result;
+			}
+			curAttack.imageAlpha = ((static_cast<int>(imageAlphaApprox) + 256) % 256) / 256.0f;
+			messageLen++;
+		}
+
+		if ((data[i].hasVarChanged & 0b01000) != 0)
+		{
+			char imageXScaleArr[4];
+			if ((result = receiveBytesFromPlayer(playerID, imageXScaleArr, sizeof(imageXScaleArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToFloat(&curAttack.imageXScale, imageXScaleArr, startBufferPos);
+			messageLen += result;
+
+			char imageYScaleArr[4];
+			if ((result = receiveBytesFromPlayer(playerID, imageYScaleArr, sizeof(imageYScaleArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToFloat(&curAttack.imageYScale, imageYScaleArr, startBufferPos);
+			messageLen += result;
+		}
+
+		if ((data[i].hasVarChanged & 0b10000) != 0)
+		{
+			char spriteIndexArr[2];
+			if ((result = receiveBytesFromPlayer(playerID, spriteIndexArr, sizeof(spriteIndexArr))) <= 0)
+			{
+				return result;
+			}
+			startBufferPos = 0;
+			readByteBufferToShort(&curAttack.spriteIndex, spriteIndexArr, startBufferPos);
+			messageLen += result;
+		}
 
 		char instanceIDArr[2];
 		if ((result = receiveBytesFromPlayer(playerID, instanceIDArr, sizeof(instanceIDArr))) <= 0)
@@ -789,14 +881,6 @@ int messageAttackUpdate::receiveMessage(uint32_t playerID)
 		startBufferPos = 0;
 		readByteBufferToShort(&curAttack.instanceID, instanceIDArr, startBufferPos);
 		messageLen += result;
-
-		char imageAlphaApprox = 0;
-		if ((result = receiveBytesFromPlayer(playerID, &imageAlphaApprox, sizeof(imageAlphaApprox))) <= 0)
-		{
-			return result;
-		}
-		curAttack.imageAlpha = ((static_cast<int>(imageAlphaApprox) + 256) % 256) / 256.0f;
-		messageLen++;
 
 		if ((result = receiveBytesFromPlayer(playerID, &curAttack.truncatedImageIndex, sizeof(curAttack.truncatedImageIndex))) <= 0)
 		{

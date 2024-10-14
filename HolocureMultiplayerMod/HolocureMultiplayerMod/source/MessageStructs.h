@@ -137,6 +137,7 @@ int receiveString(uint32_t playerID, std::string* outputString);
 int receiveStringView(uint32_t playerID, std::string_view* outputString);
 
 // Probably should optimize this/make a separate struct for the updates
+// TODO: Improve this by reducing the xPos,yPos to a diff + round + truncate.
 struct instanceData
 {
 	float xPos;
@@ -146,13 +147,14 @@ struct instanceData
 	short spriteIndex;
 	short instanceID;
 	char truncatedImageIndex;
+	char hasVarChanged;
 
-	instanceData() : xPos(0), yPos(0), imageXScale(0), imageYScale(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0)
+	instanceData() : xPos(0), yPos(0), imageXScale(0), imageYScale(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0), hasVarChanged(0)
 	{
 	}
 
-	instanceData(float xPos, float yPos, float imageXScale, float imageYScale, short spriteIndex, short instanceID, char truncatedImageIndex) :
-		xPos(xPos), yPos(yPos), imageXScale(imageXScale), imageYScale(imageYScale), spriteIndex(spriteIndex), instanceID(instanceID), truncatedImageIndex(truncatedImageIndex)
+	instanceData(float xPos, float yPos, float imageXScale, float imageYScale, short spriteIndex, short instanceID, char truncatedImageIndex, char hasVarChanged) :
+		xPos(xPos), yPos(yPos), imageXScale(imageXScale), imageYScale(imageYScale), spriteIndex(spriteIndex), instanceID(instanceID), truncatedImageIndex(truncatedImageIndex), hasVarChanged(hasVarChanged)
 	{
 	}
 };
@@ -233,9 +235,21 @@ struct messageInstancesUpdate
 		writeCharToByteBuffer(messageBuffer, numInstances, startBufferPos);
 		for (int i = 0; i < numInstances; i++)
 		{
-			writeFloatToByteBuffer(messageBuffer, data[i].xPos, startBufferPos);
-			writeFloatToByteBuffer(messageBuffer, data[i].yPos, startBufferPos);
-			writeShortToByteBuffer(messageBuffer, data[i].spriteIndex, startBufferPos);
+			writeCharToByteBuffer(messageBuffer, data[i].hasVarChanged, startBufferPos);
+			if ((data[i].hasVarChanged & 0b001) != 0)
+			{
+				writeFloatToByteBuffer(messageBuffer, data[i].xPos, startBufferPos);
+				writeFloatToByteBuffer(messageBuffer, data[i].yPos, startBufferPos);
+			}
+			if ((data[i].hasVarChanged & 0b010) != 0)
+			{
+				writeFloatToByteBuffer(messageBuffer, data[i].imageXScale, startBufferPos);
+				writeFloatToByteBuffer(messageBuffer, data[i].imageYScale, startBufferPos);
+			}
+			if ((data[i].hasVarChanged & 0b100) != 0)
+			{
+				writeShortToByteBuffer(messageBuffer, data[i].spriteIndex, startBufferPos);
+			}
 			writeShortToByteBuffer(messageBuffer, data[i].instanceID, startBufferPos);
 			writeCharToByteBuffer(messageBuffer, data[i].truncatedImageIndex, startBufferPos);
 		}
@@ -248,12 +262,27 @@ struct messageInstancesUpdate
 		curMessageSize++;
 
 		size_t instanceDataSize = 0;
-		instanceDataSize += 4;
-		instanceDataSize += 4;
-		instanceDataSize += 2;
-		instanceDataSize += 2;
-		instanceDataSize++;
-		instanceDataSize *= numInstances;
+		for (int i = 0; i < numInstances; i++)
+		{
+			char hasVarChanged = data[i].hasVarChanged;
+			instanceDataSize++;
+			if ((hasVarChanged & 0b001) != 0)
+			{
+				instanceDataSize += 4;
+				instanceDataSize += 4;
+			}
+			if ((hasVarChanged & 0b010) != 0)
+			{
+				instanceDataSize += 4;
+				instanceDataSize += 4;
+			}
+			if ((hasVarChanged & 0b100) != 0)
+			{
+				instanceDataSize += 2;
+			}
+			instanceDataSize += 2;
+			instanceDataSize++;
+		}
 		curMessageSize += instanceDataSize;
 
 		return curMessageSize;
@@ -310,13 +339,14 @@ struct attackData
 	short spriteIndex;
 	short instanceID;
 	char truncatedImageIndex;
+	char hasVarChanged;
 
-	attackData() : xPos(0), yPos(0), imageXScale(0), imageYScale(0), imageAngle(0), imageAlpha(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0)
+	attackData() : xPos(0), yPos(0), imageXScale(0), imageYScale(0), imageAngle(0), imageAlpha(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0), hasVarChanged(0)
 	{
 	}
 
-	attackData(float xPos, float yPos, float imageXScale, float imageYScale, float imageAngle, float imageAlpha, short spriteIndex, short instanceID, char truncatedImageIndex) :
-		xPos(xPos), yPos(yPos), imageXScale(imageXScale), imageYScale(imageYScale), imageAngle(imageAngle), imageAlpha(imageAlpha), spriteIndex(spriteIndex), instanceID(instanceID), truncatedImageIndex(truncatedImageIndex)
+	attackData(float xPos, float yPos, float imageXScale, float imageYScale, float imageAngle, float imageAlpha, short spriteIndex, short instanceID, char truncatedImageIndex, char hasVarChanged) :
+		xPos(xPos), yPos(yPos), imageXScale(imageXScale), imageYScale(imageYScale), imageAngle(imageAngle), imageAlpha(imageAlpha), spriteIndex(spriteIndex), instanceID(instanceID), truncatedImageIndex(truncatedImageIndex), hasVarChanged(hasVarChanged)
 	{
 	}
 };
@@ -401,13 +431,32 @@ struct messageAttackUpdate
 		writeCharToByteBuffer(messageBuffer, numAttacks, startBufferPos);
 		for (int i = 0; i < numAttacks; i++)
 		{
-			writeFloatToByteBuffer(messageBuffer, data[i].xPos, startBufferPos);
-			writeFloatToByteBuffer(messageBuffer, data[i].yPos, startBufferPos);
-			short imageAngleApprox = (static_cast<int>(data[i].imageAngle * 10) % 3600 + 3600) % 3600;
-			writeShortToByteBuffer(messageBuffer, imageAngleApprox, startBufferPos);
+			writeCharToByteBuffer(messageBuffer, data[i].hasVarChanged, startBufferPos);
+			if ((data[i].hasVarChanged & 0b00001) != 0)
+			{
+				writeFloatToByteBuffer(messageBuffer, data[i].xPos, startBufferPos);
+				writeFloatToByteBuffer(messageBuffer, data[i].yPos, startBufferPos);
+			}
+			if ((data[i].hasVarChanged & 0b00010) != 0)
+			{
+				short imageAngleApprox = (static_cast<int>(data[i].imageAngle * 10) % 3600 + 3600) % 3600;
+				writeShortToByteBuffer(messageBuffer, imageAngleApprox, startBufferPos);
+			}
+			if ((data[i].hasVarChanged & 0b00100) != 0)
+			{
+				char imageAlphaApprox = static_cast<char>(data[i].imageAlpha * 255);
+				writeCharToByteBuffer(messageBuffer, imageAlphaApprox, startBufferPos);
+			}
+			if ((data[i].hasVarChanged & 0b01000) != 0)
+			{
+				writeFloatToByteBuffer(messageBuffer, data[i].imageXScale, startBufferPos);
+				writeFloatToByteBuffer(messageBuffer, data[i].imageYScale, startBufferPos);
+			}
+			if ((data[i].hasVarChanged & 0b10000) != 0)
+			{
+				writeShortToByteBuffer(messageBuffer, data[i].spriteIndex, startBufferPos);
+			}
 			writeShortToByteBuffer(messageBuffer, data[i].instanceID, startBufferPos);
-			char imageAlphaApprox = static_cast<char>(data[i].imageAlpha * 255);
-			writeCharToByteBuffer(messageBuffer, imageAlphaApprox, startBufferPos);
 			writeCharToByteBuffer(messageBuffer, data[i].truncatedImageIndex, startBufferPos);
 		}
 	}
@@ -419,13 +468,35 @@ struct messageAttackUpdate
 		curMessageSize++;
 
 		size_t instanceDataSize = 0;
-		instanceDataSize += 4;
-		instanceDataSize += 4;
-		instanceDataSize += 2;
-		instanceDataSize += 2;
-		instanceDataSize++;
-		instanceDataSize++;
-		instanceDataSize *= numAttacks;
+		for (int i = 0; i < numAttacks; i++)
+		{
+			char hasVarChanged = data[i].hasVarChanged;
+			instanceDataSize++;
+			if ((hasVarChanged & 0b00001) != 0)
+			{
+				instanceDataSize += 4;
+				instanceDataSize += 4;
+			}
+			if ((hasVarChanged & 0b00010) != 0)
+			{
+				instanceDataSize += 2;
+			}
+			if ((hasVarChanged & 0b00100) != 0)
+			{
+				instanceDataSize += 1;
+			}
+			if ((hasVarChanged & 0b01000) != 0)
+			{
+				instanceDataSize += 4;
+				instanceDataSize += 4;
+			}
+			if ((hasVarChanged & 0b10000) != 0)
+			{
+				instanceDataSize += 2;
+			}
+			instanceDataSize += 2;
+			instanceDataSize++;
+		}
 		curMessageSize += instanceDataSize;
 
 		return curMessageSize;

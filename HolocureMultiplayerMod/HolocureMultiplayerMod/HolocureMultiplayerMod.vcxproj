@@ -160,6 +160,7 @@
     <ClInclude Include="include\Aurie\shared.hpp" />
     <ClInclude Include="include\CallbackManager\CallbackManagerInterface.h" />
     <ClInclude Include="include\FunctionWrapper\FunctionWrapper.hpp" />
+    <ClInclude Include="include\HoloCureMenuInterface\HoloCureMenuInterface.h" />
     <ClInclude Include="include\steam\isteamapplist.h" />
     <ClInclude Include="include\steam\isteamapps.h" />
     <ClInclude Include="include\steam\isteamappticket.h" />

@@ -2,7 +2,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.1.5"
+#define VERSION_NUM "v1.1.6"
 #define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
 #define BROADCAST_PORT "27015"
 #define GAME_PORT "27016"
@@ -169,6 +169,7 @@
 	DO(stageSprite) \
 	DO(gameOvered) \
 	DO(gameWon) \
+	DO(gameDone) \
 	DO(gameOverTime) \
 	DO(pauseOption) \
 	DO(enabledSpawner) \
@@ -202,6 +203,8 @@
 	DO(isMoving) \
 	DO(availableWeaponCollabs) \
 	DO(weaponCollabs) \
+	DO(isPlayer) \
+	DO(origPlayerCreator) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -316,5 +319,12 @@ extern char broadcastAddressBuffer[16];
 extern TRoutine origStructGetFromHashFunc;
 extern TRoutine origStructSetFromHashFunc;
 extern TRoutine origSpriteDeleteScript;
+
+template<typename... Args>
+void LogPrint(YYTK::CmColor Color, const char* LogFormat, Args... args)
+{
+	callbackManagerInterfacePtr->LogToFile(MODNAME, LogFormat, args...);
+	g_ModuleInterface->Print(Color, LogFormat, args...);
+}
 
 std::string ConvertLPCWSTRToString(LPCWSTR lpcwszStr);

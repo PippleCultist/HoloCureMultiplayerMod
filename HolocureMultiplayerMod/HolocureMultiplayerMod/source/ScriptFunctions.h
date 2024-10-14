@@ -80,8 +80,6 @@ struct steamConnection
 	int curBytePos;
 };
 
-void switchToMenu(selectedMenuID menuID);
-
 void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, uint32_t playerIndex);
 optionType convertStringOptionTypeToEnum(RValue optionType);
 

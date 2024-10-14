@@ -8,6 +8,7 @@
 #include "SteamHost.h"
 #include <thread>
 
+extern menuGrid lobbyMenuGrid;
 extern CSteamHost* steamHost;
 extern bool hasJoinedSteamLobby;
 extern std::thread messageHandlerThread;
@@ -194,7 +195,7 @@ void CSteamLobbyBrowser::OnLobbyChatUpdate(LobbyChatUpdate_t* pCallback)
 		lobbyPlayerDataMap[0] = lobbyPlayerData();
 		// TODO: Let the host decide their own name eventually
 		lobbyPlayerDataMap[0].playerName = "0";
-		switchToMenu(selectedMenu_Lobby);
+		holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
 	}
 	if (numClientsInGame >= 0)
 	{
@@ -209,6 +210,7 @@ void CSteamLobbyBrowser::OnLobbyChatUpdate(LobbyChatUpdate_t* pCallback)
 		}
 	}
 
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "Lobby chat update");
 	printf("Lobby chat update\n");
 	int cLobbyMembers = SteamMatchmaking()->GetNumLobbyMembers(steamLobbyID);
 	m_lobbyMemberList.clear();
@@ -243,6 +245,7 @@ void CSteamLobbyBrowser::OnLobbyEntered(LobbyEnter_t* pCallback, bool bIOFailure
 	if (pCallback->m_EChatRoomEnterResponse != k_EChatRoomEnterResponseSuccess)
 	{
 		// failed, show error
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to enter lobby");
 		g_ModuleInterface->Print(CM_RED, "Failed to enter lobby");
 		return;
 	}
@@ -294,6 +297,7 @@ void CSteamLobbyBrowser::OnNetConnectionStatusChanged(SteamNetConnectionStatusCh
 	if ((m_eOldState == k_ESteamNetworkingConnectionState_Connecting || m_eOldState == k_ESteamNetworkingConnectionState_FindingRoute) && m_info.m_eState == k_ESteamNetworkingConnectionState_Connected)
 	{
 		printf("Connected to Host\n");
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Connected to Host");
 		// Just to make sure that the thread has ended before trying to create a new thread
 		hasConnected = false;
 		if (messageHandlerThread.joinable())
@@ -332,6 +336,7 @@ void CSteamLobbyBrowser::OnNetConnectionStatusChanged(SteamNetConnectionStatusCh
 		m_info.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally)
 	{
 		// failed, error out
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to make P2P connection, quiting server");
 		g_ModuleInterface->Print(CM_RED, "Failed to make P2P connection, quiting server");
 		SteamNetworkingSockets()->CloseConnection(m_hConn, m_info.m_eEndReason, nullptr, false);
 //		OnReceiveServerExiting();
@@ -349,6 +354,7 @@ void CSteamLobbyBrowser::OnGameJoinRequested(GameRichPresenceJoinRequested_t* pC
 	const char* pchLobbyID = nullptr;
 
 	const char* pchCmdLine = pCallback->m_rgchConnect;
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "On game join requested");
 	printf("On game join requested %s\n", pchCmdLine);
 	const char* pchConnectLobbyParam = "+connect_lobby ";
 	const char* pchConnectLobby = strstr(pchCmdLine, pchConnectLobbyParam);
@@ -360,6 +366,7 @@ void CSteamLobbyBrowser::OnGameJoinRequested(GameRichPresenceJoinRequested_t* pC
 
 	if (pchLobbyID == nullptr)
 	{
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Couldn't find lobby id from connect_lobby");
 		g_ModuleInterface->Print(CM_RED, "Couldn't find lobby id from connect_lobby");
 	}
 	else
@@ -367,6 +374,7 @@ void CSteamLobbyBrowser::OnGameJoinRequested(GameRichPresenceJoinRequested_t* pC
 		// TODO: Bring the player directly to the lobby menu and connect to the lobby
 		CSteamID steamIDLobby(static_cast<uint64>(atoll(pchLobbyID)));
 		SteamMatchmaking()->JoinLobby(steamIDLobby);
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Joined lobby");
 		printf("Joined lobby\n");
 	}
 }
@@ -382,7 +390,7 @@ void CSteamLobbyBrowser::OnGameLobbyJoinRequested(GameLobbyJoinRequested_t* pCal
 	// TODO: Should probably check if the player is already in a lobby/other multiplayer menu
 	setSteamLobbyID(pCallback->m_steamIDLobby);
 	SteamMatchmaking()->JoinLobby(pCallback->m_steamIDLobby);
-	switchToMenu(selectedMenu_Lobby);
+	holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
 	hasJoinedSteamLobby = true;
 }
 
