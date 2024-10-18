@@ -476,7 +476,7 @@ void instanceSendMessage(CInstance* Self)
 		{
 			spriteIndex = 0;
 		}
-		instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, instanceID, truncatedImageIndex, 0);
+		instanceData data(xPos, yPos, 0, 0, imageXScale, imageYScale, spriteIndex, instanceID, truncatedImageIndex, 0, 1);
 		instanceToIDMap[Self] = data;
 		//			if (spriteIndex >= 0)
 		{
@@ -503,17 +503,26 @@ void instanceSendMessage(CInstance* Self)
 		// Mark dirty bits if anything has changed
 		if (abs(xPos - prevData.xPos) > 1e-3 || abs(yPos - prevData.yPos) > 1e-3)
 		{
-			hasVarChanged |= 0b001;
+			setBitInByte(hasVarChanged, 0);
+			// Determine if it should send exact
+			if (abs(xPos - prevData.xPos) > 32000 / 10 || abs(yPos - prevData.yPos) > 32000 / 10 || prevData.frameCount % 10 == 0)
+			{
+				setBitInByte(hasVarChanged, 1);
+			}
+			if (abs(xPos - prevData.xPos) > 127 / 10 || abs(yPos - prevData.yPos) > 127 / 10)
+			{
+				setBitInByte(hasVarChanged, 2);
+			}
 		}
 		if (abs(imageXScale - prevData.imageXScale) > 1e-3 || abs(imageYScale - prevData.imageYScale) > 1e-3)
 		{
-			hasVarChanged |= 0b010;
+			setBitInByte(hasVarChanged, 3);
 		}
 		if (spriteIndex != prevData.spriteIndex)
 		{
-			hasVarChanged |= 0b100;
+			setBitInByte(hasVarChanged, 4);
 		}
-		instanceData data(xPos, yPos, imageXScale, imageYScale, spriteIndex, prevData.instanceID, truncatedImageIndex, hasVarChanged);
+		instanceData data(xPos, yPos, static_cast<short>((xPos - prevData.xPos) * 10.0), static_cast<short>((yPos - prevData.yPos) * 10.0), imageXScale, imageYScale, spriteIndex, prevData.instanceID, truncatedImageIndex, hasVarChanged, prevData.frameCount + 1);
 		instanceToIDMap[Self] = data;
 		instancesUpdateMessage.addInstance(data);
 		if (instancesUpdateMessage.numInstances >= instanceUpdateDataLen)
@@ -765,7 +774,7 @@ void AttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 				// Probably should change this to uint16_t
 				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
 				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
-				attackData data(xPos, yPos, imageXScale, imageYScale, imageAngle, imageAlpha, spriteIndex, attackID, truncatedImageIndex, 0);
+				attackData data(xPos, yPos, 0, 0, imageXScale, imageYScale, imageAngle, imageAlpha, spriteIndex, attackID, truncatedImageIndex, 0, 1);
 				attackToIDMap[Self] = data;
 				attackCreateMessage.addAttack(data);
 				if (attackCreateMessage.numAttacks >= attackCreateDataLen)
@@ -792,25 +801,34 @@ void AttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 				// Mark dirty bits if anything has changed
 				if (abs(xPos - prevData.xPos) > 1e-3 || abs(yPos - prevData.yPos) > 1e-3)
 				{
-					hasVarChanged |= 0b00001;
+					setBitInByte(hasVarChanged, 0);
+					// Determine if it should send exact
+					if (abs(xPos - prevData.xPos) > 32000 / 10 || abs(yPos - prevData.yPos) > 32000 / 10 || prevData.frameCount % 10 == 0)
+					{
+						setBitInByte(hasVarChanged, 1);
+					}
+					if (abs(xPos - prevData.xPos) > 127 / 10 || abs(yPos - prevData.yPos) > 127 / 10)
+					{
+						setBitInByte(hasVarChanged, 2);
+					}
 				}
 				if (abs(imageAngle - prevData.imageAngle) > 1e-3)
 				{
-					hasVarChanged |= 0b00010;
+					setBitInByte(hasVarChanged, 3);
 				}
 				if (abs(imageAlpha - prevData.imageAlpha) > 1e-3)
 				{
-					hasVarChanged |= 0b00100;
+					setBitInByte(hasVarChanged, 4);
 				}
 				if (abs(imageXScale - prevData.imageXScale) > 1e-3 || abs(imageYScale - prevData.imageYScale) > 1e-3)
 				{
-					hasVarChanged |= 0b01000;
+					setBitInByte(hasVarChanged, 5);
 				}
 				if (spriteIndex != prevData.spriteIndex)
 				{
-					hasVarChanged |= 0b10000;
+					setBitInByte(hasVarChanged, 6);
 				}
-				attackData data(xPos, yPos, imageXScale, imageYScale, imageAngle, imageAlpha, spriteIndex, prevData.instanceID, truncatedImageIndex, hasVarChanged);
+				attackData data(xPos, yPos, static_cast<short>((xPos - prevData.xPos) * 10.0), static_cast<short>((yPos - prevData.yPos) * 10.0), imageXScale, imageYScale, imageAngle, imageAlpha, spriteIndex, prevData.instanceID, truncatedImageIndex, hasVarChanged, prevData.frameCount + 1);
 				attackToIDMap[Self] = data;
 				{
 					attackUpdateMessage.addAttack(data);

@@ -113,8 +113,8 @@ std::vector<std::shared_ptr<menuData>> lobbyMenuLobbyPlayerInviteList({
 	std::shared_ptr<menuData>(new menuDataButton(250, 14 + 29 * 8, 180, 20, "STEAMLOBBYMENU_LobbyPlayerInvite9", "Invite User", false, clickLobbySteamPlayerInvite, nullptr)),
 });
 
-std::shared_ptr<menuData> lobbyMenuLobbyChooseCharacter(new menuDataButton(440, 104 + 29 * 0, 180, 20, "LOBBYMENU_LobbyChooseCharacter", "Choose Character", true, clickLobbyChooseCharacter, nullptr));
-std::shared_ptr<menuData> lobbyMenuLobbyReady(new menuDataButton(440, 104 + 29 * 1, 180, 20, "LOBBYMENU_LobbyReady", "Ready", true, clickLobbyReady, nullptr));
+std::shared_ptr<menuData> lobbyMenuLobbyChooseCharacter(new menuDataButton(440, 104 + 29 * 0, 180, 20, "LOBBYMENU_LobbyChooseCharacter", "Choose Character", false, clickLobbyChooseCharacter, nullptr));
+std::shared_ptr<menuData> lobbyMenuLobbyReady(new menuDataButton(440, 104 + 29 * 1, 180, 20, "LOBBYMENU_LobbyReady", "Ready", false, clickLobbyReady, nullptr));
 std::shared_ptr<menuData> lobbyMenuLobbySelectMap(new menuDataButton(440, 104 + 29 * 2, 180, 20, "LOBBYMENU_SelectMap", "Select Map", false, clickLobbySelectMap, nullptr));
 std::shared_ptr<menuData> lobbyMenuLobbyStart(new menuDataButton(440, 104 + 29 * 3, 180, 20, "LOBBYMENU_Start", "Start", false, clickLobbyStart, nullptr));
 
@@ -608,6 +608,10 @@ void clickLobbyStart()
 
 void clickLobbySteamPlayer()
 {
+	if (!isHost)
+	{
+		return;
+	}
 	std::shared_ptr<menuData> selectedMenuData;
 	holoCureMenuInterfacePtr->GetSelectedMenuData(MODNAME, selectedMenuData);
 	int selectedSteamPlayerIndex = -1;
@@ -620,6 +624,12 @@ void clickLobbySteamPlayer()
 		}
 	}
 	curSelectedSteamID = steamLobbyBrowser->m_lobbyMemberList[selectedSteamPlayerIndex].m_steamIDMember;
+	// Don't enable the invite button if player is already in the lobby
+	if (steamIDToClientIDMap.find(curSelectedSteamID.ConvertToUint64()) != steamIDToClientIDMap.end())
+	{
+		curSelectedSteamID = CSteamID();
+		return;
+	}
 	
 	for (int i = 0; i < lobbyMenuLobbyPlayerInviteList.size(); i++)
 	{

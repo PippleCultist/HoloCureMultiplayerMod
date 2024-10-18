@@ -872,15 +872,6 @@ void handleInstanceUpdateMessage()
 		updateInstancesMessageQueue.pop();
 		updateInstancesMessageQueueLock.release();
 
-		std::vector<std::pair<double, double>> playerPosList(playerMap.size());
-		int count = 0;
-		for (auto& playerInstance : playerMap)
-		{
-			double xPos = getInstanceVariable(playerInstance.second, GML_x).m_Real;
-			double yPos = getInstanceVariable(playerInstance.second, GML_y).m_Real;
-			playerPosList[count] = std::make_pair(xPos, yPos);
-			count++;
-		}
 		for (int i = 0; i < curInstances.numInstances; i++)
 		{
 			instanceData curData = curInstances.data[i];
@@ -889,19 +880,31 @@ void handleInstanceUpdateMessage()
 				continue;
 			}
 			RValue instance = instanceArr[curData.instanceID];
-			if ((curData.hasVarChanged & 0b001) != 0)
+			if (checkBitInByte(curData.hasVarChanged, 0))
 			{
-				setInstanceVariable(instance, GML_x, RValue(curData.xPos));
-				setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+				if (checkBitInByte(curData.hasVarChanged, 1))
+				{
+					setInstanceVariable(instance, GML_x, RValue(curData.xPos));
+					setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+				}
+				else
+				{
+					double xPos = getInstanceVariable(instance, GML_x).m_Real;
+					double yPos = getInstanceVariable(instance, GML_y).m_Real;
+					xPos += curData.xPosDiff / 10.0;
+					yPos += curData.yPosDiff / 10.0;
+					setInstanceVariable(instance, GML_x, RValue(xPos));
+					setInstanceVariable(instance, GML_y, RValue(yPos));
+				}
 			}
 
-			if ((curData.hasVarChanged & 0b010) != 0)
+			if (checkBitInByte(curData.hasVarChanged, 3))
 			{
 				setInstanceVariable(instance, GML_image_xscale, RValue(curData.imageXScale));
 				setInstanceVariable(instance, GML_image_yscale, RValue(curData.imageYScale));
 			}
 			
-			if ((curData.hasVarChanged & 0b100) != 0)
+			if (checkBitInByte(curData.hasVarChanged, 4))
 			{
 				setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
 			}
@@ -1144,25 +1147,37 @@ void handleAttackUpdateMessage()
 			if (attackFind != attackMap.end())
 			{
 				RValue instance = attackFind->second;
-				if ((curData.hasVarChanged & 0b00001) != 0)
+				if (checkBitInByte(curData.hasVarChanged, 0))
 				{
-					setInstanceVariable(instance, GML_x, RValue(curData.xPos));
-					setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+					if (checkBitInByte(curData.hasVarChanged, 1))
+					{
+						setInstanceVariable(instance, GML_x, RValue(curData.xPos));
+						setInstanceVariable(instance, GML_y, RValue(curData.yPos));
+					}
+					else
+					{
+						double xPos = getInstanceVariable(instance, GML_x).m_Real;
+						double yPos = getInstanceVariable(instance, GML_y).m_Real;
+						xPos += curData.xPosDiff / 10.0;
+						yPos += curData.yPosDiff / 10.0;
+						setInstanceVariable(instance, GML_x, RValue(xPos));
+						setInstanceVariable(instance, GML_y, RValue(yPos));
+					}
 				}
-				if ((curData.hasVarChanged & 0b00010) != 0)
+				if (checkBitInByte(curData.hasVarChanged, 3))
 				{
 					setInstanceVariable(instance, GML_image_angle, RValue(curData.imageAngle));
 				}
-				if ((curData.hasVarChanged & 0b00100) != 0)
+				if (checkBitInByte(curData.hasVarChanged, 4))
 				{
 					setInstanceVariable(instance, GML_image_alpha, RValue(curData.imageAlpha));
 				}
-				if ((curData.hasVarChanged & 0b01000) != 0)
+				if (checkBitInByte(curData.hasVarChanged, 5))
 				{
 					setInstanceVariable(instance, GML_image_xscale, RValue(curData.imageXScale));
 					setInstanceVariable(instance, GML_image_yscale, RValue(curData.imageYScale));
 				}
-				if ((curData.hasVarChanged & 0b10000) != 0)
+				if (checkBitInByte(curData.hasVarChanged, 6))
 				{
 					setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
 				}
@@ -2894,6 +2909,7 @@ void handleReturnToLobby()
 	ReturnToLobbyQueueLock.acquire();
 	if (hasReturnToLobby)
 	{
+//		switchToMenu(selectedMenu_Lobby);
 		holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
 		g_ModuleInterface->CallBuiltin("room_restart", {});
 		g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });

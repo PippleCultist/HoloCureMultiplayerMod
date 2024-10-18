@@ -133,6 +133,25 @@ inline void readByteBufferToChar(char* outputChar, char* inputBuffer, int& start
 	startPos++;
 }
 
+inline bool checkBitInByte(char inputByte, int bitPos)
+{
+	if (bitPos >= 8)
+	{
+		LogPrint(CM_RED, "Trying to check index %d outside of valid byte range", bitPos);
+		return false;
+	}
+	return (inputByte & (1 << bitPos)) != 0;
+}
+
+inline void setBitInByte(char& inputByte, int bitPos)
+{
+	if (bitPos >= 8)
+	{
+		LogPrint(CM_RED, "Trying to set index %d outside of valid byte range", bitPos);
+	}
+	inputByte |= (1 << bitPos);
+}
+
 int receiveString(uint32_t playerID, std::string* outputString);
 int receiveStringView(uint32_t playerID, std::string_view* outputString);
 
@@ -142,19 +161,23 @@ struct instanceData
 {
 	float xPos;
 	float yPos;
+	short xPosDiff;
+	short yPosDiff;
 	float imageXScale;
 	float imageYScale;
 	short spriteIndex;
 	short instanceID;
 	char truncatedImageIndex;
 	char hasVarChanged;
+	int frameCount;
 
-	instanceData() : xPos(0), yPos(0), imageXScale(0), imageYScale(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0), hasVarChanged(0)
+	instanceData() : xPos(0), yPos(0), xPosDiff(0), yPosDiff(0), imageXScale(0), imageYScale(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0), hasVarChanged(0), frameCount(1)
 	{
 	}
 
-	instanceData(float xPos, float yPos, float imageXScale, float imageYScale, short spriteIndex, short instanceID, char truncatedImageIndex, char hasVarChanged) :
-		xPos(xPos), yPos(yPos), imageXScale(imageXScale), imageYScale(imageYScale), spriteIndex(spriteIndex), instanceID(instanceID), truncatedImageIndex(truncatedImageIndex), hasVarChanged(hasVarChanged)
+	instanceData(float xPos, float yPos, short xPosDiff, short yPosDiff, float imageXScale, float imageYScale, short spriteIndex, short instanceID, char truncatedImageIndex, char hasVarChanged, int frameCount) :
+		xPos(xPos), yPos(yPos), xPosDiff(xPosDiff), yPosDiff(yPosDiff), imageXScale(imageXScale), imageYScale(imageYScale), spriteIndex(spriteIndex),
+		instanceID(instanceID), truncatedImageIndex(truncatedImageIndex), hasVarChanged(hasVarChanged), frameCount(frameCount)
 	{
 	}
 };
@@ -212,6 +235,12 @@ struct messageInstancesCreate
 
 const int instanceUpdateDataLen = 20;
 
+// hasVarChanged
+// byte 0 - has position changed
+// byte 1 - is position update a diff or exact (0 = diff) (1 = exact)
+// byte 2 - is diff using byte or short (0 = byte) (1 = short)
+// byte 3 - has image scale changed
+// byte 4 - has sprite index changed
 struct messageInstancesUpdate
 {
 	instanceData data[instanceUpdateDataLen]{};
@@ -236,17 +265,36 @@ struct messageInstancesUpdate
 		for (int i = 0; i < numInstances; i++)
 		{
 			writeCharToByteBuffer(messageBuffer, data[i].hasVarChanged, startBufferPos);
-			if ((data[i].hasVarChanged & 0b001) != 0)
+			// Check if position has changed
+			if (checkBitInByte(data[i].hasVarChanged, 0))
 			{
-				writeFloatToByteBuffer(messageBuffer, data[i].xPos, startBufferPos);
-				writeFloatToByteBuffer(messageBuffer, data[i].yPos, startBufferPos);
+				// Check if position is exact or diff
+				if (checkBitInByte(data[i].hasVarChanged, 1))
+				{
+					writeFloatToByteBuffer(messageBuffer, data[i].xPos, startBufferPos);
+					writeFloatToByteBuffer(messageBuffer, data[i].yPos, startBufferPos);
+				}
+				else
+				{
+					// Check if diff is short or byte
+					if (checkBitInByte(data[i].hasVarChanged, 2))
+					{
+						writeShortToByteBuffer(messageBuffer, data[i].xPosDiff, startBufferPos);
+						writeShortToByteBuffer(messageBuffer, data[i].yPosDiff, startBufferPos);
+					}
+					else
+					{
+						writeCharToByteBuffer(messageBuffer, static_cast<char>(data[i].xPosDiff), startBufferPos);
+						writeCharToByteBuffer(messageBuffer, static_cast<char>(data[i].yPosDiff), startBufferPos);
+					}
+				}
 			}
-			if ((data[i].hasVarChanged & 0b010) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 3))
 			{
 				writeFloatToByteBuffer(messageBuffer, data[i].imageXScale, startBufferPos);
 				writeFloatToByteBuffer(messageBuffer, data[i].imageYScale, startBufferPos);
 			}
-			if ((data[i].hasVarChanged & 0b100) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 4))
 			{
 				writeShortToByteBuffer(messageBuffer, data[i].spriteIndex, startBufferPos);
 			}
@@ -266,17 +314,35 @@ struct messageInstancesUpdate
 		{
 			char hasVarChanged = data[i].hasVarChanged;
 			instanceDataSize++;
-			if ((hasVarChanged & 0b001) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 0))
+			{
+				// Check if position is exact or diff
+				if (checkBitInByte(data[i].hasVarChanged, 1))
+				{
+					instanceDataSize += 4;
+					instanceDataSize += 4;
+				}
+				else
+				{
+					// Check if diff is short or byte
+					if (checkBitInByte(data[i].hasVarChanged, 2))
+					{
+						instanceDataSize += 2;
+						instanceDataSize += 2;
+					}
+					else
+					{
+						instanceDataSize++;
+						instanceDataSize++;
+					}
+				}
+			}
+			if (checkBitInByte(data[i].hasVarChanged, 3))
 			{
 				instanceDataSize += 4;
 				instanceDataSize += 4;
 			}
-			if ((hasVarChanged & 0b010) != 0)
-			{
-				instanceDataSize += 4;
-				instanceDataSize += 4;
-			}
-			if ((hasVarChanged & 0b100) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 4))
 			{
 				instanceDataSize += 2;
 			}
@@ -332,6 +398,8 @@ struct attackData
 {
 	float xPos;
 	float yPos;
+	short xPosDiff;
+	short yPosDiff;
 	float imageXScale;
 	float imageYScale;
 	float imageAngle;
@@ -340,13 +408,15 @@ struct attackData
 	short instanceID;
 	char truncatedImageIndex;
 	char hasVarChanged;
+	int frameCount;
 
-	attackData() : xPos(0), yPos(0), imageXScale(0), imageYScale(0), imageAngle(0), imageAlpha(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0), hasVarChanged(0)
+	attackData() : xPos(0), yPos(0), xPosDiff(0), yPosDiff(0), imageXScale(0), imageYScale(0), imageAngle(0), imageAlpha(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0), hasVarChanged(0), frameCount(1)
 	{
 	}
 
-	attackData(float xPos, float yPos, float imageXScale, float imageYScale, float imageAngle, float imageAlpha, short spriteIndex, short instanceID, char truncatedImageIndex, char hasVarChanged) :
-		xPos(xPos), yPos(yPos), imageXScale(imageXScale), imageYScale(imageYScale), imageAngle(imageAngle), imageAlpha(imageAlpha), spriteIndex(spriteIndex), instanceID(instanceID), truncatedImageIndex(truncatedImageIndex), hasVarChanged(hasVarChanged)
+	attackData(float xPos, float yPos, short xPosDiff, short yPosDiff, float imageXScale, float imageYScale, float imageAngle, float imageAlpha, short spriteIndex, short instanceID, char truncatedImageIndex, char hasVarChanged, int frameCount) :
+		xPos(xPos), yPos(yPos), xPosDiff(xPosDiff), yPosDiff(yPosDiff), imageXScale(imageXScale), imageYScale(imageYScale), imageAngle(imageAngle),
+		imageAlpha(imageAlpha), spriteIndex(spriteIndex), instanceID(instanceID), truncatedImageIndex(truncatedImageIndex), hasVarChanged(hasVarChanged), frameCount(frameCount)
 	{
 	}
 };
@@ -408,6 +478,14 @@ struct messageAttackCreate
 
 const int attackUpdateDataLen = 20;
 
+// hasVarChanged
+// byte 0 - has position changed
+// byte 1 - is position update a diff or exact (0 = diff) (1 = exact)
+// byte 2 - is diff using byte or short (0 = byte) (1 = short)
+// byte 3 - has image angle changed
+// byte 4 - has image alpha changed
+// byte 5 - has image scale changed
+// byte 6 - has sprite index changed
 struct messageAttackUpdate
 {
 	attackData data[attackUpdateDataLen]{};
@@ -432,27 +510,47 @@ struct messageAttackUpdate
 		for (int i = 0; i < numAttacks; i++)
 		{
 			writeCharToByteBuffer(messageBuffer, data[i].hasVarChanged, startBufferPos);
-			if ((data[i].hasVarChanged & 0b00001) != 0)
+			// Check if position has changed
+			if (checkBitInByte(data[i].hasVarChanged, 0))
 			{
-				writeFloatToByteBuffer(messageBuffer, data[i].xPos, startBufferPos);
-				writeFloatToByteBuffer(messageBuffer, data[i].yPos, startBufferPos);
+				// Check if position is exact or diff
+				if (checkBitInByte(data[i].hasVarChanged, 1))
+				{
+					writeFloatToByteBuffer(messageBuffer, data[i].xPos, startBufferPos);
+					writeFloatToByteBuffer(messageBuffer, data[i].yPos, startBufferPos);
+				}
+				else
+				{
+					// Check if diff is short or byte
+					if (checkBitInByte(data[i].hasVarChanged, 2))
+					{
+						writeShortToByteBuffer(messageBuffer, data[i].xPosDiff, startBufferPos);
+						writeShortToByteBuffer(messageBuffer, data[i].yPosDiff, startBufferPos);
+					}
+					else
+					{
+						writeCharToByteBuffer(messageBuffer, static_cast<char>(data[i].xPosDiff), startBufferPos);
+						writeCharToByteBuffer(messageBuffer, static_cast<char>(data[i].yPosDiff), startBufferPos);
+					}
+				}
 			}
-			if ((data[i].hasVarChanged & 0b00010) != 0)
+
+			if (checkBitInByte(data[i].hasVarChanged, 3))
 			{
 				short imageAngleApprox = (static_cast<int>(data[i].imageAngle * 10) % 3600 + 3600) % 3600;
 				writeShortToByteBuffer(messageBuffer, imageAngleApprox, startBufferPos);
 			}
-			if ((data[i].hasVarChanged & 0b00100) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 4))
 			{
 				char imageAlphaApprox = static_cast<char>(data[i].imageAlpha * 255);
 				writeCharToByteBuffer(messageBuffer, imageAlphaApprox, startBufferPos);
 			}
-			if ((data[i].hasVarChanged & 0b01000) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 5))
 			{
 				writeFloatToByteBuffer(messageBuffer, data[i].imageXScale, startBufferPos);
 				writeFloatToByteBuffer(messageBuffer, data[i].imageYScale, startBufferPos);
 			}
-			if ((data[i].hasVarChanged & 0b10000) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 6))
 			{
 				writeShortToByteBuffer(messageBuffer, data[i].spriteIndex, startBufferPos);
 			}
@@ -472,25 +570,43 @@ struct messageAttackUpdate
 		{
 			char hasVarChanged = data[i].hasVarChanged;
 			instanceDataSize++;
-			if ((hasVarChanged & 0b00001) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 0))
 			{
-				instanceDataSize += 4;
-				instanceDataSize += 4;
+				// Check if position is exact or diff
+				if (checkBitInByte(data[i].hasVarChanged, 1))
+				{
+					instanceDataSize += 4;
+					instanceDataSize += 4;
+				}
+				else
+				{
+					// Check if diff is short or byte
+					if (checkBitInByte(data[i].hasVarChanged, 2))
+					{
+						instanceDataSize += 2;
+						instanceDataSize += 2;
+					}
+					else
+					{
+						instanceDataSize++;
+						instanceDataSize++;
+					}
+				}
 			}
-			if ((hasVarChanged & 0b00010) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 3))
 			{
 				instanceDataSize += 2;
 			}
-			if ((hasVarChanged & 0b00100) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 4))
 			{
 				instanceDataSize += 1;
 			}
-			if ((hasVarChanged & 0b01000) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 5))
 			{
 				instanceDataSize += 4;
 				instanceDataSize += 4;
 			}
-			if ((hasVarChanged & 0b10000) != 0)
+			if (checkBitInByte(data[i].hasVarChanged, 6))
 			{
 				instanceDataSize += 2;
 			}

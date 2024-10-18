@@ -752,11 +752,6 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Sticker_Alarm_1");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Sticker_Alarm_1", nullptr, StickerAlarm1After)))
-	{
-		g_ModuleInterface->Print(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Sticker_Alarm_1");
-		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
-	}
 	
 
 

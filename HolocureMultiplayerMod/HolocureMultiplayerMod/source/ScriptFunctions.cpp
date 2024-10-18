@@ -1880,6 +1880,10 @@ RValue& UpdatePlayerPlayerManagerOtherBefore(CInstance* Self, CInstance* Other, 
 		{
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
+		else
+		{
+			
+		}
 	}
 	return ReturnValue;
 }
