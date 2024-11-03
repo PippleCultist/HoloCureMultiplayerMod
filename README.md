@@ -9,6 +9,10 @@ A Holocure mod that adds multiplayer to the game. Will probably be buggy and hav
 - Click `Install Aurie`
 - Click `Add Mods` and add `HoloCureMultiplayerMod.dll`, `HoloCureMenuMod.dll`, and `CallbackManagerMod.dll`
 - Running the game either using the executable or through Steam should now launch the mods as well
+    - Note: Don't try to run the game through AurieManager since it currently has issues. Only try to run it through Steam or running the game exe directly.
+## Common Issues
+- If you get issues saying `Missing game executable` when trying to run the game, it's likely that Windows Defender or your antivirus is blocking `AurieLoader.exe` from installing. Try putting it in the whitelist or manually downloading it from `https://github.com/AurieFramework/Aurie/releases` and putting it in the mods folder.
+- If you get an issue saying `Creating instance for non-existing object: -1`, it's likely that's due to clicking to skip the intro screen before the mod has fully loaded. I'll work on fixing it, but it should work if you wait for a few seconds before clicking to skip the intro screen.
 ## Playing LAN Multiplayer
 - Press `Play` on the title screen
 - Press `Multiplayer`
