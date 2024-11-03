@@ -2215,6 +2215,7 @@ void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 	}
 	g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharacterDataIndex });
 	RValue strVersion = getInstanceVariable(Self, GML_version);
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "HoloCure version %s", strVersion.AsString().data());
 	RValue newStrVersion = g_ModuleInterface->CallBuiltin("string_concat", { strVersion, " ", MODNAME });
 	setInstanceVariable(Self, GML_version, newStrVersion);
 }

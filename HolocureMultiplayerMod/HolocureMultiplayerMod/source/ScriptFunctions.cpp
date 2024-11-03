@@ -1470,13 +1470,13 @@ RValue& ExecuteAttackBefore(CInstance* Self, CInstance* Other, RValue& ReturnVal
 		// Check if the index is a valid player or not
 		if (playerID != 100000)
 		{
-			setInstanceVariable(*Args[2], GML_origPlayerCreator, playerMap[static_cast<uint32_t>(playerID)]);
 			// TODO: Should probably have some more checks for cases where ExecuteAttack uses object number instead of the actual instance id (Eg. summon code)
 			// TODO: Check if this works properly in all cases
 			RValue* overrideConfig = Args[2];
 			// TODO: Seems like this can crash if overrideConfig is nullptr (Mio ult). Maybe consider creating a struct and setting it to the args?
 			if (numArgs > 2 && overrideConfig != nullptr && overrideConfig->m_Kind == VALUE_OBJECT)
 			{
+				setInstanceVariable(*Args[2], GML_origPlayerCreator, playerMap[static_cast<uint32_t>(playerID)]);
 				g_ModuleInterface->CallBuiltin("variable_instance_set", { *overrideConfig, "summonSource", *attacker });
 			}
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
