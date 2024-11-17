@@ -11,7 +11,7 @@ void InstanceCreateLayerBefore(RValue* Result, CInstance* Self, CInstance* Other
 {
 	if (hasConnected && !isHost)
 	{
-		if (abs(Args[3].m_Real - objPlayerIndex) < 1e-3)
+		if (abs(Args[3].AsReal() - objPlayerIndex) < 1e-3)
 		{
 			RValue currentClientPlayerAttacks;
 			// Should probably make the client player first so that all the player stuff already in the code will just refer to that
@@ -77,7 +77,7 @@ void SpriteDeleteBefore(RValue* Result, CInstance* Self, CInstance* Other, int n
 		RValue pausedScreenSprite = getInstanceVariable(Self, GML_paused_screen_sprite);
 		if (pausedScreenSprite.m_Kind != VALUE_UNSET)
 		{
-			if (abs(pausedScreenSprite.m_Real - Args[0].m_Real) < 1e-3)
+			if (abs(pausedScreenSprite.AsReal() - Args[0].AsReal()) < 1e-3)
 			{
 				callbackManagerInterfacePtr->CancelOriginalFunction();
 			}
@@ -91,7 +91,7 @@ void InstanceExistsBefore(RValue* Result, CInstance* Self, CInstance* Other, int
 	{
 		if (isHost)
 		{
-			if (abs(Args[0].m_Real - objSummonIndex) < 1e-3)
+			if ((Args[0].m_Kind == VALUE_REAL || Args[0].m_Kind == VALUE_REF) && abs(Args[0].AsReal() - objSummonIndex) < 1e-3)
 			{
 				// Apparently the instance_exists in the OnApply code for summoning stuff is there to prevent the summon from being summoned again if the perk remained at level 1
 				// Need to do a check to make sure it hasn't run before to prevent the summon from being created multiple times
@@ -122,7 +122,7 @@ void DsMapFindValueBefore(RValue* Result, CInstance* Self, CInstance* Other, int
 				RValue attacksMap = getInstanceVariable(attackController, GML_attackIndex);
 				RValue unlockedWeaponsArr = g_ModuleInterface->CallBuiltin("array_create", { RValue(0.0) });
 				RValue attacksKeyArr = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { attacksMap });
-				int attacksKeyArrLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { attacksKeyArr }).m_Real));
+				int attacksKeyArrLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { attacksKeyArr }).AsReal()));
 				for (int i = 0; i < attacksKeyArrLen; i++)
 				{
 					RValue attackID = attacksKeyArr[i];

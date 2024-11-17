@@ -703,13 +703,13 @@ void processInputMessage(clientMovementData data, uint32_t playerID)
 		RValue playerX = getInstanceVariable(playerMap[playerID], GML_x);
 		RValue playerY = getInstanceVariable(playerMap[playerID], GML_y);
 		RValue playerSPD = getInstanceVariable(playerMap[playerID], GML_SPD);
-		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX.m_Real + playerSPD.m_Real * horizontalDiff, playerY, objObstacleIndex }).AsBool())
+		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX.AsReal() + playerSPD.AsReal() * horizontalDiff, playerY, objObstacleIndex }).AsBool())
 		{
-			playerX.m_Real += playerSPD.m_Real * horizontalDiff;
+			playerX.m_Real += playerSPD.AsReal() * horizontalDiff;
 		}
-		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX, playerY.m_Real + playerSPD.m_Real * verticalDiff, objObstacleIndex }).AsBool())
+		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX, playerY.AsReal() + playerSPD.AsReal() * verticalDiff, objObstacleIndex }).AsBool())
 		{
-			playerY.m_Real += playerSPD.m_Real * verticalDiff;
+			playerY.m_Real += playerSPD.AsReal() * verticalDiff;
 		}
 		setInstanceVariable(playerMap[playerID], GML_x, playerX);
 		setInstanceVariable(playerMap[playerID], GML_y, playerY);
@@ -721,7 +721,7 @@ void processInputMessage(clientMovementData data, uint32_t playerID)
 			// TODO: probably should just calculate this instead of depending on GML
 			RValue directionMoving = g_ModuleInterface->CallBuiltin("point_direction", { 0.0, 0.0, static_cast<double>(horizontalDiff), static_cast<double>(verticalDiff) });
 			RValue directionDifference = g_ModuleInterface->CallBuiltin("angle_difference", { playerDirection, directionMoving });
-			playerDirection.m_Real -= std::clamp(directionDifference.m_Real, -24.0, 24.0);
+			playerDirection.m_Real -= std::clamp(directionDifference.AsReal(), -24.0, 24.0);
 			setInstanceVariable(playerMap[playerID], GML_direction, playerDirection);
 		}
 
@@ -889,8 +889,8 @@ void handleInstanceUpdateMessage()
 				}
 				else
 				{
-					double xPos = getInstanceVariable(instance, GML_x).m_Real;
-					double yPos = getInstanceVariable(instance, GML_y).m_Real;
+					double xPos = getInstanceVariable(instance, GML_x).AsReal();
+					double yPos = getInstanceVariable(instance, GML_y).AsReal();
 					xPos += curData.xPosDiff / 10.0;
 					yPos += curData.yPosDiff / 10.0;
 					setInstanceVariable(instance, GML_x, RValue(xPos));
@@ -1156,8 +1156,8 @@ void handleAttackUpdateMessage()
 					}
 					else
 					{
-						double xPos = getInstanceVariable(instance, GML_x).m_Real;
-						double yPos = getInstanceVariable(instance, GML_y).m_Real;
+						double xPos = getInstanceVariable(instance, GML_x).AsReal();
+						double yPos = getInstanceVariable(instance, GML_y).AsReal();
 						xPos += curData.xPosDiff / 10.0;
 						yPos += curData.yPosDiff / 10.0;
 						setInstanceVariable(instance, GML_x, RValue(xPos));
@@ -1675,7 +1675,7 @@ void handleLevelUpClientChoiceMessage()
 					}
 					else
 					{
-						g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second, rerollContainerOptionCount.m_Real + 1 });
+						g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second, rerollContainerOptionCount.AsReal() + 1 });
 					}
 				}
 			}
@@ -2578,7 +2578,7 @@ void handleAnvilChooseOptionMessage()
 		{
 			levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curMessage.optionType), curMessage.optionID);
 			levelUpPausedList.push_back(curPausedData);
-			double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real - curMessage.coinCost;
+			double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal() - curMessage.coinCost;
 			g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
 		}
 		setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
@@ -2612,7 +2612,7 @@ void handleClientGainMoneyMessage()
 		clientGainMoneyMessageQueueLock.release();
 
 		RValue returnVal;
-		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real + curMessage.money;
+		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal() + curMessage.money;
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
 	} while (true);
 }
@@ -2649,7 +2649,7 @@ void handleClientAnvilEnchantMessage()
 		levelUpPausedData curPausedData = levelUpPausedData(playerID, optionType_Enchant, curMessage.optionID, curMessage.gainedMods);
 		levelUpPausedList.push_back(curPausedData);
 
-		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real - curMessage.coinCost;
+		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal() - curMessage.coinCost;
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
 
 		setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
@@ -2758,7 +2758,7 @@ void handleStickerChooseOptionMessage()
 				if (curMessage.stickerOption == 0)
 				{
 					RValue collectedSticker = g_ModuleInterface->CallBuiltin("variable_global_get", { "collectedSticker" });
-					stickerLevel = static_cast<int>(lround(getInstanceVariable(collectedSticker, GML_level).m_Real));
+					stickerLevel = static_cast<int>(lround(getInstanceVariable(collectedSticker, GML_level).AsReal()));
 					collidedStickerID = "";
 					g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", -1.0 });
 				}
@@ -2766,12 +2766,12 @@ void handleStickerChooseOptionMessage()
 				{
 					RValue currentStickersArr = currentStickersMap[playerID];
 					RValue currentSticker = currentStickersArr[curMessage.stickerOption - 1];
-					stickerLevel = static_cast<int>(lround(getInstanceVariable(currentSticker, GML_level).m_Real));
+					stickerLevel = static_cast<int>(lround(getInstanceVariable(currentSticker, GML_level).AsReal()));
 
 					currentStickersArr[curMessage.stickerOption - 1] = -1.0;
 				}
-				int coinCount = static_cast<int>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real);
-				double stageCoinBonus = g_ModuleInterface->CallBuiltin("variable_global_get", { "stageCoinBonus" }).m_Real;
+				int coinCount = static_cast<int>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal());
+				double stageCoinBonus = g_ModuleInterface->CallBuiltin("variable_global_get", { "stageCoinBonus" }).AsReal();
 				coinCount += static_cast<int>(floor(stageCoinBonus * 100 * (1 + moneyGainMultiplier)) * (stickerLevel + 1));
 				g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", static_cast<double>(coinCount) });
 				break;
@@ -3276,7 +3276,7 @@ int sendInputMessage(uint32_t playerID)
 			g_ModuleInterface->GetBuiltin("mouse_x", nullptr, NULL_INDEX, mouseX);
 			g_ModuleInterface->GetBuiltin("mouse_y", nullptr, NULL_INDEX, mouseY);
 			mouseY.m_Real += 16;
-			float direction = static_cast<float>(g_ModuleInterface->CallBuiltin("point_direction", { xPos, yPos, mouseX, mouseY }).m_Real);
+			float direction = static_cast<float>(g_ModuleInterface->CallBuiltin("point_direction", { xPos, yPos, mouseX, mouseY }).AsReal());
 			messageInputMouseFollow sendMessage = messageInputMouseFollow(isDirHeld, direction);
 			sendMessage.serialize(inputMessage);
 			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
@@ -3285,7 +3285,7 @@ int sendInputMessage(uint32_t playerID)
 		{
 			const int inputMessageLen = sizeof(messageInputNoAim) + 1;
 			char inputMessage[inputMessageLen];
-			messageInputNoAim sendMessage = messageInputNoAim(isDirHeld, static_cast<float>(getInstanceVariable(playerMap[clientID], GML_direction).m_Real));
+			messageInputNoAim sendMessage = messageInputNoAim(isDirHeld, static_cast<float>(getInstanceVariable(playerMap[clientID], GML_direction).AsReal()));
 			sendMessage.serialize(inputMessage);
 			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 		}
@@ -3294,7 +3294,7 @@ int sendInputMessage(uint32_t playerID)
 	{
 		const int inputMessageLen = sizeof(messageInputAim) + 1;
 		char inputMessage[inputMessageLen];
-		messageInputAim sendMessage = messageInputAim(isDirHeld, static_cast<float>(returnVal.m_Real));
+		messageInputAim sendMessage = messageInputAim(isDirHeld, static_cast<float>(returnVal.AsReal()));
 		sendMessage.serialize(inputMessage);
 		return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 	}
@@ -3306,8 +3306,8 @@ int sendAllRoomMessage()
 	char inputMessage[inputMessageLen];
 	RValue room;
 	g_ModuleInterface->GetBuiltin("room", nullptr, NULL_INDEX, room);
-	char gameMode = static_cast<char>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "gameMode" }).m_Real));
-	messageRoom sendMessage = messageRoom(static_cast<char>(lround(room.m_Real)), gameMode);
+	char gameMode = static_cast<char>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "gameMode" }).AsReal()));
+	messageRoom sendMessage = messageRoom(static_cast<char>(lround(room.AsReal())), gameMode);
 	sendMessage.serialize(inputMessage);
 
 	for (auto& player : lobbyPlayerDataMap)
@@ -3396,27 +3396,27 @@ int sendAllClientPlayerDataMessage()
 			continue;
 		}
 
-		float xPos = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_x).m_Real);
-		float yPos = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_y).m_Real);
-		float imageXScale = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_image_xscale).m_Real);
-		float imageYScale = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_image_yscale).m_Real);
-		float direction = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_direction).m_Real);
+		float xPos = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_x).AsReal());
+		float yPos = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_y).AsReal());
+		float imageXScale = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_image_xscale).AsReal());
+		float imageYScale = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_image_yscale).AsReal());
+		float direction = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_direction).AsReal());
 		// Probably should change this to uint16_t
-		short spriteIndex = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_sprite_index).m_Real));
-		short curHP = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_currentHP).m_Real));
-		short maxHP = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_HP).m_Real));
-		float curAttack = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_ATK).m_Real);
-		float curSpeed = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_SPD).m_Real);
-		short curCrit = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_crit).m_Real));
-		short curHaste = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_haste).m_Real));
-		short curPickupRange = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_pickupRange).m_Real));
-		short specialMeter = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_specialMeter).m_Real));
+		short spriteIndex = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_sprite_index).AsReal()));
+		short curHP = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_currentHP).AsReal()));
+		short maxHP = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_HP).AsReal()));
+		float curAttack = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_ATK).AsReal());
+		float curSpeed = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_SPD).AsReal());
+		short curCrit = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_crit).AsReal()));
+		short curHaste = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_haste).AsReal()));
+		short curPickupRange = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_pickupRange).AsReal()));
+		short specialMeter = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_specialMeter).AsReal()));
 		// Not sure why the original player has a sprite index of -1 when it's created
 		if (spriteIndex < 0)
 		{
 			spriteIndex = 0;
 		}
-		char truncatedImageIndex = static_cast<char>(getInstanceVariable(curPlayerInstance, GML_image_index).m_Real);
+		char truncatedImageIndex = static_cast<char>(getInstanceVariable(curPlayerInstance, GML_image_index).AsReal());
 		playerData curData(xPos, yPos, imageXScale, imageYScale, direction, spriteIndex, curHP, maxHP, curAttack, curSpeed, curCrit, curHaste, curPickupRange, specialMeter, truncatedImageIndex, curPlayer.first);
 		messageClientPlayerData sendMessage = messageClientPlayerData(curData);
 		sendMessage.serialize(inputMessage);
@@ -3544,24 +3544,24 @@ int sendAllPickupableDeleteMessage(short pickupableID)
 
 int sendAllGameDataMessage()
 {
-	uint32_t coinCount = static_cast<uint32_t>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).m_Real);
-	uint32_t enemyDefeated = static_cast<uint32_t>(g_ModuleInterface->CallBuiltin("variable_global_get", { "enemyDefeated" }).m_Real);
+	uint32_t coinCount = static_cast<uint32_t>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal());
+	uint32_t enemyDefeated = static_cast<uint32_t>(g_ModuleInterface->CallBuiltin("variable_global_get", { "enemyDefeated" }).AsReal());
 
 	RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
-	timeNum = static_cast<uint32_t>(lround(timeArr[0].m_Real));
+	timeNum = static_cast<uint32_t>(lround(timeArr[0].AsReal()));
 	timeNum *= 60;
-	timeNum += static_cast<uint32_t>(lround(timeArr[1].m_Real));
+	timeNum += static_cast<uint32_t>(lround(timeArr[1].AsReal()));
 	timeNum *= 60;
-	timeNum += static_cast<uint32_t>(lround(timeArr[2].m_Real));
+	timeNum += static_cast<uint32_t>(lround(timeArr[2].AsReal()));
 	timeNum *= 60;
-	timeNum += static_cast<uint32_t>(lround(timeArr[3].m_Real));
+	timeNum += static_cast<uint32_t>(lround(timeArr[3].AsReal()));
 
-	short playerLevel = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "PLAYERLEVEL" }).m_Real));
-	float experience = static_cast<float>(g_ModuleInterface->CallBuiltin("variable_global_get", { "experience" }).m_Real);
-	float toNextLevel = static_cast<float>(getInstanceVariable(playerManagerInstanceVar, GML_toNextLevel).m_Real);
+	short playerLevel = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "PLAYERLEVEL" }).AsReal()));
+	float experience = static_cast<float>(g_ModuleInterface->CallBuiltin("variable_global_get", { "experience" }).AsReal());
+	float toNextLevel = static_cast<float>(getInstanceVariable(playerManagerInstanceVar, GML_toNextLevel).AsReal());
 
-	short goldenHammer = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammer" }).m_Real));
-	short goldenHammerPieces = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammerPieces" }).m_Real));
+	short goldenHammer = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammer" }).AsReal()));
+	short goldenHammerPieces = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammerPieces" }).AsReal()));
 
 	messageGameData data(timeNum, coinCount, enemyDefeated, experience, toNextLevel, static_cast<float>(moneyGainMultiplier), static_cast<float>(foodMultiplier), playerLevel, goldenHammer, goldenHammerPieces);
 	const int inputMessageLen = sizeof(messageGameData) + 1;
@@ -3630,7 +3630,7 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 		}
 		else if (optionDescription.m_Kind == VALUE_ARRAY)
 		{
-			int optionDescriptionLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { optionDescription }).m_Real));
+			int optionDescriptionLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { optionDescription }).AsReal()));
 			for (int j = 0; j < optionDescriptionLength; j++)
 			{
 				optionDescriptionList.push_back(optionDescription[j].AsString());
@@ -3641,24 +3641,24 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 			g_ModuleInterface->Print(CM_RED, "UNEXPECTED TYPE WHEN SENDING OVER OPTION DESCRIPTION");
 		}
 		int gainedModsLength = -1;
-		if (gainedMods.m_Kind == VALUE_ARRAY && (gainedModsLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { gainedMods }).m_Real))) > 0)
+		if (gainedMods.m_Kind == VALUE_ARRAY && (gainedModsLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { gainedMods }).AsReal()))) > 0)
 		{
 			std::vector<std::string_view> modsList;
 			for (int j = 0; j < gainedModsLength; j++)
 			{
 				modsList.push_back(gainedMods[j].AsString());
 			}
-			optionArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.m_Real), 0, weaponAndItemType, modsList, 0);
+			optionArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.AsReal()), 0, weaponAndItemType, modsList, 0);
 		}
 		else if (offeredMod.m_Kind == VALUE_STRING)
 		{
 			std::vector<std::string_view> modsList;
 			modsList.push_back(offeredMod.AsString());
-			optionArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.m_Real), 0, weaponAndItemType, modsList, 1);
+			optionArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.AsReal()), 0, weaponAndItemType, modsList, 1);
 		}
 		else
 		{
-			optionArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.m_Real), 0, weaponAndItemType);
+			optionArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.AsReal()), 0, weaponAndItemType);
 		}
 	}
 	messageLevelUpOptions clientNumberMessage = messageLevelUpOptions(optionArr);

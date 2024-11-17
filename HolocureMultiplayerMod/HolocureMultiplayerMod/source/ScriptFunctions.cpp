@@ -102,7 +102,7 @@ RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr
 
 RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr)
 {
-	int origArrayLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { origArray }).m_Real));
+	int origArrayLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { origArray }).AsReal()));
 	RValue copiedArray = g_ModuleInterface->CallBuiltin("array_create", { origArrayLen });
 	for (int i = 0; i < origArrayLen; i++)
 	{
@@ -116,7 +116,7 @@ RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr
 		else if (g_ModuleInterface->CallBuiltin("is_method", { curArrayVal }).AsBool())
 		{
 			RValue methodSelf = g_ModuleInterface->CallBuiltin("method_get_self", { curArrayVal });
-			if (methodSelf.m_Kind == VALUE_REAL)
+			if (methodSelf.m_Kind == VALUE_REAL || methodSelf.m_Kind == VALUE_REF)
 			{
 				// Assume that the method can be safely copied since it's bound to a script function method
 				copiedArray[i] = curArrayVal;
@@ -157,7 +157,7 @@ RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructP
 	}
 	// TODO: Find a more performant way to iterate through a struct
 	RValue structNames = g_ModuleInterface->CallBuiltin("struct_get_names", { origStruct });
-	int structNamesLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { structNames }).m_Real));
+	int structNamesLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { structNames }).AsReal()));
 	for (int i = 0; i < structNamesLen; i++)
 	{
 		RValue curStructName = structNames[i];
@@ -170,7 +170,7 @@ RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructP
 		else if (g_ModuleInterface->CallBuiltin("is_method", { curStructVal }).AsBool())
 		{
 			RValue methodSelf = g_ModuleInterface->CallBuiltin("method_get_self", { curStructVal });
-			if (methodSelf.m_Kind == VALUE_REAL)
+			if (methodSelf.m_Kind == VALUE_REAL || methodSelf.m_Kind == VALUE_REF)
 			{
 				// Assume that the method can be safely copied since it's bound to a script function method
 				g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.AsString().data(), &curStructVal);
@@ -204,7 +204,7 @@ RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructP
 void addCollabData(RValue& weapons, RValue& attacks)
 {
 	RValue attacksKeysArr = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { attacks });
-	int attacksKeysArrLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { attacksKeysArr }).m_Real));
+	int attacksKeysArrLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { attacksKeysArr }).AsReal()));
 	for (int i = 0; i < attacksKeysArrLength; i++)
 	{
 		RValue curKey = attacksKeysArr[i];
@@ -238,7 +238,7 @@ void addCollabData(RValue& weapons, RValue& attacks)
 RValue deepCopyMap(CInstance* Self, RValue& origMap)
 {
 	RValue origMapKeys = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { origMap });
-	int origMapKeysLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { origMapKeys }).m_Real));
+	int origMapKeysLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { origMapKeys }).AsReal()));
 	RValue copiedMap = g_ModuleInterface->CallBuiltin("ds_map_create", {});
 	for (int i = 0; i < origMapKeysLength; i++)
 	{
@@ -376,7 +376,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 
 			RValue playerSave = g_ModuleInterface->CallBuiltin("variable_global_get", { "PlayerSave" });
 			RValue unlockedWeapons = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerSave, "unlockedWeapons" });
-			int unlockedWeaponsLength = static_cast<int>(g_ModuleInterface->CallBuiltin("array_length", { unlockedWeapons }).m_Real);
+			int unlockedWeaponsLength = static_cast<int>(g_ModuleInterface->CallBuiltin("array_length", { unlockedWeapons }).AsReal());
 
 			RValue prevWeapons = getInstanceVariable(Self, GML_weapons);
 			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevWeapons });
@@ -487,8 +487,8 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				// TODO: deal with apply progression stats for the client character
 				setInstanceVariable(newCreatedChar, GML_challenge, getInstanceVariable(charData, GML_challenge));
 				RValue baseStats = getInstanceVariable(Self, GML_baseStats);
-				moneyGainMultiplier = getInstanceVariable(baseStats, GML_moneyGain).m_Real;
-				foodMultiplier = getInstanceVariable(baseStats, GML_food).m_Real;
+				moneyGainMultiplier = getInstanceVariable(baseStats, GML_moneyGain).AsReal();
+				foodMultiplier = getInstanceVariable(baseStats, GML_food).AsReal();
 				setInstanceVariable(newCreatedChar, GML_HP, getInstanceVariable(baseStats, GML_HP));
 				setInstanceVariable(newCreatedChar, GML_currentHP, getInstanceVariable(baseStats, GML_HP));
 				setInstanceVariable(newCreatedChar, GML_ATK, getInstanceVariable(baseStats, GML_ATK));
@@ -541,7 +541,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				RValue charPerks;
 				g_RunnerInterface.StructCreate(&charPerks);
 				RValue perksNamesArr = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { getInstanceVariable(charData, GML_perks) });
-				int perksNamesArrLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { perksNamesArr }).m_Real));
+				int perksNamesArrLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { perksNamesArr }).AsReal()));
 				for (int i = 0; i < perksNamesArrLen; i++)
 				{
 					g_ModuleInterface->CallBuiltin("variable_instance_set", { charPerks, perksNamesArr[i], 0.0 });
@@ -994,7 +994,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					return ReturnValue;
 				}
 				RValue levelOptionSelect = getInstanceVariable(Self, GML_levelOptionSelect);
-				char selectedOption = static_cast<char>(lround(levelOptionSelect.m_Real));
+				char selectedOption = static_cast<char>(lround(levelOptionSelect.AsReal()));
 				// Run the original eliminate code
 				if (selectedOption == 5)
 				{
@@ -1005,13 +1005,13 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				{
 					// TODO: Should probably set the reroll amount and eliminate amount to whatever the host originally has
 					RValue rerollTimes = g_ModuleInterface->CallBuiltin("variable_global_get", { "rerollTimes" });
-					if (static_cast<int>(lround(rerollTimes.m_Real)) >= 1)
+					if (static_cast<int>(lround(rerollTimes.AsReal())) >= 1)
 					{
 						// TODO: Check if the message failed to send
 						sendLevelUpClientChoiceMessage(0, selectedOption);
 						setInstanceVariable(Self, GML_eliminateMode, RValue(false));
 						// TODO: Maybe should wait until an acknowledgement is received from the host before reducing the count (low priority)
-						g_ModuleInterface->CallBuiltin("variable_global_set", { "rerollTimes", rerollTimes.m_Real - 1 });
+						g_ModuleInterface->CallBuiltin("variable_global_set", { "rerollTimes", rerollTimes.AsReal() - 1 });
 						callbackManagerInterfacePtr->CancelOriginalFunction();
 					}
 					return ReturnValue;
@@ -1026,7 +1026,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 						return ReturnValue;
 					}
 					RValue eliminateTimes = g_ModuleInterface->CallBuiltin("variable_global_get", { "eliminateTimes" });
-					g_ModuleInterface->CallBuiltin("variable_global_set", { "eliminateTimes", eliminateTimes.m_Real - 1 });
+					g_ModuleInterface->CallBuiltin("variable_global_set", { "eliminateTimes", eliminateTimes.AsReal() - 1 });
 					setInstanceVariable(Self, GML_eliminateMode, RValue(false));
 					setInstanceVariable(Self, GML_eliminatedThisLevel, RValue(true));
 					sendEliminateLevelUpClientChoiceMessage(0, selectedOption);
@@ -1069,9 +1069,9 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 			{
 				if (getInstanceVariable(Self, GML_boxOpenned).AsBool())
 				{
-					if (static_cast<int>(lround(getInstanceVariable(Self, GML_itemBoxTakeOption).m_Real)) == 0)
+					if (static_cast<int>(lround(getInstanceVariable(Self, GML_itemBoxTakeOption).AsReal())) == 0)
 					{
-						sendBoxTakeOptionMessage(HOST_INDEX, static_cast<char>(lround(getInstanceVariable(Self, GML_currentBoxItem).m_Real)));
+						sendBoxTakeOptionMessage(HOST_INDEX, static_cast<char>(lround(getInstanceVariable(Self, GML_currentBoxItem).AsReal())));
 					}
 					else if (getInstanceVariable(Self, GML_superBox).AsBool())
 					{
@@ -1092,8 +1092,8 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				RValue stickerActionSelected = getInstanceVariable(Self, GML_stickerActionSelected);
 				if (stickerActionSelected.AsBool())
 				{
-					int stickerAction = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerAction).m_Real));
-					int stickerOption = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerOption).m_Real));
+					int stickerAction = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerAction).AsReal()));
+					int stickerOption = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerOption).AsReal()));
 					sendStickerChooseOptionMessage(HOST_INDEX, stickerOption, stickerAction);
 					if (stickerAction == 1)
 					{
@@ -1117,9 +1117,9 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 			else if (gameOvered.AsBool() || gameWon.AsBool())
 			{
 				RValue gameOverTime = getInstanceVariable(Self, GML_gameOverTime);
-				if (!(gameOvered.AsBool() && gameOverTime.m_Real < 330) && !(gameWon.AsBool() && gameOverTime.m_Real < 120))
+				if (!(gameOvered.AsBool() && gameOverTime.AsReal() < 330) && !(gameWon.AsBool() && gameOverTime.AsReal() < 120))
 				{
-					int pauseOption = static_cast<int>(lround(getInstanceVariable(Self, GML_pauseOption).m_Real));
+					int pauseOption = static_cast<int>(lround(getInstanceVariable(Self, GML_pauseOption).AsReal()));
 					if (pauseOption == 2)
 					{
 						clientLeaveGame(false);
@@ -1134,7 +1134,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 			}
 			else if (quitConfirm.AsBool())
 			{
-				int quitOption = static_cast<int>(lround(getInstanceVariable(Self, GML_quitOption).m_Real));
+				int quitOption = static_cast<int>(lround(getInstanceVariable(Self, GML_quitOption).AsReal()));
 				if (quitOption == 0)
 				{
 					clientLeaveGame(false);
@@ -1162,9 +1162,9 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 			if (gameOvered.AsBool() || gameWon.AsBool())
 			{
 				RValue gameOverTime = getInstanceVariable(Self, GML_gameOverTime);
-				if (!(gameOvered.AsBool() && gameOverTime.m_Real < 330) && !(gameWon.AsBool() && gameOverTime.m_Real < 120))
+				if (!(gameOvered.AsBool() && gameOverTime.AsReal() < 330) && !(gameWon.AsBool() && gameOverTime.AsReal() < 120))
 				{
-					int pauseOption = static_cast<int>(lround(getInstanceVariable(Self, GML_pauseOption).m_Real));
+					int pauseOption = static_cast<int>(lround(getInstanceVariable(Self, GML_pauseOption).AsReal()));
 					if (pauseOption == 0)
 					{
 						// TODO: Change retry to just restart the game again with all the clients. For now, just bring everyone back to the lobby
@@ -1223,7 +1223,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 			}
 			else if (quitConfirm.AsBool())
 			{
-				int quitOption = static_cast<int>(lround(getInstanceVariable(Self, GML_quitOption).m_Real));
+				int quitOption = static_cast<int>(lround(getInstanceVariable(Self, GML_quitOption).AsReal()));
 				if (quitOption == 0)
 				{
 					for (auto& clientSocket : clientSocketMap)
@@ -1341,7 +1341,7 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 			{
 				isClientUsingBox = false;
 				sendInteractFinishedMessage(HOST_INDEX);
-				uint32_t boxCoinGain = static_cast<uint32_t>(floor(getInstanceVariable(Self, GML_boxCoinGain).m_Real));
+				uint32_t boxCoinGain = static_cast<uint32_t>(floor(getInstanceVariable(Self, GML_boxCoinGain).AsReal()));
 				sendClientGainMoneyMessage(HOST_INDEX, boxCoinGain);
 
 				// Need to manually remove certain instances created while paused since the game originally created them in a different room which would automatically destroy them when moved,
@@ -1354,12 +1354,12 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 				if (usedAnvil.AsBool())
 				{
 					RValue loadOutList = getInstanceVariable(Self, GML_loadOutList);
-					int anvilOption = static_cast<int>(lround(getInstanceVariable(Self, GML_anvilOption).m_Real));
+					int anvilOption = static_cast<int>(lround(getInstanceVariable(Self, GML_anvilOption).AsReal()));
 					RValue loadOut = loadOutList[anvilOption];
 					RValue optionID = getInstanceVariable(loadOut, GML_optionID);
 					RValue optionType = getInstanceVariable(loadOut, GML_optionType);
 
-					int upgradeOption = static_cast<int>(lround(getInstanceVariable(Self, GML_upgradeOption).m_Real));
+					int upgradeOption = static_cast<int>(lround(getInstanceVariable(Self, GML_upgradeOption).AsReal()));
 					if (upgradeOption == 0)
 					{
 						RValue enhancing = getInstanceVariable(Self, GML_enhancing);
@@ -1372,7 +1372,7 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 							{
 								RValue enhanceCostMult = g_ModuleInterface->CallBuiltin("variable_global_get", { "enhanceCostMultiplier" });
 								RValue enhancements = getInstanceVariable(loadOut, GML_enhancements);
-								uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.m_Real * enhancements.m_Real * 50));
+								uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.AsReal() * enhancements.AsReal() * 50));
 								sendAnvilChooseOptionMessage(HOST_INDEX, optionID.AsString(), optionType.AsString(), enhanceCost, 1);
 							}
 						}
@@ -1386,7 +1386,7 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 					{
 						// Enchanting anvil
 						RValue enhanceCostMult = g_ModuleInterface->CallBuiltin("variable_global_get", { "enhanceCostMultiplier" });
-						uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.m_Real * 250));
+						uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.AsReal() * 250));
 						sendClientAnvilEnchantMessage(HOST_INDEX, optionID.AsString(), currentAnvilRolledMods, enhanceCost);
 					}
 					setInstanceVariable(Self, GML_usedAnvil, RValue(false));
@@ -1512,9 +1512,9 @@ RValue& DieObstacleCreateBefore(CInstance* Self, CInstance* Other, RValue& Retur
 {
 	if (hasConnected && isHost)
 	{
-		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-		short destructableID = static_cast<short>(lround(getInstanceVariable(Self, GML_destructableID).m_Real));
+		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
+		short destructableID = static_cast<short>(lround(getInstanceVariable(Self, GML_destructableID).AsReal()));
 		sendAllDestructableBreakMessage(destructableData(xPos, yPos, destructableID, 0));
 	}
 
@@ -1582,7 +1582,7 @@ RValue& DestroyHoloAnvilBefore(CInstance* Self, CInstance* Other, RValue& Return
 {
 	if (hasConnected && isHost)
 	{
-		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 		sendAllInteractableDeleteMessage(interactableMapIndexVal, 1);
 	}
 	return ReturnValue;
@@ -1592,7 +1592,7 @@ RValue& DestroyGoldenAnvilBefore(CInstance* Self, CInstance* Other, RValue& Retu
 {
 	if (hasConnected && isHost)
 	{
-		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 		sendAllInteractableDeleteMessage(interactableMapIndexVal, 2);
 	}
 	return ReturnValue;
@@ -1602,7 +1602,7 @@ RValue& DestroyStickerBefore(CInstance* Self, CInstance* Other, RValue& ReturnVa
 {
 	if (hasConnected && isHost)
 	{
-		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 		sendAllInteractableDeleteMessage(interactableMapIndexVal, 4);
 	}
 	return ReturnValue;
@@ -1835,18 +1835,18 @@ RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& R
 		}
 		else if (curMenuGridDataPtr.get() == selectingMapMenuGrid.menuGridPtr.get())
 		{
-			int stageSelected = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "playingStage" }).m_Real));
+			int stageSelected = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "playingStage" }).AsReal()));
 			if (stageSelected != -1)
 			{
 				// Send player back to the lobby after selecting a map
 				hasSelectedMap = true;
 				curSelectedMap = stageSelected;
-				curSelectedGameMode = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "gameMode" }).m_Real));
+				curSelectedGameMode = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "gameMode" }).AsReal()));
 				RValue whichSet = getInstanceVariable(Self, GML_availableStages);
-				int selectedStage = static_cast<int>(lround(getInstanceVariable(Self, GML_selectedStage).m_Real));
+				int selectedStage = static_cast<int>(lround(getInstanceVariable(Self, GML_selectedStage).AsReal()));
 				if (curSelectedGameMode == 0 || curSelectedGameMode == 1)
 				{
-					curSelectedStageSprite = static_cast<int>(lround(getInstanceVariable(whichSet[selectedStage], GML_stageSprite).m_Real));
+					curSelectedStageSprite = static_cast<int>(lround(getInstanceVariable(whichSet[selectedStage], GML_stageSprite).AsReal()));
 					lobbyPlayerDataMap[HOST_INDEX].stageSprite = curSelectedStageSprite;
 				}
 				holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);

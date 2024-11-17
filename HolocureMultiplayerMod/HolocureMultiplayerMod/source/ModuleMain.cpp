@@ -83,7 +83,7 @@ PFUNC_YYGMLScript origAddCollabScript = nullptr;
 PFUNC_YYGMLScript origAddSuperCollabScript = nullptr;
 PFUNC_YYGMLScript origMouseOverButtonScript = nullptr;
 
-using PFUNC_YYGML_Variable_GetValue = void(*)(int arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6);
+using PFUNC_YYGML_Variable_GetValue = void(*)(long long arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6);
 PVOID yyGMLVariableGetValueAddress = nullptr;
 PFUNC_YYGML_Variable_GetValue origYYGMLVariableGetValueFunc = nullptr;
 std::binary_semaphore initYYGMLVariableGetValueFuncSemaphore(1);
@@ -182,7 +182,7 @@ AurieStatus FindMemoryPatternAddress(const unsigned char* Pattern, const char* P
 	return AURIE_SUCCESS;
 }
 
-void YYGMLVariableGetValueHookFunc(int arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6)
+void YYGMLVariableGetValueHookFunc(long long arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6)
 {
 	// Sometimes the hook might happen before the originalFunc is set
 	if (origYYGMLVariableGetValueFunc == nullptr)
@@ -198,7 +198,7 @@ void YYGMLVariableGetValueHookFunc(int arg1, void* arg2, void* arg3, void* arg4,
 	}
 	if (hasConnected)
 	{
-		if (arg1 == objPlayerIndex)
+		if (arg1 == objPlayerIndex + 0x100000000000000)
 		{
 			// Prevent it from swapping if the map hasn't been initialized yet
 			auto playerMapFind = playerMap.find(curPlayerID);
@@ -780,24 +780,24 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_input_join_params_set");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_InitializeCharacter_gml_Object_obj_PlayerManager_Create_0", InitializeCharacterPlayerManagerCreateFuncBefore, InitializeCharacterPlayerManagerCreateFuncAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_InitializeCharacter@gml_Object_obj_PlayerManager_Create_0", InitializeCharacterPlayerManagerCreateFuncBefore, InitializeCharacterPlayerManagerCreateFuncAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_InitializeCharacter_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_InitializeCharacter@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_SnapshotPrebuffStats_gml_Object_obj_Player_Create_0", nullptr, nullptr, &origSnapshotPrebuffStatsPlayerCreateScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_SnapshotPrebuffStats@gml_Object_obj_Player_Create_0", nullptr, nullptr, &origSnapshotPrebuffStatsPlayerCreateScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_SnapshotPrebuffStats_gml_Object_obj_Player_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_SnapshotPrebuffStats@gml_Object_obj_Player_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_UpdatePlayer_gml_Object_obj_PlayerManager_Other_24", UpdatePlayerPlayerManagerOtherBefore, nullptr, &origUpdatePlayerPlayerManagerOtherScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_UpdatePlayer@gml_Object_obj_PlayerManager_Other_24", UpdatePlayerPlayerManagerOtherBefore, nullptr, &origUpdatePlayerPlayerManagerOtherScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_UpdatePlayer_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_UpdatePlayer@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddAttack_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddAttackPlayerManagerOtherScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddAttack@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddAttackPlayerManagerOtherScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddAttack_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddAttack@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_input_direction", nullptr, nullptr, &origInputDirectionScript)))
@@ -805,9 +805,9 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_input_direction");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CanSubmitScore_gml_Object_obj_PlayerManager_Create_0", CanSubmitScoreFuncBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CanSubmitScore@gml_Object_obj_PlayerManager_Create_0", CanSubmitScoreFuncBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_CanSubmitScore_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_CanSubmitScore@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_input_source_using", nullptr, nullptr, &origInputSourceUsingScript)))
@@ -850,29 +850,29 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_input_gamepad_is_connected");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Stop_gml_Object_obj_Player_Create_0", StopPlayerCreateFuncBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Stop@gml_Object_obj_Player_Create_0", StopPlayerCreateFuncBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Stop_gml_Object_obj_Player_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Stop@gml_Object_obj_Player_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Init_gml_Object_obj_PlayerManager_Create_0", InitPlayerManagerCreateFuncBefore, InitPlayerManagerCreateFuncAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Init@gml_Object_obj_PlayerManager_Create_0", InitPlayerManagerCreateFuncBefore, InitPlayerManagerCreateFuncAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Init_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Init@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Move_gml_Object_obj_Player_Create_0", MovePlayerCreateFuncBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Move@gml_Object_obj_Player_Create_0", MovePlayerCreateFuncBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Move_gml_Object_obj_Player_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Move@gml_Object_obj_Player_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Pause_gml_Object_obj_PlayerManager_Create_0", PausePlayerManagerCreateFuncBefore, PausePlayerManagerCreateFuncAfter, &origPauseScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Pause@gml_Object_obj_PlayerManager_Create_0", PausePlayerManagerCreateFuncBefore, PausePlayerManagerCreateFuncAfter, &origPauseScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Pause_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Pause@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script__CreateTakodachi_gml_Object_obj_AttackController_Other_14", CreateTakodachiAttackControllerOther14FuncBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script__CreateTakodachi@gml_Object_obj_AttackController_Other_14", CreateTakodachiAttackControllerOther14FuncBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script__CreateTakodachi_gml_Object_obj_AttackController_Other_14");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script__CreateTakodachi@gml_Object_obj_AttackController_Other_14");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_glr_mesh_destroy", GLRMeshDestroyFuncBefore, nullptr, nullptr)))
@@ -880,69 +880,69 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_glr_mesh_destroy");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_LevelUp_gml_Object_obj_PlayerManager_Create_0", LevelUpPlayerManagerFuncBefore, LevelUpPlayerManagerFuncAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_LevelUp@gml_Object_obj_PlayerManager_Create_0", LevelUpPlayerManagerFuncBefore, LevelUpPlayerManagerFuncAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_LevelUp_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_LevelUp@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Confirmed_gml_Object_obj_PlayerManager_Create_0", ConfirmedPlayerManagerFuncBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Confirmed@gml_Object_obj_PlayerManager_Create_0", ConfirmedPlayerManagerFuncBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Confirmed_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Confirmed@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_GeneratePossibleOptions_gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origGeneratePossibleOptionsScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_GeneratePossibleOptions@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origGeneratePossibleOptionsScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_GeneratePossibleOptions_gml_Object_obj_PlayerManager_Other_23");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_GeneratePossibleOptions@gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionOne_gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionOneScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionOne@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionOneScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OptionOne_gml_Object_obj_PlayerManager_Other_23");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OptionOne@gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionTwo_gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionTwoScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionTwo@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionTwoScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OptionTwo_gml_Object_obj_PlayerManager_Other_23");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OptionTwo@gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionThree_gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionThreeScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionThree@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionThreeScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OptionThree_gml_Object_obj_PlayerManager_Other_23");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OptionThree@gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionFour_gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionFourScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionFour@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionFourScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OptionFour_gml_Object_obj_PlayerManager_Other_23");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OptionFour@gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Unpause_gml_Object_obj_PlayerManager_Create_0", UnpausePlayerManagerFuncBefore, nullptr, &origUnpauseScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Unpause@gml_Object_obj_PlayerManager_Create_0", UnpausePlayerManagerFuncBefore, nullptr, &origUnpauseScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Unpause_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Unpause@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ParseAndPushCommandType_gml_Object_obj_PlayerManager_Other_23", nullptr, ParseAndPushCommandTypePlayerManagerFuncAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ParseAndPushCommandType@gml_Object_obj_PlayerManager_Other_23", nullptr, ParseAndPushCommandTypePlayerManagerFuncAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ParseAndPushCommandType_gml_Object_obj_PlayerManager_Other_23");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ParseAndPushCommandType@gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddPerk_gml_Object_obj_PlayerManager_Other_24", nullptr, AddPerkPlayerManagerOtherAfter, &origAddPerkScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddPerk@gml_Object_obj_PlayerManager_Other_24", nullptr, AddPerkPlayerManagerOtherAfter, &origAddPerkScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddPerk_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddPerk@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddItem_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddItemScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddItem@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddItemScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddItem_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddItem@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddConsumable_gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origAddConsumableScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddConsumable@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origAddConsumableScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddConsumable_gml_Object_obj_PlayerManager_Other_23");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddConsumable@gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddStat_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddStatScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddStat@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddStatScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddStat_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddStat@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_variable_struct_copy", nullptr, nullptr, &origVariableStructCopyScript)))
@@ -950,79 +950,79 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_variable_struct_copy");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ExecuteAttack_gml_Object_obj_AttackController_Create_0", ExecuteAttackBefore, ExecuteAttackAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ExecuteAttack@gml_Object_obj_AttackController_Create_0", ExecuteAttackBefore, ExecuteAttackAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ExecuteAttack_gml_Object_obj_AttackController_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ExecuteAttack@gml_Object_obj_AttackController_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OnCollideWithTarget_gml_Object_obj_Attack_Create_0", OnCollideWithTargetAttackBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OnCollideWithTarget@gml_Object_obj_Attack_Create_0", OnCollideWithTargetAttackBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OnCollideWithTarget_gml_Object_obj_Attack_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OnCollideWithTarget@gml_Object_obj_Attack_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Die_gml_Object_obj_Obstacle_Create_0", DieObstacleCreateBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Die@gml_Object_obj_Obstacle_Create_0", DieObstacleCreateBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Die_gml_Object_obj_Obstacle_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Die@gml_Object_obj_Obstacle_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_EliminateAttack_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origEliminateAttackScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_EliminateAttack@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origEliminateAttackScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_EliminateAttack_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_EliminateAttack@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_RemoveItem_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origRemoveItemScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_RemoveItem@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origRemoveItemScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_RemoveItem_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_RemoveItem@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_RemovePerk_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origRemovePerkScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_RemovePerk@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origRemovePerkScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_RemovePerk_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_RemovePerk@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ExecuteSpecialAttack_gml_Object_obj_InputManager_Create_0", ExecuteSpecialAttackBefore, nullptr, &origExecuteSpecialAttackScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ExecuteSpecialAttack@gml_Object_obj_InputManager_Create_0", ExecuteSpecialAttackBefore, nullptr, &origExecuteSpecialAttackScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ExecuteSpecialAttack_gml_Object_obj_InputManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ExecuteSpecialAttack@gml_Object_obj_InputManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ApplyBuff_gml_Object_obj_AttackController_Other_11", ApplyBuffAttackControllerBefore, ApplyBuffAttackControllerAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ApplyBuff@gml_Object_obj_AttackController_Other_11", ApplyBuffAttackControllerBefore, ApplyBuffAttackControllerAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ApplyBuff_gml_Object_obj_AttackController_Other_11");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ApplyBuff@gml_Object_obj_AttackController_Other_11");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Destroy_gml_Object_obj_holoAnvil_Create_0", DestroyHoloAnvilBefore, nullptr, &origDestroyHoloAnvilScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Destroy@gml_Object_obj_holoAnvil_Create_0", DestroyHoloAnvilBefore, nullptr, &origDestroyHoloAnvilScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Destroy_gml_Object_obj_holoAnvil_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Destroy@gml_Object_obj_holoAnvil_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Destroy_gml_Object_obj_goldenAnvil_Create_0", DestroyGoldenAnvilBefore, nullptr, &origDestroyGoldenAnvilScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Destroy@gml_Object_obj_goldenAnvil_Create_0", DestroyGoldenAnvilBefore, nullptr, &origDestroyGoldenAnvilScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Destroy_gml_Object_obj_goldenAnvil_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Destroy@gml_Object_obj_goldenAnvil_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_getAnvil_gml_Object_obj_PlayerManager_Create_0", nullptr, nullptr, &origGetAnvilScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_getAnvil@gml_Object_obj_PlayerManager_Create_0", nullptr, nullptr, &origGetAnvilScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_getAnvil_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_getAnvil@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_getGoldenAnvil_gml_Object_obj_PlayerManager_Create_0", nullptr, nullptr, &origGetGoldenAnvilScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_getGoldenAnvil@gml_Object_obj_PlayerManager_Create_0", nullptr, nullptr, &origGetGoldenAnvilScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_getGoldenAnvil_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_getGoldenAnvil@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_getSticker_gml_Object_obj_PlayerManager_Create_0", nullptr, nullptr, &origGetStickerScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_getSticker@gml_Object_obj_PlayerManager_Create_0", nullptr, nullptr, &origGetStickerScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_getSticker_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_getSticker@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Destroy_gml_Object_obj_Sticker_Create_0", DestroyStickerBefore, nullptr, &origDestroyStickerScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Destroy@gml_Object_obj_Sticker_Create_0", DestroyStickerBefore, nullptr, &origDestroyStickerScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Destroy_gml_Object_obj_Sticker_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Destroy@gml_Object_obj_Sticker_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_TakeDamage_gml_Object_obj_BaseMob_Create_0", TakeDamageBaseMobCreateBefore, TakeDamageBaseMobCreateAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_TakeDamage@gml_Object_obj_BaseMob_Create_0", TakeDamageBaseMobCreateBefore, TakeDamageBaseMobCreateAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_TakeDamage_gml_Object_obj_BaseMob_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_TakeDamage@gml_Object_obj_BaseMob_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_RollMod", nullptr, RollModAfter, nullptr)))
@@ -1030,34 +1030,34 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_RollMod");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddEnchant_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddEnchantScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddEnchant@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddEnchantScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddEnchant_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddEnchant@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_getBox_gml_Object_obj_PlayerManager_Create_0", nullptr, nullptr, &origGetBoxScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_getBox@gml_Object_obj_PlayerManager_Create_0", nullptr, nullptr, &origGetBoxScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_getBox_gml_Object_obj_PlayerManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_getBox@gml_Object_obj_PlayerManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddCollab_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddCollabScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddCollab@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddCollabScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddCollab_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddCollab@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddSuperCollab_gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddSuperCollabScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddSuperCollab@gml_Object_obj_PlayerManager_Other_24", nullptr, nullptr, &origAddSuperCollabScript)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddSuperCollab_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_AddSuperCollab@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ApplyBuffs_gml_Object_obj_PlayerManager_Other_24", ApplyBuffsPlayerManagerBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ApplyBuffs@gml_Object_obj_PlayerManager_Other_24", ApplyBuffsPlayerManagerBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ApplyBuffs_gml_Object_obj_PlayerManager_Other_24");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ApplyBuffs@gml_Object_obj_PlayerManager_Other_24");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Confirmed_gml_Object_obj_TitleScreen_Create_0", ConfirmedTitleScreenBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Confirmed@gml_Object_obj_TitleScreen_Create_0", ConfirmedTitleScreenBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Confirmed_gml_Object_obj_TitleScreen_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Confirmed@gml_Object_obj_TitleScreen_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_MouseOverButton", nullptr, nullptr, &origMouseOverButtonScript)))
@@ -1065,34 +1065,34 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_MouseOverButton");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ReturnMenu_gml_Object_obj_TitleScreen_Create_0", ReturnMenuTitleScreenBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ReturnMenu@gml_Object_obj_TitleScreen_Create_0", ReturnMenuTitleScreenBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ReturnMenu_gml_Object_obj_TitleScreen_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ReturnMenu@gml_Object_obj_TitleScreen_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Return_gml_Object_obj_CharSelect_Create_0", ReturnCharSelectCreateBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Return@gml_Object_obj_CharSelect_Create_0", ReturnCharSelectCreateBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Return_gml_Object_obj_CharSelect_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Return@gml_Object_obj_CharSelect_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Select_gml_Object_obj_CharSelect_Create_0", nullptr, SelectCharSelectCreateAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Select@gml_Object_obj_CharSelect_Create_0", nullptr, SelectCharSelectCreateAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Select_gml_Object_obj_CharSelect_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Select@gml_Object_obj_CharSelect_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OnDeath_gml_Object_obj_BaseMob_Create_0", OnDeathBaseMobCreateBefore, OnDeathBaseMobCreateAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OnDeath@gml_Object_obj_BaseMob_Create_0", OnDeathBaseMobCreateBefore, OnDeathBaseMobCreateAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OnDeath_gml_Object_obj_BaseMob_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_OnDeath@gml_Object_obj_BaseMob_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ParseAndPushCommandType_gml_Object_obj_PlayerManager_Other_23", ParseAndPushCommandTypePlayerManagerOtherBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ParseAndPushCommandType@gml_Object_obj_PlayerManager_Other_23", ParseAndPushCommandTypePlayerManagerOtherBefore, nullptr, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ParseAndPushCommandType_gml_Object_obj_PlayerManager_Other_23");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_ParseAndPushCommandType@gml_Object_obj_PlayerManager_Other_23");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CreateSummon_gml_Object_obj_MobManager_Create_0", CreateSummonMobManagerCreateBefore, CreateSummonMobManagerCreateAfter, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_CreateSummon@gml_Object_obj_MobManager_Create_0", CreateSummonMobManagerCreateBefore, CreateSummonMobManagerCreateAfter, nullptr)))
 	{
-		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_CreateSummon_gml_Object_obj_MobManager_Create_0");
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_CreateSummon@gml_Object_obj_MobManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 	
@@ -1130,33 +1130,20 @@ EXPORTED AurieStatus ModuleInitialize(
 
 	status = FindMemoryPatternAddress(
 		UTEXT(
-			"\x48\x89\x5C\x24\x08"			// MOV qword ptr [RSP + local_res8], RBX
-			"\x48\x89\x6C\x24\x10"			// MOV qword ptr [RSP + local_res10], RBP
-			"\x48\x89\x74\x24\x18"			// MOV qword ptr [RSP + local_res18], RSI
-			"\x57"							// PUSH RDI
+			"\x48\x89\x6C\x24\x18"			// MOV qword ptr [RSP + local_res18], RBP
+			"\x48\x89\x7C\x24\x20"			// MOV qword ptr [RSP + local_res20], RDI
+			"\x41\x56"						// PUSH R14
 			"\x48\x83\xEC\x40"				// SUB RSP, 0x40
-			"\x48\x63\xD9"					// MOVSXD RBX, param_1
-			"\x40\x32\xFF"					// XOR DIL, DIL
-			"\x41\x8B\xE8"					// MOV EBP, param_3
-			"\x8B\xF2"						// MOV ESI, param_2
-			"\x83\xFB\xFD"					// CMP EBX, -0x3
-			"\x0F\x00\x00\x00\x00\x00"		// JNZ
-			"\x48\x8b\x00\x00\x00\x00\x00"	// MOV RAX, qword ptr [Should be ptr to instance array]
-			"\x48\x85\xC0"					// TEST RAX, RAX 
+			"\x44\x8B\x51\x0C"				// MOV R10D, dword ptr [param_1 + 0xc]
+			"\x49\x8B\xF9"					// MOV RDI, param_4
 		),
 		"xxxxx"
 		"xxxxx"
-		"xxxxx"
-		"x"
+		"xx"
+		"xxxx"
 		"xxxx"
 		"xxx"
-		"xxx"
-		"xxx"
-		"xx"
-		"xxx"
-		"x?????"
-		"xx?????"
-		"xxx",
+		,
 		yyGMLVariableGetValueAddress
 	);
 	if (!AurieSuccess(status))

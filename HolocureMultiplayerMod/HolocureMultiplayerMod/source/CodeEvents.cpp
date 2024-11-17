@@ -155,8 +155,8 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 		g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
 
 		// Draw player num
-		double curXPos = getInstanceVariable(Self, GML_x).m_Real;
-		double curYPos = getInstanceVariable(Self, GML_y).m_Real;
+		double curXPos = getInstanceVariable(Self, GML_x).AsReal();
+		double curYPos = getInstanceVariable(Self, GML_y).AsReal();
 		drawTextOutline(Self, curXPos, curYPos, std::format("P{}", lobbyPlayerDataMap[playerID].playerName), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
 
 		// Draw ping numbers under all clients for the host and only under the host for the clients
@@ -200,8 +200,8 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 				{
 					continue;
 				}
-				double xPos = getInstanceVariable(curPlayerInstance, GML_x).m_Real;
-				double yPos = getInstanceVariable(curPlayerInstance, GML_y).m_Real;
+				double xPos = getInstanceVariable(curPlayerInstance, GML_x).AsReal();
+				double yPos = getInstanceVariable(curPlayerInstance, GML_y).AsReal();
 				RValue arrowDir = g_ModuleInterface->CallBuiltin("point_direction", { curXPos, curYPos, xPos, yPos });
 				// Check if the client player isn't on screen
 				if (xPos < curXPos - halfScreenWidth - 15 || xPos > curXPos + halfScreenWidth + 15
@@ -462,13 +462,13 @@ void instanceSendMessage(CInstance* Self)
 	if (mapInstance == instanceToIDMap.end())
 	{
 		int instanceID = availableInstanceIDs.front();
-		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-		float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
-		float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
+		float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).AsReal());
+		float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).AsReal());
 		// Probably should change this to uint16_t
-		short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-		char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+		short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).AsReal()));
+		char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).AsReal());
 		// seems like there's something that doesn't have a sprite at the beginning? Not sure what it is
 		// Maybe it's the additional player I created?
 		// temp code to just make it work for now
@@ -491,13 +491,13 @@ void instanceSendMessage(CInstance* Self)
 	}
 	else
 	{
-		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-		float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
-		float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
+		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
+		float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).AsReal());
+		float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).AsReal());
 		// Probably should change this to uint16_t
-		short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-		char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+		short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).AsReal()));
+		char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).AsReal());
 		char hasVarChanged = 0;
 		instanceData prevData = mapInstance->second;
 		// Mark dirty bits if anything has changed
@@ -540,19 +540,19 @@ void EnemyStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 		RValue followTarget = getInstanceVariable(Self, GML_followTarget);
 		if (followTarget.m_Kind == VALUE_REF)
 		{
-			double posX = getInstanceVariable(Self, GML_x).m_Real;
-			double posY = getInstanceVariable(Self, GML_y).m_Real;
+			double posX = getInstanceVariable(Self, GML_x).AsReal();
+			double posY = getInstanceVariable(Self, GML_y).AsReal();
 			// TODO: Probably should cache this since it won't change for the current frame
-			double originalPlayerPosX = getInstanceVariable(playerMap[0], GML_x).m_Real;
-			double originalPlayerPosY = getInstanceVariable(playerMap[0], GML_y).m_Real;
+			double originalPlayerPosX = getInstanceVariable(playerMap[0], GML_x).AsReal();
+			double originalPlayerPosY = getInstanceVariable(playerMap[0], GML_y).AsReal();
 			double minDis = (posX - originalPlayerPosX) * (posX - originalPlayerPosX) + (posY - originalPlayerPosY) * (posY - originalPlayerPosY);
 			uint32_t closestPlayerID = 0;
 			for (auto& curPlayer : playerMap)
 			{
 				uint32_t playerID = curPlayer.first;
 				RValue playerInstance = curPlayer.second;
-				double playerPosX = getInstanceVariable(playerInstance, GML_x).m_Real;
-				double playerPosY = getInstanceVariable(playerInstance, GML_y).m_Real;
+				double playerPosX = getInstanceVariable(playerInstance, GML_x).AsReal();
+				double playerPosY = getInstanceVariable(playerInstance, GML_y).AsReal();
 				double curDis = (posX - playerPosX) * (posX - playerPosX) + (posY - playerPosY) * (posY - playerPosY);
 				if (curDis < minDis)
 				{
@@ -765,15 +765,15 @@ void AttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 			if (mapAttack == attackToIDMap.end())
 			{
 				int attackID = availableAttackIDs.front();
-				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
-				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
-				float imageAngle = static_cast<float>(getInstanceVariable(Self, GML_image_angle).m_Real);
-				float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).m_Real);
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).AsReal());
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).AsReal());
+				float imageAngle = static_cast<float>(getInstanceVariable(Self, GML_image_angle).AsReal());
+				float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).AsReal());
 				// Probably should change this to uint16_t
-				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).AsReal()));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).AsReal());
 				attackData data(xPos, yPos, 0, 0, imageXScale, imageYScale, imageAngle, imageAlpha, spriteIndex, attackID, truncatedImageIndex, 0, 1);
 				attackToIDMap[Self] = data;
 				attackCreateMessage.addAttack(data);
@@ -786,15 +786,15 @@ void AttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 			}
 			else
 			{
-				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
-				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
-				float imageAngle = static_cast<float>(getInstanceVariable(Self, GML_image_angle).m_Real);
-				float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).m_Real);
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).AsReal());
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).AsReal());
+				float imageAngle = static_cast<float>(getInstanceVariable(Self, GML_image_angle).AsReal());
+				float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).AsReal());
 				// Probably should change this to uint16_t
-				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).AsReal()));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).AsReal());
 				
 				char hasVarChanged = 0;
 				attackData prevData = mapAttack->second;
@@ -952,7 +952,7 @@ void PlayerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 				{
 					RValue buffs = getInstanceVariable(Self, GML_buffs);
 					RValue buffsNames = g_ModuleInterface->CallBuiltin("variable_instance_get_names", { buffs });
-					int buffsNamesLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { buffsNames }).m_Real));
+					int buffsNamesLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { buffsNames }).AsReal()));
 					std::vector<buffData> buffDataList;
 					for (int i = 0; i < buffsNamesLen; i++)
 					{
@@ -964,9 +964,9 @@ void PlayerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 						short stacksValue = -1;
 						if (stacks.m_Kind == VALUE_REAL)
 						{
-							stacksValue = static_cast<short>(lround(stacks.m_Real));
+							stacksValue = static_cast<short>(lround(stacks.AsReal()));
 						}
-						short timer = static_cast<short>(lround(getInstanceVariable(curBuff, GML_timer).m_Real));
+						short timer = static_cast<short>(lround(getInstanceVariable(curBuff, GML_timer).AsReal()));
 						buffDataList.push_back(buffData(curBuffName.AsString(), timer, stacksValue));
 					}
 					sendBuffDataMessage(playerID, buffDataList);
@@ -1058,8 +1058,8 @@ void AllPickupableStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 		if (isHost)
 		{
 			CInstance* Self = std::get<0>(Args);
-			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 
 			double minDis = 1e20;
 			uint32_t pos = 0;
@@ -1067,8 +1067,8 @@ void AllPickupableStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 			{
 				uint32_t playerID = curPlayer.first;
 				RValue playerInstance = curPlayer.second;
-				double playerXPos = getInstanceVariable(playerInstance, GML_x).m_Real;
-				double playerYPos = getInstanceVariable(playerInstance, GML_y).m_Real;
+				double playerXPos = getInstanceVariable(playerInstance, GML_x).AsReal();
+				double playerYPos = getInstanceVariable(playerInstance, GML_y).AsReal();
 				double disSquared = (playerXPos - xPos) * (playerXPos - xPos) + (playerYPos - yPos) * (playerYPos - yPos);
 				if (disSquared < minDis)
 				{
@@ -1085,8 +1085,8 @@ void AllPickupableStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 				int expID = availablePickupableIDs.front();
 				pickupableToIDMap[Self] = expID;
 				// Probably should change this to uint16_t
-				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).AsReal()));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).AsReal());
 				sendAllPickupableCreateMessage(pickupableData(xPos, yPos, spriteIndex, expID, truncatedImageIndex));
 				pickupableLastPosMap[expID] = std::make_pair(xPos, yPos);
 
@@ -1095,8 +1095,8 @@ void AllPickupableStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 			else
 			{
 				// Probably should change this to uint16_t
-				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).m_Real);
+				short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).AsReal()));
+				char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).AsReal());
 				auto lastPosFind = pickupableLastPosMap.find(mapEXP->second);
 				if (lastPosFind != pickupableLastPosMap.end())
 				{
@@ -1119,8 +1119,8 @@ void AllPickupableStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 		{
 			CInstance* Self = std::get<0>(Args);
 			int createdTime = getInstanceVariable(Self, GML_createdTime).m_i32;
-			int numSubImages = static_cast<int>(lround(getInstanceVariable(Self, GML_image_number).m_Real));
-			double spritePlaybackSpeed = getInstanceVariable(Self, GML_spritePlaybackSpeed).m_Real;
+			int numSubImages = static_cast<int>(lround(getInstanceVariable(Self, GML_image_number).AsReal()));
+			double spritePlaybackSpeed = getInstanceVariable(Self, GML_spritePlaybackSpeed).AsReal();
 			setInstanceVariable(Self, GML_image_index, RValue((static_cast<int>((timeNum - createdTime) * spritePlaybackSpeed / 60.0) % numSubImages)));
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
@@ -1221,7 +1221,7 @@ void YagooPillarCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 		CInstance* Self = std::get<0>(Args);
 		if (!isHost)
 		{
-			if (abs(getInstanceVariable(Self, GML_depth).m_Real - 12345) > 1e-3)
+			if (abs(getInstanceVariable(Self, GML_depth).AsReal() - 12345) > 1e-3)
 			{
 				setInstanceVariable(Self, GML_sprite_index, RValue(sprEmptyIndex));
 				callbackManagerInterfacePtr->CancelOriginalFunction();
@@ -1230,8 +1230,8 @@ void YagooPillarCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 		else
 		{
 			// TODO: Not the best way to do this, but should still work (Low priority improve this)
-			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 			short destructableIndex = static_cast<short>(destructableMap.size());
 			destructableData data = destructableData(xPos, yPos, destructableIndex, 1);
 			destructableMap[destructableIndex] = data;
@@ -1248,7 +1248,7 @@ void DestructableCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 		CInstance* Self = std::get<0>(Args);
 		if (!isHost)
 		{
-			if (abs(getInstanceVariable(Self, GML_depth).m_Real - 12345) > 1e-3)
+			if (abs(getInstanceVariable(Self, GML_depth).AsReal() - 12345) > 1e-3)
 			{
 				setInstanceVariable(Self, GML_sprite_index, RValue(sprEmptyIndex));
 				callbackManagerInterfacePtr->CancelOriginalFunction();
@@ -1257,8 +1257,8 @@ void DestructableCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 		else
 		{
 			// TODO: Not the best way to do this, but should still work (Low priority improve this)
-			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 			short destructableIndex = static_cast<short>(destructableMap.size());
 			destructableData data = destructableData(xPos, yPos, destructableIndex, 0);
 			destructableMap[destructableIndex] = data;
@@ -1275,7 +1275,7 @@ void ObstacleStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>
 		// TODO: Could probably find some better way to do this (low priority)
 		CInstance* Self = std::get<0>(Args);
 		RValue spriteIndex = getInstanceVariable(Self, GML_sprite_index);
-		if (abs(spriteIndex.m_Real - sprEmptyIndex) < 1e-3)
+		if (abs(spriteIndex.AsReal() - sprEmptyIndex) < 1e-3)
 		{
 			g_ModuleInterface->CallBuiltin("instance_destroy", { Self });
 			callbackManagerInterfacePtr->CancelOriginalFunction();
@@ -1290,7 +1290,7 @@ void YagooPillarStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 		// TODO: Could probably find some better way to do this (low priority)
 		CInstance* Self = std::get<0>(Args);
 		RValue spriteIndex = getInstanceVariable(Self, GML_sprite_index);
-		if (abs(spriteIndex.m_Real - sprEmptyIndex) < 1e-3)
+		if (abs(spriteIndex.AsReal() - sprEmptyIndex) < 1e-3)
 		{
 			g_ModuleInterface->CallBuiltin("instance_destroy", { Self });
 			callbackManagerInterfacePtr->CancelOriginalFunction();
@@ -1313,11 +1313,11 @@ void CautionStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>&
 	{
 		CInstance* Self = std::get<0>(Args);
 		RValue lifetime = getInstanceVariable(Self, GML_lifetime);
-		if (lifetime.m_Real < 1)
+		if (lifetime.AsReal() < 1)
 		{
-			short dir = static_cast<short>(lround(getInstanceVariable(Self, GML_dir).m_Real));
-			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+			short dir = static_cast<short>(lround(getInstanceVariable(Self, GML_dir).AsReal()));
+			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 			sendAllCautionCreateMessage(cautionData(xPos, yPos, dir, 0));
 		}
 	}
@@ -1329,11 +1329,11 @@ void CautionAttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 	{
 		CInstance* Self = std::get<0>(Args);
 		RValue lifetime = getInstanceVariable(Self, GML_lifetime);
-		if (lifetime.m_Real < 1)
+		if (lifetime.AsReal() < 1)
 		{
-			short dir = static_cast<short>(lround(getInstanceVariable(Self, GML_dir).m_Real));
-			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+			short dir = static_cast<short>(lround(getInstanceVariable(Self, GML_dir).AsReal()));
+			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 			sendAllCautionCreateMessage(cautionData(xPos, yPos, dir, 1));
 		}
 	}
@@ -1346,11 +1346,11 @@ void PreCreateStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 		if (isHost)
 		{
 			CInstance* Self = std::get<0>(Args);
-			short waitSpawn = static_cast<short>(lround(getInstanceVariable(Self, GML_waitSpawn).m_Real));
+			short waitSpawn = static_cast<short>(lround(getInstanceVariable(Self, GML_waitSpawn).AsReal()));
 			if (waitSpawn >= 1)
 			{
-				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 				RValue preCreateMapIndex = getInstanceVariable(Self, GML_preCreateMapIndex);
 				if (preCreateMapIndex.m_Kind == VALUE_UNSET)
 				{
@@ -1360,7 +1360,7 @@ void PreCreateStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 					setInstanceVariable(Self, GML_preCreateMapIndex, preCreateMapIndex);
 				}
 
-				short preCreateMapIndexVal = static_cast<short>(lround(preCreateMapIndex.m_Real));
+				short preCreateMapIndexVal = static_cast<short>(lround(preCreateMapIndex.AsReal()));
 				if (waitSpawn == 1)
 				{
 					// Could technically cause issues, but it would require all the IDs to be used which is unlikely
@@ -1386,18 +1386,18 @@ void VFXStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Arg
 			// TODO: Reenable once I optimize the amount of data being uploaded
 			/*
 			CInstance* Self = std::get<0>(Args);
-			short duration = static_cast<short>(lround(getInstanceVariable(Self, GML_duration).m_Real));
+			short duration = static_cast<short>(lround(getInstanceVariable(Self, GML_duration).AsReal()));
 			if (duration >= 1)
 			{
-				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
-				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
-				float imageAngle = static_cast<float>(getInstanceVariable(Self, GML_image_angle).m_Real);
-				float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).m_Real);
-				short spriteIndex = static_cast<short>(getInstanceVariable(Self, GML_sprite_index).m_Real);
-				short imageIndex = static_cast<short>(getInstanceVariable(Self, GML_image_index).m_Real);
-				int spriteColor = static_cast<int>(getInstanceVariable(Self, GML_spriteColor).m_Real);
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).AsReal());
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).AsReal());
+				float imageAngle = static_cast<float>(getInstanceVariable(Self, GML_image_angle).AsReal());
+				float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).AsReal());
+				short spriteIndex = static_cast<short>(getInstanceVariable(Self, GML_sprite_index).AsReal());
+				short imageIndex = static_cast<short>(getInstanceVariable(Self, GML_image_index).AsReal());
+				int spriteColor = static_cast<int>(getInstanceVariable(Self, GML_spriteColor).AsReal());
 				RValue vfxMapIndex = getInstanceVariable(Self, GML_vfxMapIndex);
 				if (vfxMapIndex.m_Kind == VALUE_UNSET || vfxMapIndex.m_Kind == VALUE_UNDEFINED)
 				{
@@ -1407,7 +1407,7 @@ void VFXStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Arg
 					setInstanceVariable(Self, GML_vfxMapIndex, vfxMapIndex);
 				}
 
-				short vfxMapIndexVal = static_cast<short>(lround(vfxMapIndex.m_Real));
+				short vfxMapIndexVal = static_cast<short>(lround(vfxMapIndex.AsReal()));
 				if (duration <= 2)
 				{
 					// Could technically cause issues, but it would require all the IDs to be used which is unlikely
@@ -1436,18 +1436,18 @@ void AfterImageStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue
 			// TODO: Reenable once I optimize the amount of data being uploaded
 			/*
 			CInstance* Self = std::get<0>(Args);
-			short deathTime = static_cast<short>(lround(getInstanceVariable(Self, GML_deathTime).m_Real));
+			short deathTime = static_cast<short>(lround(getInstanceVariable(Self, GML_deathTime).AsReal()));
 			if (deathTime >= 1)
 			{
-				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
-				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).m_Real);
-				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).m_Real);
-				float imageAngle = static_cast<float>(getInstanceVariable(Self, GML_image_angle).m_Real);
-				float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).m_Real);
-				short spriteIndex = static_cast<short>(getInstanceVariable(Self, GML_sprite_index).m_Real);
-				short imageIndex = static_cast<short>(getInstanceVariable(Self, GML_image_index).m_Real);
-				int afterImageColor = static_cast<int>(getInstanceVariable(Self, GML_afterimage_color).m_Real);
+				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
+				float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).AsReal());
+				float imageYScale = static_cast<float>(getInstanceVariable(Self, GML_image_yscale).AsReal());
+				float imageAngle = static_cast<float>(getInstanceVariable(Self, GML_image_angle).AsReal());
+				float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).AsReal());
+				short spriteIndex = static_cast<short>(getInstanceVariable(Self, GML_sprite_index).AsReal());
+				short imageIndex = static_cast<short>(getInstanceVariable(Self, GML_image_index).AsReal());
+				int afterImageColor = static_cast<int>(getInstanceVariable(Self, GML_afterimage_color).AsReal());
 				RValue afterImageMapIndex = getInstanceVariable(Self, GML_afterImageMapIndex);
 				if (afterImageMapIndex.m_Kind == VALUE_UNSET || afterImageMapIndex.m_Kind == VALUE_UNDEFINED)
 				{
@@ -1457,7 +1457,7 @@ void AfterImageStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue
 					setInstanceVariable(Self, GML_afterImageMapIndex, afterImageMapIndex);
 				}
 
-				short afterImageMapIndexVal = static_cast<short>(lround(afterImageMapIndex.m_Real));
+				short afterImageMapIndexVal = static_cast<short>(lround(afterImageMapIndex.AsReal()));
 				if (deathTime == 1)
 				{
 					// Could technically cause issues, but it would require all the IDs to be used which is unlikely
@@ -1486,10 +1486,10 @@ void AfterImageAlarmBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 			// TODO: Reenable once I optimize the amount of data being uploaded
 			/*
 			CInstance* Self = std::get<0>(Args);
-			float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).m_Real);
+			float imageAlpha = static_cast<float>(getInstanceVariable(Self, GML_image_alpha).AsReal());
 			if (imageAlpha < 0)
 			{
-				short afterImageMapIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_afterImageMapIndex).m_Real));
+				short afterImageMapIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_afterImageMapIndex).AsReal()));
 				// Could technically cause issues, but it would require all the IDs to be used which is unlikely
 				availableVFXIDs.push(afterImageMapIndex);
 				// Hacky way of sending over a delete message
@@ -1511,8 +1511,8 @@ void HoloBoxCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 	if (hasConnected && isHost)
 	{
 		CInstance* Self = std::get<0>(Args);
-		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 		RValue interactableMapIndex = getInstanceVariable(Self, GML_interactableMapIndex);
 		if (interactableMapIndex.m_Kind == VALUE_UNSET || interactableMapIndex.m_Kind == VALUE_UNDEFINED)
 		{
@@ -1522,7 +1522,7 @@ void HoloBoxCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 			setInstanceVariable(Self, GML_interactableMapIndex, interactableMapIndex);
 		}
 
-		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.m_Real));
+		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.AsReal()));
 
 		sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, -1, 0));
 	}
@@ -1549,8 +1549,8 @@ void HoloAnvilCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 	if (hasConnected && isHost)
 	{
 		CInstance* Self = std::get<0>(Args);
-		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 		RValue interactableMapIndex = getInstanceVariable(Self, GML_interactableMapIndex);
 		if (interactableMapIndex.m_Kind == VALUE_UNSET || interactableMapIndex.m_Kind == VALUE_UNDEFINED)
 		{
@@ -1560,7 +1560,7 @@ void HoloAnvilCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 			setInstanceVariable(Self, GML_interactableMapIndex, interactableMapIndex);
 		}
 
-		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.m_Real));
+		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.AsReal()));
 
 		sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, -1, 1));
 	}
@@ -1587,8 +1587,8 @@ void GoldenAnvilCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 	if (hasConnected && isHost)
 	{
 		CInstance* Self = std::get<0>(Args);
-		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 		RValue interactableMapIndex = getInstanceVariable(Self, GML_interactableMapIndex);
 		if (interactableMapIndex.m_Kind == VALUE_UNSET || interactableMapIndex.m_Kind == VALUE_UNDEFINED)
 		{
@@ -1598,7 +1598,7 @@ void GoldenAnvilCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 			setInstanceVariable(Self, GML_interactableMapIndex, interactableMapIndex);
 		}
 
-		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.m_Real));
+		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.AsReal()));
 
 		sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, -1, 2));
 	}
@@ -1625,8 +1625,8 @@ void GoldenHammerCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 	if (hasConnected && isHost)
 	{
 		CInstance* Self = std::get<0>(Args);
-		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 		RValue interactableMapIndex = getInstanceVariable(Self, GML_interactableMapIndex);
 		if (interactableMapIndex.m_Kind == VALUE_UNSET || interactableMapIndex.m_Kind == VALUE_UNDEFINED)
 		{
@@ -1636,7 +1636,7 @@ void GoldenHammerCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RV
 			setInstanceVariable(Self, GML_interactableMapIndex, interactableMapIndex);
 		}
 
-		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.m_Real));
+		short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.AsReal()));
 
 		sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, -1, 3));
 	}
@@ -1709,8 +1709,8 @@ void HoloBoxCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 				origGetBoxScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
 				setInstanceVariable(playerManagerInstanceVar, GML_gotBox, RValue(false));
 
-				char boxItemAmount = static_cast<char>(lround(getInstanceVariable(playerManagerInstanceVar, GML_boxItemAmount).m_Real));
-				char isSuperBox = static_cast<char>(lround(getInstanceVariable(playerManagerInstanceVar, GML_superBox).m_Real));
+				char boxItemAmount = static_cast<char>(lround(getInstanceVariable(playerManagerInstanceVar, GML_boxItemAmount).AsReal()));
+				char isSuperBox = static_cast<char>(lround(getInstanceVariable(playerManagerInstanceVar, GML_superBox).AsReal()));
 				RValue randomWeapon = getInstanceVariable(playerManagerInstanceVar, GML_randomWeapon);
 				callbackManagerInterfacePtr->LogToFile(MODNAME, "boxItemAmount: %d", boxItemAmount);
 
@@ -1728,7 +1728,7 @@ void HoloBoxCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 					}
 					else if (optionDescription.m_Kind == VALUE_ARRAY)
 					{
-						int optionDescriptionLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { optionDescription }).m_Real));
+						int optionDescriptionLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { optionDescription }).AsReal()));
 						for (int j = 0; j < optionDescriptionLength; j++)
 						{
 							optionDescriptionList.push_back(optionDescription[j].AsString());
@@ -1741,13 +1741,13 @@ void HoloBoxCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 					uint16_t optionIcon_Super = 0;
 					if (isSuperBox)
 					{
-						optionIcon_Super = static_cast<uint16_t>(lround(getInstanceVariable(randomWeapon[i], GML_optionIcon_Super).m_Real));
+						optionIcon_Super = static_cast<uint16_t>(lround(getInstanceVariable(randomWeapon[i], GML_optionIcon_Super).AsReal()));
 						optionIcon = getInstanceVariable(randomWeapon[i], GML_optionIcon_Normal);
 					}
-					randomWeaponArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.m_Real), optionIcon_Super, 0);
+					randomWeaponArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.AsReal()), optionIcon_Super, 0);
 				}
 
-				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 				sendAllBoxPlayerInteractedMessage(playerID, randomWeaponArr, interactableMapIndexVal, boxItemAmount, isSuperBox);
 				swapPlayerData(playerManagerInstanceVar, attackController, 0);
 				// Seems like the playersnapshot needs to be swapped because pausing does a player snapshot and swapping players will cause it to snapshot the client player
@@ -1757,7 +1757,7 @@ void HoloBoxCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 			}
 			else
 			{
-				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 				sendAllInteractableDeleteMessage(interactableMapIndexVal, 0);
 			}
 		}
@@ -1801,7 +1801,7 @@ void HoloAnvilCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, i
 				origPauseScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
 				sendAllHostHasPausedMessage();
 
-				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 				sendAllInteractablePlayerInteractedMessage(playerID, interactableMapIndexVal, 1);
 				setInstanceVariable(Self, GML_canCollide, RValue(false));
 				setInstanceVariable(playerManagerInstanceVar, GML_anvilID, RValue(Self));
@@ -1850,7 +1850,7 @@ void GoldenAnvilCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*,
 				origPauseScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
 				sendAllHostHasPausedMessage();
 
-				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 				sendAllInteractablePlayerInteractedMessage(playerID, interactableMapIndexVal, 2);
 				setInstanceVariable(Self, GML_canCollide, RValue(false));
 				setInstanceVariable(playerManagerInstanceVar, GML_anvilID, RValue(Self));
@@ -1871,7 +1871,7 @@ void GoldenHammerCleanUpBefore(std::tuple<CInstance*, CInstance*, CCode*, int, R
 	if (hasConnected && isHost)
 	{
 		CInstance* Self = std::get<0>(Args);
-		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 		sendAllInteractableDeleteMessage(interactableMapIndexVal, 3);
 	}
 }
@@ -1911,7 +1911,7 @@ void StickerCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 				origPauseScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
 				sendAllHostHasPausedMessage();
 
-				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 				RValue stickerData = getInstanceVariable(Self, GML_stickerData);
 				RValue stickerID = getInstanceVariable(stickerData, GML_id);
 				collidedStickerID = stickerID.AsString();
@@ -1940,7 +1940,7 @@ void StickerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>&
 		CInstance* Self = std::get<0>(Args);
 		if (getInstanceVariable(Self, GML_used).AsBool() || (getInstanceVariable(Self, GML_destroyIfNoneLeft).AsBool() && getInstanceVariable(Self, GML_stickerData).m_Kind != VALUE_OBJECT))
 		{
-			short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).m_Real));
+			short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 			sendAllInteractableDeleteMessage(interactableMapIndexVal, 4);
 		}
 	}
@@ -2277,7 +2277,7 @@ void OreDepositStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue
 
 			RValue HP = getInstanceVariable(Self, GML_HP);
 			RValue rarest = getInstanceVariable(Self, GML_rarest);
-			if (HP.m_Real < 1 && !rarest.AsBool())
+			if (HP.AsReal() < 1 && !rarest.AsBool())
 			{
 				RValue oreType = getInstanceVariable(Self, GML_oreType);
 				for (auto& player : playerMap)
@@ -2292,21 +2292,21 @@ void OreDepositStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue
 					{
 						continue;
 					}
-					char oreTypeChar = static_cast<char>(lround(oreType.m_Real));
+					char oreTypeChar = static_cast<char>(lround(oreType.AsReal()));
 					RValue config = getInstanceVariable(materialGrind, GML_config);
-					RValue newOreA = RValue(getInstanceVariable(config, GML_oreA).m_Real + (oreTypeChar == 0 ? 1 : 0));
-					RValue newOreB = RValue(getInstanceVariable(config, GML_oreB).m_Real + (oreTypeChar == 1 ? 1 : 0));
-					RValue newOreC = RValue(getInstanceVariable(config, GML_oreC).m_Real + (oreTypeChar == 2 ? 1 : 0));
-					sendKaelaOreAmountMessage(player.first, static_cast<short>(newOreA.m_Real), static_cast<short>(newOreB.m_Real), static_cast<short>(newOreC.m_Real));
+					RValue newOreA = RValue(getInstanceVariable(config, GML_oreA).AsReal() + (oreTypeChar == 0 ? 1 : 0));
+					RValue newOreB = RValue(getInstanceVariable(config, GML_oreB).AsReal() + (oreTypeChar == 1 ? 1 : 0));
+					RValue newOreC = RValue(getInstanceVariable(config, GML_oreC).AsReal() + (oreTypeChar == 2 ? 1 : 0));
+					sendKaelaOreAmountMessage(player.first, static_cast<short>(newOreA.AsReal()), static_cast<short>(newOreB.AsReal()), static_cast<short>(newOreC.AsReal()));
 					setInstanceVariable(config, GML_oreA, newOreA);
 					setInstanceVariable(config, GML_oreB, newOreB);
 					setInstanceVariable(config, GML_oreC, newOreC);
 					RValue playerX = getInstanceVariable(player.second, GML_x);
 					RValue playerY = getInstanceVariable(player.second, GML_y);
 					RValue depth = getInstanceVariable(player.second, GML_depth);
-					RValue mineral = g_ModuleInterface->CallBuiltin("instance_create_depth", { playerX, playerY.m_Real - 16, depth.m_Real - 10, objGetFishIndex });
+					RValue mineral = g_ModuleInterface->CallBuiltin("instance_create_depth", { playerX, playerY.AsReal() - 16, depth.AsReal() - 10, objGetFishIndex });
 					setInstanceVariable(mineral, GML_sprite_index, sprKaelaMinerals);
-					setInstanceVariable(mineral, GML_image_index, RValue(oreType.m_Real + 1));
+					setInstanceVariable(mineral, GML_image_index, RValue(oreType.AsReal() + 1));
 					setInstanceVariable(mineral, GML_image_speed, 0);
 					setInstanceVariable(mineral, GML_waitTime, 30);
 					setInstanceVariable(mineral, GML_image_xscale, 2);
@@ -2500,9 +2500,9 @@ void StickerAlarm1After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>
 		CInstance* Self = std::get<0>(Args);
 		if (!getInstanceVariable(Self, GML_destroyIfNoneLeft).AsBool())
 		{
-			short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).m_Real));
-			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).m_Real);
-			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).m_Real);
+			short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).AsReal()));
+			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
+			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
 			RValue interactableMapIndex = getInstanceVariable(Self, GML_interactableMapIndex);
 			if (interactableMapIndex.m_Kind == VALUE_UNSET || interactableMapIndex.m_Kind == VALUE_UNDEFINED)
 			{
@@ -2512,7 +2512,7 @@ void StickerAlarm1After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>
 				setInstanceVariable(Self, GML_interactableMapIndex, interactableMapIndex);
 			}
 
-			short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.m_Real));
+			short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.AsReal()));
 			sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, spriteIndex, 4));
 		}
 	}
