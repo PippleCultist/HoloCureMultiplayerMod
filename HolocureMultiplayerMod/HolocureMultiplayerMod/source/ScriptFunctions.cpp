@@ -94,6 +94,7 @@ double moneyGainMultiplier = 0;
 double foodMultiplier = 0;
 
 int curPlayerID = 0;
+std::vector<uint32_t> curPlayerIDStack;
 
 bool isClientInInitializeCharacter = false;
 
@@ -293,6 +294,9 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			playerStatUpsMap.clear();
 			summonMap.clear();
 			customDrawScriptMap.clear();
+			curPlayerIDStack.clear();
+
+			curPlayerIDStack.push_back(0);
 
 			if (availableInstanceIDs.empty())
 			{
@@ -710,7 +714,7 @@ RValue& PausePlayerManagerCreateFuncBefore(CInstance* Self, CInstance* Other, RV
 			if (curPlayerID != 0)
 			{
 				RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-				swapPlayerData(Self, attackController, 0);
+				swapPlayerDataPush(Self, attackController, 0);
 			}
 		}
 		else
@@ -735,7 +739,7 @@ RValue& PausePlayerManagerCreateFuncAfter(CInstance* Self, CInstance* Other, RVa
 			if (swapPausePlayerID != -1 && swapPausePlayerID != 0)
 			{
 				RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-				swapPlayerData(Self, attackController, swapPausePlayerID);
+				swapPlayerDataPop(Self, attackController);
 			}
 			swapPausePlayerID = -1;
 		}
@@ -826,7 +830,7 @@ optionType convertStringOptionTypeToEnum(RValue optionType)
 	return optionType_NONE;
 }
 
-void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, uint32_t playerID)
+void swapPlayerDataHelper(CInstance* playerManagerInstance, RValue attackController, uint32_t playerID)
 {
 	if (playerID == 100000 || curPlayerID == playerID)
 	{
@@ -834,7 +838,7 @@ void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, u
 		{
 			// TODO: Seems like this occurs pretty often for some weapons. Need to investigate further
 //			g_ModuleInterface->Print(CM_RED, "Failed to swap player ID");
-			callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to swap player ID");
+//			callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to swap player ID");
 		}
 		return;
 	}
@@ -858,6 +862,19 @@ void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, u
 	setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[playerID]);
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentStickers", currentStickersMap[playerID] });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charSelectedMap[playerID] });
+}
+
+void swapPlayerDataPush(CInstance* playerManagerInstance, RValue attackController, uint32_t playerID)
+{
+	curPlayerIDStack.push_back(playerID);
+	swapPlayerDataHelper(playerManagerInstance, attackController, playerID);
+}
+
+void swapPlayerDataPop(CInstance* playerManagerInstance, RValue attackController)
+{
+	curPlayerIDStack.pop_back();
+	uint32_t playerID = curPlayerIDStack.back();
+	swapPlayerDataHelper(playerManagerInstance, attackController, playerID);
 }
 
 bool isHostInLevelUp = false;
@@ -897,7 +914,7 @@ RValue& LevelUpPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 		for (auto& curClientIDMapping : clientIDToSteamIDMap)
 		{
 			uint32_t playerID = curClientIDMapping.first;
-			swapPlayerData(Self, attackController, playerID);
+			swapPlayerDataPush(Self, attackController, playerID);
 			origGeneratePossibleOptionsScript(Self, Other, result, 0, nullptr);
 			origOptionOneScript(Self, Other, result, 0, nullptr);
 			options[0] = result;
@@ -919,13 +936,13 @@ RValue& LevelUpPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 				std::make_pair(optionType3, std::string(getInstanceVariable(options[3], GML_optionID).AsString()))
 			);
 			clientUnpausedMap[playerID] = false;
+			swapPlayerDataPop(Self, attackController);
 		}
 
 		for (int i = 0; i < 4; i++)
 		{
 			options[i] = prevOptions[i];
 		}
-		swapPlayerData(Self, attackController, 0);
 	}
 	return ReturnValue;
 }
@@ -1479,11 +1496,11 @@ RValue& ExecuteAttackBefore(CInstance* Self, CInstance* Other, RValue& ReturnVal
 				setInstanceVariable(*Args[2], GML_origPlayerCreator, playerMap[static_cast<uint32_t>(playerID)]);
 				g_ModuleInterface->CallBuiltin("variable_instance_set", { *overrideConfig, "summonSource", *attacker });
 			}
-			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 			// TODO: Should probably keep track of what is the last player data to avoid needing to do this multiple times.
 			// TODO: Could probably move some of this into player step to also avoid swapping player data since it will be the same player
-			swapPlayerData(playerManagerInstanceVar, attackController, static_cast<int>(playerID));
 		}
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, static_cast<int>(playerID));
 	}
 	return ReturnValue;
 }
@@ -1493,7 +1510,7 @@ RValue& ExecuteAttackAfter(CInstance* Self, CInstance* Other, RValue& ReturnValu
 	if (hasConnected && isHost)
 	{
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-		swapPlayerData(playerManagerInstanceVar, attackController, 0);
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	}
 	return ReturnValue;
 }
@@ -1537,15 +1554,19 @@ RValue& ApplyBuffAttackControllerBefore(CInstance* Self, CInstance* Other, RValu
 	if (hasConnected && isHost)
 	{
 		RValue* creator = Args[0];
+		uint32_t playerID = 100000;
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 		if (isInBaseMobOnDeath)
 		{
 			// TODO: Find a good general fix for which player should get the buff
 			callbackManagerInterfacePtr->CancelOriginalFunction();
+			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 			return ReturnValue;
 		}
 		RValue isPlayer = getInstanceVariable(creator, GML_isPlayer);
 		if (isPlayer.m_Kind == VALUE_UNDEFINED || isPlayer.m_Kind == VALUE_UNSET)
 		{
+			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 			return ReturnValue;
 		}
 		if (creator->m_Kind == VALUE_REAL)
@@ -1559,10 +1580,9 @@ RValue& ApplyBuffAttackControllerBefore(CInstance* Self, CInstance* Other, RValu
 		}
 		else
 		{
-			uint32_t playerID = getPlayerID(getInstanceVariable(*creator, GML_id).m_Object);
-			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+			playerID = getPlayerID(getInstanceVariable(*creator, GML_id).m_Object);
 		}
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 	}
 	return ReturnValue;
 }
@@ -1573,7 +1593,7 @@ RValue& ApplyBuffAttackControllerAfter(CInstance* Self, CInstance* Other, RValue
 	{
 		// TODO: Could probably check the index to see if it's the original player or not to avoid an unnecessary swap
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-		swapPlayerData(playerManagerInstanceVar, attackController, 0);
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	}
 	return ReturnValue;
 }
@@ -1616,11 +1636,10 @@ RValue& TakeDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue&
 	if (hasConnected && isHost)
 	{
 		uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 		if (playerID != 100000)
 		{
 			// Player is taking damage
-			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
 			hasPlayerTakenDamage = true;
 		}
 		else
@@ -1637,10 +1656,9 @@ RValue& TakeDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue&
 				}
 			}
 			playerID = getPlayerID(creator.m_Object);
-			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
 			hasEnemyTakenDamage = true;
 		}
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 	}
 	return ReturnValue;
 }
@@ -1649,18 +1667,10 @@ RValue& TakeDamageBaseMobCreateAfter(CInstance* Self, CInstance* Other, RValue& 
 {
 	if (hasConnected && isHost)
 	{
-		if (hasPlayerTakenDamage)
-		{
-			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, 0);
-			hasPlayerTakenDamage = false;
-		}
-		if (hasEnemyTakenDamage)
-		{
-			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, 0);
-			hasEnemyTakenDamage = false;
-		}
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+		hasPlayerTakenDamage = false;
+		hasEnemyTakenDamage = false;
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	}
 	return ReturnValue;
 }
@@ -1717,6 +1727,7 @@ void cleanupPlayerGameData()
 	currentStickersMap.clear();
 	charSelectedMap.clear();
 	playerDataMap.clear();
+	curPlayerIDStack.clear();
 	isPlayerCreatedMap.clear();
 	lastTimeReceivedMoveDataMap.clear();
 	summonMap.clear();
@@ -1955,6 +1966,28 @@ RValue& CreateSummonMobManagerCreateAfter(CInstance* Self, CInstance* Other, RVa
 	if (hasConnected && isHost)
 	{
 		isInCreateSummon = false;
+	}
+	return ReturnValue;
+}
+
+RValue& HealBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected && isHost)
+	{
+		uint32_t playerID = getPlayerID(getInstanceVariable(*Args[0], GML_id).m_Object);
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, static_cast<int>(playerID));
+	}
+	return ReturnValue;
+}
+
+RValue& HealAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected && isHost)
+	{
+		uint32_t playerID = getPlayerID(getInstanceVariable(*Args[0], GML_id).m_Object);
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	}
 	return ReturnValue;
 }

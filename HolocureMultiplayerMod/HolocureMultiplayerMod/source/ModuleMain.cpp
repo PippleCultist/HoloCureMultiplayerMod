@@ -83,7 +83,7 @@ PFUNC_YYGMLScript origAddCollabScript = nullptr;
 PFUNC_YYGMLScript origAddSuperCollabScript = nullptr;
 PFUNC_YYGMLScript origMouseOverButtonScript = nullptr;
 
-using PFUNC_YYGML_Variable_GetValue = void(*)(long long arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6);
+using PFUNC_YYGML_Variable_GetValue = void(*)(RValue* arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6);
 PVOID yyGMLVariableGetValueAddress = nullptr;
 PFUNC_YYGML_Variable_GetValue origYYGMLVariableGetValueFunc = nullptr;
 std::binary_semaphore initYYGMLVariableGetValueFuncSemaphore(1);
@@ -134,6 +134,7 @@ int objCharacterDataIndex = -1;
 int objCharSelectIndex = -1;
 int objObstacleIndex = -1;
 int objGetFishIndex = -1;
+int objCocoWeaponIndex = -1;
 int sprEmptyIndex = -1;
 int sprEmptyMaskIndex = -1;
 int sprGameCursorIndex = -1;
@@ -182,7 +183,7 @@ AurieStatus FindMemoryPatternAddress(const unsigned char* Pattern, const char* P
 	return AURIE_SUCCESS;
 }
 
-void YYGMLVariableGetValueHookFunc(long long arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6)
+void YYGMLVariableGetValueHookFunc(RValue* arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6)
 {
 	// Sometimes the hook might happen before the originalFunc is set
 	if (origYYGMLVariableGetValueFunc == nullptr)
@@ -198,14 +199,16 @@ void YYGMLVariableGetValueHookFunc(long long arg1, void* arg2, void* arg3, void*
 	}
 	if (hasConnected)
 	{
-		if (arg1 == objPlayerIndex + 0x100000000000000)
+		if (arg1->m_Kind == VALUE_REF && arg1->m_i32 == objPlayerIndex)
 		{
 			// Prevent it from swapping if the map hasn't been initialized yet
 			auto playerMapFind = playerMap.find(curPlayerID);
 			if (playerMapFind != playerMap.end())
 			{
 				// swap player to the actual current player
-				arg1 = playerMap[curPlayerID].m_i32;
+				arg1 = &playerMap[curPlayerID];
+				origYYGMLVariableGetValueFunc(arg1, arg2, arg3, arg4, arg5, arg6);
+				return;
 			}
 		}
 	}
@@ -752,6 +755,16 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Object_obj_Sticker_Alarm_1");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_CocoWeapon_Step_0", CocoWeaponStepBefore, CocoWeaponStepAfter)))
+	{
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Object_obj_CocoWeapon_Step_0");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_CocoWeapon_Collision_obj_Player", CocoWeaponCollisionPlayerBefore, nullptr)))
+	{
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Object_obj_CocoWeapon_Collision_obj_Player");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 	
 
 
@@ -1095,6 +1108,11 @@ EXPORTED AurieStatus ModuleInitialize(
 		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_CreateSummon@gml_Object_obj_MobManager_Create_0");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Heal", HealBefore, HealAfter, nullptr)))
+	{
+		LogPrint(CM_RED, "Failed to register callback for %s", "gml_Script_Heal");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
 	
 	
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "struct_get_from_hash", nullptr, nullptr, &origStructGetFromHashFunc)))
@@ -1125,6 +1143,11 @@ EXPORTED AurieStatus ModuleInitialize(
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "ds_map_find_value", DsMapFindValueBefore, nullptr, nullptr)))
 	{
 		LogPrint(CM_RED, "Failed to register callback for %s", "ds_map_find_value");
+		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "instance_create_depth", nullptr, InstanceCreateDepthAfter, nullptr)))
+	{
+		LogPrint(CM_RED, "Failed to register callback for %s", "instance_create_depth");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
 
@@ -1330,6 +1353,7 @@ EXPORTED AurieStatus ModuleInitialize(
 	objCharSelectIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CharSelect" }).AsReal());
 	objObstacleIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Obstacle" }).AsReal());
 	objGetFishIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_GetFish" }).AsReal());
+	objCocoWeaponIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CocoWeapon" }).AsReal());
 	sprEmptyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_empty" }).AsReal());
 	sprGameCursorIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor" }).AsReal());
 	sprGameCursor2Index = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor2" }).AsReal());

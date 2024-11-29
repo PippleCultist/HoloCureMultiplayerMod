@@ -2,7 +2,7 @@
 #include <YYToolkit/shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.2.0"
+#define VERSION_NUM "v1.2.1"
 #define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
 #define BROADCAST_PORT "27015"
 #define GAME_PORT "27016"
@@ -205,6 +205,7 @@
 	DO(weaponCollabs) \
 	DO(isPlayer) \
 	DO(origPlayerCreator) \
+	DO(player) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -296,6 +297,7 @@ extern int objCharacterDataIndex;
 extern int objCharSelectIndex;
 extern int objObstacleIndex;
 extern int objGetFishIndex;
+extern int objCocoWeaponIndex;
 extern int sprEmptyIndex;
 extern int sprGameCursorIndex;
 extern int sprGameCursor2Index;

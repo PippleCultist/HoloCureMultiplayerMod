@@ -80,7 +80,8 @@ struct steamConnection
 	int curBytePos;
 };
 
-void swapPlayerData(CInstance* playerManagerInstance, RValue attackController, uint32_t playerIndex);
+void swapPlayerDataPush(CInstance* playerManagerInstance, RValue attackController, uint32_t playerIndex);
+void swapPlayerDataPop(CInstance* playerManagerInstance, RValue attackController);
 optionType convertStringOptionTypeToEnum(RValue optionType);
 
 extern std::unordered_map<uint32_t, levelUpOptionNames> levelUpOptionNamesMap;
@@ -144,3 +145,5 @@ RValue& AddPerkPlayerManagerOtherAfter(CInstance* Self, CInstance* Other, RValue
 RValue& ParseAndPushCommandTypePlayerManagerOtherBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& CreateSummonMobManagerCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& CreateSummonMobManagerCreateAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
+RValue& HealBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
+RValue& HealAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);

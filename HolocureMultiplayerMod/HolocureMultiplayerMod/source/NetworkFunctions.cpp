@@ -1658,7 +1658,7 @@ void handleLevelUpClientChoiceMessage()
 			{
 				prevOptions[i] = options[i];
 			}
-			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 
 			// Add to reroll container to decrease the chance of skipped upgrades
 			for (int i = 0; i < 4; i++)
@@ -1705,7 +1705,7 @@ void handleLevelUpClientChoiceMessage()
 			{
 				options[i] = prevOptions[i];
 			}
-			swapPlayerData(playerManagerInstanceVar, attackController, 0);
+			swapPlayerDataPop(playerManagerInstanceVar, attackController);
 		}
 	} while (true);
 }
@@ -1835,41 +1835,41 @@ void handleEliminateLevelUpClientChoiceMessage()
 		int levelUpOption = curMessage.levelUpOption;
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 
-		swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 
 		RValue returnVal;
 		RValue optionName(levelUpOptionNamesMap[playerID].optionArr[levelUpOption].second);
 
 		switch (levelUpOptionNamesMap[playerID].optionArr[levelUpOption].first)
 		{
-		case optionType_Weapon:
-		{
-			RValue** args = new RValue*[1];
-			args[0] = &optionName;
-			origEliminateAttackScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
-			break;
-		}
-		case optionType_Item:
-		{
-			RValue** args = new RValue*[1];
-			args[0] = &optionName;
-			origRemoveItemScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
-			break;
-		}
-		case optionType_Skill:
-		{
-			RValue** args = new RValue*[1];
-			args[0] = &optionName;
-			origRemovePerkScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
-			break;
-		}
-		default:
-		{
-			g_ModuleInterface->Print(CM_RED, "Error while eliminating - Unknown level up type");
-		}
+			case optionType_Weapon:
+			{
+				RValue** args = new RValue*[1];
+				args[0] = &optionName;
+				origEliminateAttackScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
+				break;
+			}
+			case optionType_Item:
+			{
+				RValue** args = new RValue*[1];
+				args[0] = &optionName;
+				origRemoveItemScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
+				break;
+			}
+			case optionType_Skill:
+			{
+				RValue** args = new RValue*[1];
+				args[0] = &optionName;
+				origRemovePerkScript(playerManagerInstanceVar, nullptr, returnVal, 1, args);
+				break;
+			}
+			default:
+			{
+				g_ModuleInterface->Print(CM_RED, "Error while eliminating - Unknown level up type");
+			}
 		}
 
-		swapPlayerData(playerManagerInstanceVar, attackController, 0);
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	} while (true);
 }
 
@@ -1901,12 +1901,12 @@ void handleClientSpecialAttackMessage()
 		if (!paused.AsBool())
 		{
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 
 			// Seems like it's okay even if the Self variable is the playerManager
 			origExecuteSpecialAttackScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
 
-			swapPlayerData(playerManagerInstanceVar, attackController, 0);
+			swapPlayerDataPop(playerManagerInstanceVar, attackController);
 		}
 	} while (true);
 }
@@ -2686,7 +2686,7 @@ void handleStickerChooseOptionMessage()
 
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 		uint32_t playerID = curMessage.m_playerID;
-		swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 		switch (curMessage.stickerOptionType)
 		{
 			case 0:
@@ -2777,7 +2777,7 @@ void handleStickerChooseOptionMessage()
 				break;
 			}
 		}
-		swapPlayerData(playerManagerInstanceVar, attackController, 0);
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	} while (true);
 }
 

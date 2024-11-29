@@ -23,6 +23,7 @@ extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
 extern std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
+extern std::vector<uint32_t> curPlayerIDStack;
 
 bool hasJoinedSteamLobby = false;
 
@@ -134,7 +135,7 @@ void PlayerDrawBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 		CInstance* Self = std::get<0>(Args);
 		uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-		swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 	}
 }
 
@@ -254,7 +255,7 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 		if (isHost)
 		{
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, 0);
+			swapPlayerDataPop(playerManagerInstanceVar, attackController);
 		}
 	}
 }
@@ -268,6 +269,7 @@ void resetAllData()
 	interactableMap.clear();
 	clientSocketMap.clear();
 	playerDataMap.clear();
+	curPlayerIDStack.clear();
 	isPlayerCreatedMap.clear();
 	playerManagerInstanceVar = nullptr;
 	hasClientFinishedInteracting = false;
@@ -614,10 +616,10 @@ void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RVa
 					for (auto& levelUpData : levelUpPausedList)
 					{
 						uint32_t playerID = levelUpData.playerID;
-						swapPlayerData(Self, attackController, playerID);
+						swapPlayerDataPush(Self, attackController, playerID);
 						processLevelUp(levelUpData, Self);
+						swapPlayerDataPop(Self, attackController);
 					}
-					swapPlayerData(Self, attackController, 0);
 					levelUpPausedList.clear();
 				}
 			}
@@ -639,11 +641,11 @@ void PlayerManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 				{
 					continue;
 				}
-				swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+				swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 				RValue returnVal;
 				origUpdatePlayerPlayerManagerOtherScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
+				swapPlayerDataPop(playerManagerInstanceVar, attackController);
 			}
-			swapPlayerData(playerManagerInstanceVar, attackController, 0);
 			hasUsedSticker = false;
 		}
 	}
@@ -759,7 +761,7 @@ void AttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 			}
 			uint32_t playerID = getPlayerID(creator.m_Object);
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 
 			auto mapAttack = attackToIDMap.find(Self);
 			if (mapAttack == attackToIDMap.end())
@@ -851,7 +853,7 @@ void AttackStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 	if (hasConnected && isHost)
 	{
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-		swapPlayerData(playerManagerInstanceVar, attackController, 0);
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	}
 }
 
@@ -943,7 +945,7 @@ void PlayerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 			CInstance* Self = std::get<0>(Args);
 			uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 			// TODO: Can probably make this update every time the timer goes down a second or if it gains a new stack instead
 			// TODO: Seems like if it sends the message too early, the player instance might not have been created yet. Could potentially queue up the message until it does exist
 			if (timeNum >= 180 && timeNum % 10 == 0)
@@ -988,7 +990,7 @@ void PlayerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 		RValue hostMaxHP = getInstanceVariable(playerMap[0], GML_HP);
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentHP", hostCurHP });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "maxHP", hostMaxHP });
-		swapPlayerData(playerManagerInstanceVar, attackController, 0);
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	}
 }
 
@@ -1703,7 +1705,7 @@ void HoloBoxCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 				hasClientFinishedInteracting = false;
 				RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 				RValue playerSnapshot = getInstanceVariable(playerManagerInstanceVar, GML_playerSnapshot);
-				swapPlayerData(playerManagerInstanceVar, attackController, playerID);
+				swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 
 				RValue returnVal;
 				origGetBoxScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
@@ -1749,7 +1751,7 @@ void HoloBoxCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 
 				short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
 				sendAllBoxPlayerInteractedMessage(playerID, randomWeaponArr, interactableMapIndexVal, boxItemAmount, isSuperBox);
-				swapPlayerData(playerManagerInstanceVar, attackController, 0);
+				swapPlayerDataPop(playerManagerInstanceVar, attackController);
 				// Seems like the playersnapshot needs to be swapped because pausing does a player snapshot and swapping players will cause it to snapshot the client player
 				setInstanceVariable(playerManagerInstanceVar, GML_playerSnapshot, playerSnapshot);
 				g_ModuleInterface->CallBuiltin("instance_destroy", { Self });
@@ -2242,7 +2244,7 @@ void SummonStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& 
 			CInstance* Self = std::get<0>(Args);
 			RValue varPlayerID = getInstanceVariable(Self, GML_playerID);
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, varPlayerID.m_i32);
+			swapPlayerDataPush(playerManagerInstanceVar, attackController, varPlayerID.m_i32);
 			instanceSendMessage(Self);
 		}
 		else
@@ -2261,7 +2263,7 @@ void SummonStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 		if (isHost)
 		{
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			swapPlayerData(playerManagerInstanceVar, attackController, 0);
+			swapPlayerDataPop(playerManagerInstanceVar, attackController);
 		}
 	}
 }
@@ -2514,6 +2516,49 @@ void StickerAlarm1After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>
 
 			short interactableMapIndexVal = static_cast<short>(lround(interactableMapIndex.AsReal()));
 			sendAllInteractableCreateMessage(interactableData(xPos, yPos, interactableMapIndexVal, spriteIndex, 4));
+		}
+	}
+}
+
+void CocoWeaponStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (!isHost)
+		{
+			callbackManagerInterfacePtr->CancelOriginalFunction();
+		}
+	}
+}
+
+void CocoWeaponStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Self = std::get<0>(Args);
+			instanceSendMessage(Self);
+		}
+	}
+}
+
+void CocoWeaponCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected)
+	{
+		if (isHost)
+		{
+			CInstance* Other = std::get<1>(Args);
+			uint32_t otherPlayerID = getPlayerID(getInstanceVariable(Other, GML_id).m_Object);
+			if (lobbyPlayerDataMap[otherPlayerID].charName.compare("coco") != 0)
+			{
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+		else
+		{
+			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
 	}
 }

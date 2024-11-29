@@ -140,3 +140,17 @@ void DsMapFindValueBefore(RValue* Result, CInstance* Self, CInstance* Other, int
 		}
 	}
 }
+
+void InstanceCreateDepthAfter(RValue* Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args)
+{
+	if (hasConnected && isHost)
+	{
+		if (numArgs >= 4)
+		{
+			if (static_cast<int>(lround(Args[3].AsReal())) == objCocoWeaponIndex)
+			{
+				setInstanceVariable(*Result, GML_player, playerMap[curPlayerID]);
+			}
+		}
+	}
+}

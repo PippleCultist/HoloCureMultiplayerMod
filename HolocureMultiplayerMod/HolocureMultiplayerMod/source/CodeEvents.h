@@ -117,3 +117,6 @@ void CoronetCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 void PlayerManagerOther23Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void PlayerManagerOther23After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void StickerAlarm1After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void CocoWeaponStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void CocoWeaponStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void CocoWeaponCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
