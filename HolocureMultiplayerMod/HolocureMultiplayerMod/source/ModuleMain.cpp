@@ -207,8 +207,6 @@ void YYGMLVariableGetValueHookFunc(RValue* arg1, void* arg2, void* arg3, void* a
 			{
 				// swap player to the actual current player
 				arg1 = &playerMap[curPlayerID];
-				origYYGMLVariableGetValueFunc(arg1, arg2, arg3, arg4, arg5, arg6);
-				return;
 			}
 		}
 	}
@@ -282,7 +280,7 @@ void YYGMLInstanceDestroyHookFunc(CInstance* Self, CInstance* Other, int arg3, v
 	origYYGMLInstanceDestroyFunc(Self, Other, arg3, arg4);
 }
 
-EXPORTED AurieStatus ModuleInitialize(
+EXPORTED AurieStatus ModulePreinitialize(
 	IN AurieModule* Module,
 	IN const fs::path& ModulePath
 )
@@ -294,6 +292,17 @@ EXPORTED AurieStatus ModuleInitialize(
 		printf("Failed to get callback manager interface. Make sure that CallbackManagerMod is located in the mods/Aurie directory.\n");
 		return AURIE_MODULE_DEPENDENCY_NOT_RESOLVED;
 	}
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "Disable callback");
+	callbackManagerInterfacePtr->PreInitDisableCallback();
+	return AURIE_SUCCESS;
+}
+
+EXPORTED AurieStatus ModuleInitialize(
+	IN AurieModule* Module,
+	IN const fs::path& ModulePath
+)
+{
+	AurieStatus status = AURIE_SUCCESS;
 	// Gets a handle to the interface exposed by YYTK
 	// You can keep this pointer for future use, as it will not change unless YYTK is unloaded.
 	status = ObGetInterface(
@@ -1262,14 +1271,11 @@ EXPORTED AurieStatus ModuleInitialize(
 	// TODO: Improve ping by changing some messages to be sent via UDP
 	// TODO: Probably should reduce attack speed
 	// TODO: Need to prevent player from moving outside the map and actually collide with stuff (first need to rewrite the message handler)
-	// TODO: Should probably make a stack for the swap player id to prevent it from swapping incorrectly
+	// TODO: Implement interpolating positional data and input prediction (Should probably use valve's networking code as reference)
 
 	// Lower priority
 	// TODO: Fix some stuff not being visible on the client side like polyglot's lang orbs
 	// TODO: Should probably scale back the amount of updates being sent when there's a lot of enemies on screen and the connection isn't that good (Seems like the client can still send inputs without delay while it's lagging, so need to investigate further)
-	// TODO: Add verbose file logs
-	// TODO: Fix some attacks not being deleted properly. Probably due to the attack id being reused and overwriting the last attack using that id before it got deleted
-	// TODO: Optimize message sizes for update messages to reduce the amount of upload needed (pickupable, attack, vfx)
 	// TODO: Extrapolate positional data to reduce the amount of messages being sent
 	// TODO: Optimize pickupable data to not require frequent updates since there can possibly be a lot of it. (Probably either avoid sending updates if it hasn't moved or don't send updates at all and have it all handled locally)
 	// TODO: Change the message queues (attack, instances, etc...) back to individual messages since it seems like it's worse to queue them
@@ -1412,6 +1418,10 @@ EXPORTED AurieStatus ModuleInitialize(
 
 	callbackManagerInterfacePtr->LogToFile(MODNAME, "Finished ModuleInitialize");
 	printf("Finished initializing network stuff\n");
+
+	callbackManagerInterfacePtr->InitEnableCallback();
+	g_ModuleInterface->CallBuiltin("room_restart", {});
+	g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });
 	
 	return AURIE_SUCCESS;
 }

@@ -140,4 +140,16 @@ struct CallbackManagerInterface : AurieInterfaceBase
 	* WARNING: WILL HAVE UNDEFINED BEHAVIOR IF BOTH CALL AND CANCEL OCCUR
 	*/
 	virtual void CancelOriginalFunction();
+
+	/*
+	* Call this in ModulePreinitialize to disable callbacks until an equal amount of InitEnableCallback has been called
+	* to make sure that callbacks don't run while the mods are still initializing
+	*/
+	virtual void PreInitDisableCallback();
+
+	/*
+	* Call this in ModuleInitialize to enable callbacks when it has been called the same amount of times as PreInitDisableCallback
+	* to make sure that callbacks don't run while the mods are still initializing
+	*/
+	virtual void InitEnableCallback();
 };
