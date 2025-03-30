@@ -1,6 +1,6 @@
 #pragma once
 
-#include "YYToolkit/Shared.hpp"
+#include "YYToolkit/YYTK_Shared.hpp"
 using namespace Aurie;
 using namespace YYTK;
 
@@ -310,7 +310,7 @@ struct spriteData
 
 	spriteData(std::string spritePath, std::string spriteFileName, int numFrames) : spritePath(spritePath), spriteFileName(spriteFileName), numFrames(numFrames)
 	{
-		spriteRValue = g_ModuleInterface->CallBuiltin("sprite_add", { spritePath, numFrames, false, false, 0, 0 });
+		spriteRValue = g_ModuleInterface->CallBuiltin("sprite_add", { spritePath.c_str(), numFrames, false, false, 0, 0 });
 	}
 
 	~spriteData()

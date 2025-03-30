@@ -586,7 +586,7 @@ void clickLobbySelectMap()
 	holoCureMenuInterfacePtr->EnableActionButtons(MODNAME);
 	RValue charSelectInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
 	RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
-	RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName });
+	RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName.c_str() });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charData });
 	// TODO: Need to also set the outfit once I add that
 	RValue availableOutfitsArr = g_ModuleInterface->CallBuiltin("array_create", { 1, "default" });
@@ -775,7 +775,7 @@ void drawLobbyMenu()
 		if (!curLobbyPlayerData.charName.empty())
 		{
 			// TODO: Maybe convert this to another menu element?
-			RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, curLobbyPlayerData.charName });
+			RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, curLobbyPlayerData.charName.c_str()});
 			RValue idleSprite = getInstanceVariable(charData, GML_sprite1);
 			g_ModuleInterface->CallBuiltin("draw_sprite_ext", { idleSprite, -1, textXPos + 30, textYPos + 20, 1, 1, 0, 0xFFFFFF, 1 });
 		}

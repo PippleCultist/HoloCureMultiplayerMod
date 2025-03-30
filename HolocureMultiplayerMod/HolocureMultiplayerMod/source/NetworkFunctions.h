@@ -133,13 +133,13 @@ struct levelUpPausedData
 	optionType levelUpType;
 	RValue levelUpName;
 	// TODO: Check if this doesn't let the string_views get freed
-	std::vector<std::string_view> gainedMods;
+	std::vector<std::string> gainedMods;
 
 	levelUpPausedData(uint32_t playerID, optionType levelUpType, RValue levelUpName) : playerID(playerID), levelUpType(levelUpType), levelUpName(levelUpName)
 	{
 	}
 
-	levelUpPausedData(uint32_t playerID, optionType levelUpType, RValue levelUpName, std::vector<std::string_view> gainedMods) : playerID(playerID), levelUpType(levelUpType), levelUpName(levelUpName), gainedMods(gainedMods)
+	levelUpPausedData(uint32_t playerID, optionType levelUpType, RValue levelUpName, std::vector<std::string> gainedMods) : playerID(playerID), levelUpType(levelUpType), levelUpName(levelUpName), gainedMods(gainedMods)
 	{
 	}
 };
@@ -165,7 +165,7 @@ extern std::unordered_map<uint32_t, SOCKET> clientSocketMap;
 extern std::unordered_map<uint32_t, playerData> playerDataMap;
 extern std::unordered_map<uint32_t, bool> isPlayerCreatedMap;
 extern std::vector<levelUpPausedData> levelUpPausedList;
-extern std::vector<std::string_view> currentAnvilRolledMods;
+extern std::vector<std::string> currentAnvilRolledMods;
 extern std::unordered_map<short, destructableData> destructableMap;
 
 extern float clientCamPosX;
@@ -261,13 +261,13 @@ int sendAllVFXUpdateMessage(vfxData data);
 int sendAllInteractableCreateMessage(interactableData data);
 int sendAllInteractableDeleteMessage(short id, char type);
 int sendAllInteractablePlayerInteractedMessage(uint32_t playerID, short id, char type);
-int sendAllStickerPlayerInteractedMessage(uint32_t playerID, std::string_view stickerID, short id);
+int sendAllStickerPlayerInteractedMessage(uint32_t playerID, std::string stickerID, short id);
 int sendAllBoxPlayerInteractedMessage(uint32_t playerID, levelUpOption* levelUpOptionArr, short id, char boxItemAmount, char isSuperBox);
 int sendInteractFinishedMessage(uint32_t playerID);
 int sendBoxTakeOptionMessage(uint32_t playerID, char boxItemNum);
-int sendAnvilChooseOptionMessage(uint32_t playerID, std::string_view optionID, std::string_view optionType, uint32_t coinCost, char anvilOptionType);
+int sendAnvilChooseOptionMessage(uint32_t playerID, std::string optionID, std::string optionType, uint32_t coinCost, char anvilOptionType);
 int sendClientGainMoneyMessage(uint32_t playerID, uint32_t money);
-int sendClientAnvilEnchantMessage(uint32_t playerID, std::string_view optionID, std::vector<std::string_view> gainedMods, uint32_t coinCost);
+int sendClientAnvilEnchantMessage(uint32_t playerID, std::string optionID, std::vector<std::string> gainedMods, uint32_t coinCost);
 int sendStickerChooseOptionMessage(uint32_t playerID, char stickerOption, char stickerOptionType);
 int sendChooseCollabMessage(uint32_t playerID, levelUpOption collab);
 int sendBuffDataMessage(uint32_t playerID, std::vector<buffData> buffDataList);

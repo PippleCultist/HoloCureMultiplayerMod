@@ -2,7 +2,7 @@
 #pragma comment(lib, "Ws2_32.lib")
 #include <WS2tcpip.h>
 #include <Aurie/shared.hpp>
-#include <YYToolkit/Shared.hpp>
+#include <YYToolkit/YYTK_Shared.hpp>
 #include "CodeEvents.h"
 #include "ModuleMain.h"
 #include "ScriptFunctions.h"
@@ -147,6 +147,7 @@ int sprHudOptionButtonIndex = -1;
 int jpFont = -1;
 int rmTitle = -1;
 int rmCharSelect = -1;
+int rmPreIntro = -1;
 
 char broadcastAddressBuffer[16] = { 0 };
 
@@ -1333,45 +1334,46 @@ EXPORTED AurieStatus ModuleInitialize(
 	// 
 	// TODO: Seems like there might be some minor issues with the hp stat not being calculated properly when upgraded?
 
-	objPlayerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Player" }).AsReal());
-	objBaseMobIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_BaseMob" }).AsReal());
-	objAttackIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Attack" }).AsReal());
-	objPickupableIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_PickUpable" }).AsReal());
-	objSummonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Summon" }).AsReal());
-	objAttackControllerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_AttackController" }).AsReal());
-	objPlayerManagerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_PlayerManager" }).AsReal());
-	objDestructableIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Destructable" }).AsReal());
-	objYagooPillarIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_YagooPillar" }).AsReal());
-	objCautionIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_caution" }).AsReal());
-	objCautionAttackIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_cautionattack" }).AsReal());
-	objPreCreateIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_PreCreate" }).AsReal());
-	objVFXIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_vfx" }).AsReal());
-	objAfterImageIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_afterImage" }).AsReal());
-	objHoloBoxIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_holoBox" }).AsReal());
-	objHoloAnvilIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_holoAnvil" }).AsReal());
-	objGoldenAnvilIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_goldenAnvil" }).AsReal());
-	objGoldenHammerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_GoldenHammer" }).AsReal());
-	objStickerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Sticker" }).AsReal());
-	objItemLightBeamIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_itemLightBeam" }).AsReal());
-	objOptionsIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Options" }).AsReal());
-	objInputManagerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_InputManager" }).AsReal());
-	objCharacterDataIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CharacterData" }).AsReal());
-	objCharSelectIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CharSelect" }).AsReal());
-	objObstacleIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Obstacle" }).AsReal());
-	objGetFishIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_GetFish" }).AsReal());
-	objCocoWeaponIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CocoWeapon" }).AsReal());
-	sprEmptyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_empty" }).AsReal());
-	sprGameCursorIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor" }).AsReal());
-	sprGameCursor2Index = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor2" }).AsReal());
-	sprEmptyMaskIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_emptyMask" }).AsReal());
-	sprSummonPointerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_summonPointer" }).AsReal());
-	sprHudInitButtonsIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_initButtons" }).AsReal());
-	sprKaelaMinerals = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_KaelaMinerals" }).AsReal());
-	sprHudToggleButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_toggleButton" }).AsReal());
-	sprHudOptionButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_OptionButton" }).AsReal());
-	jpFont = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "jpFont" }).AsReal());
-	rmTitle = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_Title" }).AsReal());
-	rmCharSelect = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_CharSelect" }).AsReal());
+	objPlayerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Player" }).ToInt32());
+	objBaseMobIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_BaseMob" }).ToInt32());
+	objAttackIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Attack" }).ToInt32());
+	objPickupableIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_PickUpable" }).ToInt32());
+	objSummonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Summon" }).ToInt32());
+	objAttackControllerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_AttackController" }).ToInt32());
+	objPlayerManagerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_PlayerManager" }).ToInt32());
+	objDestructableIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Destructable" }).ToInt32());
+	objYagooPillarIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_YagooPillar" }).ToInt32());
+	objCautionIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_caution" }).ToInt32());
+	objCautionAttackIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_cautionattack" }).ToInt32());
+	objPreCreateIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_PreCreate" }).ToInt32());
+	objVFXIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_vfx" }).ToInt32());
+	objAfterImageIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_afterImage" }).ToInt32());
+	objHoloBoxIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_holoBox" }).ToInt32());
+	objHoloAnvilIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_holoAnvil" }).ToInt32());
+	objGoldenAnvilIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_goldenAnvil" }).ToInt32());
+	objGoldenHammerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_GoldenHammer" }).ToInt32());
+	objStickerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Sticker" }).ToInt32());
+	objItemLightBeamIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_itemLightBeam" }).ToInt32());
+	objOptionsIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Options" }).ToInt32());
+	objInputManagerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_InputManager" }).ToInt32());
+	objCharacterDataIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CharacterData" }).ToInt32());
+	objCharSelectIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CharSelect" }).ToInt32());
+	objObstacleIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Obstacle" }).ToInt32());
+	objGetFishIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_GetFish" }).ToInt32());
+	objCocoWeaponIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CocoWeapon" }).ToInt32());
+	sprEmptyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_empty" }).ToInt32());
+	sprGameCursorIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor" }).ToInt32());
+	sprGameCursor2Index = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor2" }).ToInt32());
+	sprEmptyMaskIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_emptyMask" }).ToInt32());
+	sprSummonPointerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_summonPointer" }).ToInt32());
+	sprHudInitButtonsIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_initButtons" }).ToInt32());
+	sprKaelaMinerals = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_KaelaMinerals" }).ToInt32());
+	sprHudToggleButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_toggleButton" }).ToInt32());
+	sprHudOptionButtonIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "hud_OptionButton" }).ToInt32());
+	jpFont = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "jpFont" }).ToInt32());
+	rmTitle = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_Title" }).ToInt32());
+	rmCharSelect = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_CharSelect" }).ToInt32());
+	rmPreIntro = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "rm_Pre_Intro" }).ToInt32());
 	g_RunnerInterface = g_ModuleInterface->GetRunnerInterface();
 	g_ModuleInterface->GetGlobalInstance(&globalInstance);
 
@@ -1421,7 +1423,7 @@ EXPORTED AurieStatus ModuleInitialize(
 
 	callbackManagerInterfacePtr->InitEnableCallback();
 	g_ModuleInterface->CallBuiltin("room_restart", {});
-	g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });
+	g_ModuleInterface->CallBuiltin("room_goto", { rmPreIntro });
 	
 	return AURIE_SUCCESS;
 }

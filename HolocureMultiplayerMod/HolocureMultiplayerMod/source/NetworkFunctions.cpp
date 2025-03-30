@@ -230,7 +230,7 @@ void hostReceiveMessageHandler()
 
 void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInstance)
 {
-	callbackManagerInterfacePtr->LogToFile(MODNAME, "Processing level up %s for client %d", std::string(levelUpData.levelUpName.AsString()).c_str(), curPlayerID);
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "Processing level up %s for client %d", std::string(levelUpData.levelUpName.ToString()).c_str(), curPlayerID);
 	RValue levelUpName = levelUpData.levelUpName;
 	RValue returnVal;
 	switch (levelUpData.levelUpType)
@@ -300,7 +300,7 @@ void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInst
 			RValue gainedModsArr = g_ModuleInterface->CallBuiltin("array_create", { gainedModsSize });
 			for (int i = 0; i < gainedModsSize; i++)
 			{
-				gainedModsArr[i] = levelUpData.gainedMods[i];
+				gainedModsArr[i] = levelUpData.gainedMods[i].c_str();
 			}
 			args[0] = &levelUpName;
 			args[1] = &gainedModsArr;
@@ -323,7 +323,7 @@ void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInst
 		}
 		default:
 		{
-			g_ModuleInterface->Print(CM_RED, "Unhandled level up type %d for %s", levelUpData.levelUpType, levelUpName.AsString().data());
+			g_ModuleInterface->Print(CM_RED, "Unhandled level up type %d for %s", levelUpData.levelUpType, levelUpName.ToString().data());
 		}
 	}
 }
@@ -690,7 +690,7 @@ void processInputMessage(clientMovementData data, uint32_t playerID)
 	if (!playerMap.empty())
 	{
 		RValue doesPlayerExist = g_ModuleInterface->CallBuiltin("instance_exists", { playerMap[playerID] });
-		if (!doesPlayerExist.AsBool())
+		if (!doesPlayerExist.ToBoolean())
 		{
 			return;
 		}
@@ -703,13 +703,13 @@ void processInputMessage(clientMovementData data, uint32_t playerID)
 		RValue playerX = getInstanceVariable(playerMap[playerID], GML_x);
 		RValue playerY = getInstanceVariable(playerMap[playerID], GML_y);
 		RValue playerSPD = getInstanceVariable(playerMap[playerID], GML_SPD);
-		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX.AsReal() + playerSPD.AsReal() * horizontalDiff, playerY, objObstacleIndex }).AsBool())
+		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX.ToDouble() + playerSPD.ToDouble() * horizontalDiff, playerY, objObstacleIndex }).ToBoolean())
 		{
-			playerX.m_Real += playerSPD.AsReal() * horizontalDiff;
+			playerX.m_Real += playerSPD.ToDouble() * horizontalDiff;
 		}
-		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX, playerY.AsReal() + playerSPD.AsReal() * verticalDiff, objObstacleIndex }).AsBool())
+		//		if (!g_ModuleInterface->CallBuiltin("place_meeting", { playerX, playerY.ToDouble() + playerSPD.ToDouble() * verticalDiff, objObstacleIndex }).ToBoolean())
 		{
-			playerY.m_Real += playerSPD.AsReal() * verticalDiff;
+			playerY.m_Real += playerSPD.ToDouble() * verticalDiff;
 		}
 		setInstanceVariable(playerMap[playerID], GML_x, playerX);
 		setInstanceVariable(playerMap[playerID], GML_y, playerY);
@@ -721,7 +721,7 @@ void processInputMessage(clientMovementData data, uint32_t playerID)
 			// TODO: probably should just calculate this instead of depending on GML
 			RValue directionMoving = g_ModuleInterface->CallBuiltin("point_direction", { 0.0, 0.0, static_cast<double>(horizontalDiff), static_cast<double>(verticalDiff) });
 			RValue directionDifference = g_ModuleInterface->CallBuiltin("angle_difference", { playerDirection, directionMoving });
-			playerDirection.m_Real -= std::clamp(directionDifference.AsReal(), -24.0, 24.0);
+			playerDirection.m_Real -= std::clamp(directionDifference.ToDouble(), -24.0, 24.0);
 			setInstanceVariable(playerMap[playerID], GML_direction, playerDirection);
 		}
 
@@ -734,7 +734,7 @@ void processInputMessage(clientMovementData data, uint32_t playerID)
 
 void handleInputMessage(CInstance* Self)
 {
-	uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
+	uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).ToInstance());
 	clientMovementQueueData* curData = nullptr;
 	bool hasFoundData = false;
 	auto lastTimeFind = lastTimeReceivedMoveDataMap.find(playerID);
@@ -889,8 +889,8 @@ void handleInstanceUpdateMessage()
 				}
 				else
 				{
-					double xPos = getInstanceVariable(instance, GML_x).AsReal();
-					double yPos = getInstanceVariable(instance, GML_y).AsReal();
+					double xPos = getInstanceVariable(instance, GML_x).ToDouble();
+					double yPos = getInstanceVariable(instance, GML_y).ToDouble();
 					xPos += curData.xPosDiff / 10.0;
 					yPos += curData.yPosDiff / 10.0;
 					setInstanceVariable(instance, GML_x, RValue(xPos));
@@ -1156,8 +1156,8 @@ void handleAttackUpdateMessage()
 					}
 					else
 					{
-						double xPos = getInstanceVariable(instance, GML_x).AsReal();
-						double yPos = getInstanceVariable(instance, GML_y).AsReal();
+						double xPos = getInstanceVariable(instance, GML_x).ToDouble();
+						double yPos = getInstanceVariable(instance, GML_y).ToDouble();
 						xPos += curData.xPosDiff / 10.0;
 						yPos += curData.yPosDiff / 10.0;
 						setInstanceVariable(instance, GML_x, RValue(xPos));
@@ -1461,10 +1461,13 @@ void handleGameDataMessage()
 		timeNum /= 60;
 		int numHours = timeNum;
 		RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
-		timeArr[3] = numFrames;
-		timeArr[2] = numSeconds;
-		timeArr[1] = numMinutes;
-		timeArr[0] = numHours;
+		if (timeArr.m_Kind == VALUE_ARRAY)
+		{
+			timeArr[3] = numFrames;
+			timeArr[2] = numSeconds;
+			timeArr[1] = numMinutes;
+			timeArr[0] = numHours;
+		}
 		timeNum = curMessage.frameNum;
 	} while (true);
 }
@@ -1516,7 +1519,7 @@ void handleLevelUpOptionsMessage(CInstance* playerManager)
 				RValue optionDescriptionArr = g_ModuleInterface->CallBuiltin("array_create", { optionDescriptionSize });
 				for (int i = 0; i < optionDescriptionSize; i++)
 				{
-					optionDescriptionArr[i] = curOption.optionDescription[i];
+					optionDescriptionArr[i] = curOption.optionDescription[i].c_str();
 				}
 				setInstanceVariable(options[i], GML_optionDescription, optionDescriptionArr);
 			}
@@ -1528,13 +1531,13 @@ void handleLevelUpOptionsMessage(CInstance* playerManager)
 					RValue gainedModsArr = g_ModuleInterface->CallBuiltin("array_create", { modsListSize });
 					for (int i = 0; i < modsListSize; i++)
 					{
-						gainedModsArr[i] = curOption.modsList[i];
+						gainedModsArr[i] = curOption.modsList[i].c_str();
 					}
 					setInstanceVariable(options[i], GML_gainedMods, gainedModsArr);
 				}
 				else if (curOption.isModsListNew == 1)
 				{
-					setInstanceVariable(options[i], GML_offeredMod, curOption.modsList[0]);
+					setInstanceVariable(options[i], GML_offeredMod, curOption.modsList[0].c_str());
 				}
 			}
 			else
@@ -1626,7 +1629,7 @@ void handleLevelUpClientChoiceMessage()
 		{
 			RValue playerManager = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 });
 			RValue options = getInstanceVariable(playerManager, GML_options);
-			levelUpPausedList.push_back(levelUpPausedData(playerID, levelUpOptionNamesMap[playerID].optionArr[levelUpOption].first, levelUpOptionNamesMap[playerID].optionArr[levelUpOption].second));
+			levelUpPausedList.push_back(levelUpPausedData(playerID, levelUpOptionNamesMap[playerID].optionArr[levelUpOption].first, levelUpOptionNamesMap[playerID].optionArr[levelUpOption].second.c_str()));
 			clientUnpausedMap[playerID] = true;
 			if (isHostWaitingForClientUnpause)
 			{
@@ -1667,15 +1670,15 @@ void handleLevelUpClientChoiceMessage()
 				if (levelUpType == optionType_Weapon || levelUpType == optionType_Item || levelUpType == optionType_Skill)
 				{
 					RValue rerollContainer = getInstanceVariable(playerManagerInstanceVar, GML_rerollContainer);
-					RValue rerollContainerOptionCount = g_ModuleInterface->CallBuiltin("variable_instance_get", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second });
+					RValue rerollContainerOptionCount = g_ModuleInterface->CallBuiltin("variable_instance_get", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second.c_str() });
 					if (rerollContainerOptionCount.m_Kind == VALUE_UNDEFINED || rerollContainerOptionCount.m_Kind == VALUE_UNSET)
 					{
 						// For some reason, this doesn't work properly if an int is passed in and needs a real number instead. Probably something weird with GML
-						g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second, 1.0 });
+						g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second.c_str(), 1.0});
 					}
 					else
 					{
-						g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second, rerollContainerOptionCount.AsReal() + 1 });
+						g_ModuleInterface->CallBuiltin("variable_instance_set", { rerollContainer, levelUpOptionNamesMap[playerID].optionArr[i].second.c_str(), rerollContainerOptionCount.ToDouble() + 1});
 					}
 				}
 			}
@@ -1695,10 +1698,10 @@ void handleLevelUpClientChoiceMessage()
 			optionType optionType2 = convertStringOptionTypeToEnum(getInstanceVariable(options[2], GML_optionType));
 			optionType optionType3 = convertStringOptionTypeToEnum(getInstanceVariable(options[3], GML_optionType));
 			levelUpOptionNamesMap[playerID] = levelUpOptionNames(
-				std::make_pair(optionType0, std::string(getInstanceVariable(options[0], GML_optionID).AsString())),
-				std::make_pair(optionType1, std::string(getInstanceVariable(options[1], GML_optionID).AsString())),
-				std::make_pair(optionType2, std::string(getInstanceVariable(options[2], GML_optionID).AsString())),
-				std::make_pair(optionType3, std::string(getInstanceVariable(options[3], GML_optionID).AsString()))
+				std::make_pair(optionType0, std::string(getInstanceVariable(options[0], GML_optionID).ToString())),
+				std::make_pair(optionType1, std::string(getInstanceVariable(options[1], GML_optionID).ToString())),
+				std::make_pair(optionType2, std::string(getInstanceVariable(options[2], GML_optionID).ToString())),
+				std::make_pair(optionType3, std::string(getInstanceVariable(options[3], GML_optionID).ToString()))
 			);
 
 			for (int i = 0; i < 4; i++)
@@ -1898,7 +1901,7 @@ void handleClientSpecialAttackMessage()
 
 		RValue returnVal;
 		RValue paused = getInstanceVariable(playerManagerInstanceVar, GML_paused);
-		if (!paused.AsBool())
+		if (!paused.ToBoolean())
 		{
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
@@ -2227,7 +2230,7 @@ bool isClientUsingAnvil = false;
 bool isClientUsingGoldenAnvil = false;
 bool isClientUsingStamp = false;
 
-std::vector<std::string_view> currentAnvilRolledMods;
+std::vector<std::string> currentAnvilRolledMods;
 
 int receiveInteractablePlayerInteractedMessage(uint32_t playerID)
 {
@@ -2325,7 +2328,7 @@ void handleStickerPlayerInteractedMessage()
 			RValue stickerInstance = interactableMap[curMessage.id];
 			setInstanceVariable(stickerInstance, GML_stickerID, RValue(curMessage.stickerID));
 			RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
-			RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, curMessage.stickerID });
+			RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, curMessage.stickerID.c_str() });
 			setInstanceVariable(stickerInstance, GML_stickerData, stickerData);
 			g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", stickerData });
 			RValue** args = new RValue*[1];
@@ -2384,7 +2387,7 @@ void handleBoxPlayerInteractedMessage()
 
 				// Need to do this since the super item check only checks from the items map
 				RValue itemsMap = getInstanceVariable(playerManagerInstanceVar, GML_ITEMS);
-				RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, superItem.optionID });
+				RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, superItem.optionID.c_str() });
 				setInstanceVariable(curItem, GML_becomeSuper, RValue(true));
 				setInstanceVariable(curItem, GML_optionIcon_Normal, RValue(superItem.optionIcon));
 				setInstanceVariable(curItem, GML_optionIcon, RValue(superItem.optionIcon_Super));
@@ -2405,7 +2408,7 @@ void handleBoxPlayerInteractedMessage()
 					RValue optionDescriptionArr = g_ModuleInterface->CallBuiltin("array_create", { optionDescriptionSize });
 					for (int i = 0; i < optionDescriptionSize; i++)
 					{
-						optionDescriptionArr[i] = superItem.optionDescription[i];
+						optionDescriptionArr[i] = superItem.optionDescription[i].c_str();
 					}
 					setInstanceVariable(optionStruct, GML_optionDescription, optionDescriptionArr);
 				}
@@ -2445,7 +2448,7 @@ void handleBoxPlayerInteractedMessage()
 						RValue optionDescriptionArr = g_ModuleInterface->CallBuiltin("array_create", { optionDescriptionSize });
 						for (int i = 0; i < optionDescriptionSize; i++)
 						{
-							optionDescriptionArr[i] = superItem.optionDescription[i];
+							optionDescriptionArr[i] = superItem.optionDescription[i].c_str();
 						}
 						setInstanceVariable(optionStruct, GML_optionDescription, optionDescriptionArr);
 					}
@@ -2529,13 +2532,13 @@ void handleBoxTakeOptionMessage()
 		if (curMessage.boxItemNum == 100)
 		{
 			RValue itemsMap = playerItemsMapMap[playerID];
-			RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, randomWeaponArr[0].optionID });
+			RValue curItem = g_ModuleInterface->CallBuiltin("ds_map_find_value", { itemsMap, randomWeaponArr[0].optionID.c_str() });
 			setInstanceVariable(curItem, GML_becomeSuper, RValue(false));
 			setInstanceVariable(curItem, GML_optionIcon, getInstanceVariable(curItem, GML_optionIcon_Normal));
 			return;
 		}
 
-		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(randomWeaponArr[curMessage.boxItemNum].optionType), randomWeaponArr[curMessage.boxItemNum].optionID);
+		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(randomWeaponArr[curMessage.boxItemNum].optionType.c_str()), randomWeaponArr[curMessage.boxItemNum].optionID.c_str());
 		levelUpPausedList.push_back(curPausedData);
 	} while (true);
 }
@@ -2571,14 +2574,14 @@ void handleAnvilChooseOptionMessage()
 
 		if (curMessage.anvilOptionType == 0)
 		{
-			levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curMessage.optionType), curMessage.optionID);
+			levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curMessage.optionType.c_str()), curMessage.optionID.c_str());
 			levelUpPausedList.push_back(curPausedData);
 		}
 		else if (curMessage.anvilOptionType == 1)
 		{
-			levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curMessage.optionType), curMessage.optionID);
+			levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curMessage.optionType.c_str()), curMessage.optionID.c_str());
 			levelUpPausedList.push_back(curPausedData);
-			double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal() - curMessage.coinCost;
+			double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).ToDouble() - curMessage.coinCost;
 			g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
 		}
 		setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
@@ -2612,7 +2615,7 @@ void handleClientGainMoneyMessage()
 		clientGainMoneyMessageQueueLock.release();
 
 		RValue returnVal;
-		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal() + curMessage.money;
+		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).ToDouble() + curMessage.money;
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
 	} while (true);
 }
@@ -2646,10 +2649,10 @@ void handleClientAnvilEnchantMessage()
 		clientAnvilEnchantMessageQueueLock.release();
 
 		uint32_t playerID = curMessage.m_playerID;
-		levelUpPausedData curPausedData = levelUpPausedData(playerID, optionType_Enchant, curMessage.optionID, curMessage.gainedMods);
+		levelUpPausedData curPausedData = levelUpPausedData(playerID, optionType_Enchant, curMessage.optionID.c_str(), curMessage.gainedMods);
 		levelUpPausedList.push_back(curPausedData);
 
-		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal() - curMessage.coinCost;
+		double updatedMoney = g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).ToDouble() - curMessage.coinCost;
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", updatedMoney });
 
 		setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
@@ -2693,7 +2696,7 @@ void handleStickerChooseOptionMessage()
 			{
 				// take stamp/level up
 				RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
-				RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, collidedStickerID });
+				RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, collidedStickerID.c_str() });
 				RValue currentStickersArr = currentStickersMap[playerID];
 				if (curMessage.stickerOption == 0)
 				{
@@ -2730,7 +2733,7 @@ void handleStickerChooseOptionMessage()
 				if (!collidedStickerID.empty())
 				{
 					RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
-					stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, collidedStickerID });
+					stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, collidedStickerID.c_str() });
 				}
 				RValue currentStickersArr = currentStickersMap[playerID];
 				RValue currentSticker = currentStickersArr[curMessage.stickerOption - 1];
@@ -2738,7 +2741,7 @@ void handleStickerChooseOptionMessage()
 				{
 					// Hopefully this stays the same as the key value in the map
 					RValue stickerID = getInstanceVariable(currentSticker, GML_optionID);
-					collidedStickerID = stickerID.AsString();
+					collidedStickerID = stickerID.ToString();
 				}
 				else
 				{
@@ -2758,7 +2761,7 @@ void handleStickerChooseOptionMessage()
 				if (curMessage.stickerOption == 0)
 				{
 					RValue collectedSticker = g_ModuleInterface->CallBuiltin("variable_global_get", { "collectedSticker" });
-					stickerLevel = static_cast<int>(lround(getInstanceVariable(collectedSticker, GML_level).AsReal()));
+					stickerLevel = static_cast<int>(lround(getInstanceVariable(collectedSticker, GML_level).ToDouble()));
 					collidedStickerID = "";
 					g_ModuleInterface->CallBuiltin("variable_global_set", { "collectedSticker", -1.0 });
 				}
@@ -2766,12 +2769,12 @@ void handleStickerChooseOptionMessage()
 				{
 					RValue currentStickersArr = currentStickersMap[playerID];
 					RValue currentSticker = currentStickersArr[curMessage.stickerOption - 1];
-					stickerLevel = static_cast<int>(lround(getInstanceVariable(currentSticker, GML_level).AsReal()));
+					stickerLevel = static_cast<int>(lround(getInstanceVariable(currentSticker, GML_level).ToDouble()));
 
 					currentStickersArr[curMessage.stickerOption - 1] = -1.0;
 				}
-				int coinCount = static_cast<int>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal());
-				double stageCoinBonus = g_ModuleInterface->CallBuiltin("variable_global_get", { "stageCoinBonus" }).AsReal();
+				int coinCount = static_cast<int>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).ToDouble());
+				double stageCoinBonus = g_ModuleInterface->CallBuiltin("variable_global_get", { "stageCoinBonus" }).ToDouble();
 				coinCount += static_cast<int>(floor(stageCoinBonus * 100 * (1 + moneyGainMultiplier)) * (stickerLevel + 1));
 				g_ModuleInterface->CallBuiltin("variable_global_set", { "currentRunMoneyGained", static_cast<double>(coinCount) });
 				break;
@@ -2811,7 +2814,7 @@ void handleChooseCollabMessage()
 		uint32_t playerID = curMessage.m_playerID;
 		levelUpOption curOption = curMessage.collab;
 
-		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curOption.optionType), curOption.optionID);
+		levelUpPausedData curPausedData = levelUpPausedData(playerID, convertStringOptionTypeToEnum(curOption.optionType.c_str()), curOption.optionID.c_str());
 		levelUpPausedList.push_back(curPausedData);
 		setInstanceVariable(playerManagerInstanceVar, GML_usedAnvil, RValue(true));
 	} while (true);
@@ -2860,7 +2863,7 @@ void handleBuffDataMessage()
 				setInstanceVariable(config, GML_stacks, static_cast<double>(curBuffData.stacks));
 			}
 			setInstanceVariable(buff, GML_config, config);
-			g_ModuleInterface->CallBuiltin("variable_instance_set", { buffStruct, curBuffData.buffName, buff });
+			g_ModuleInterface->CallBuiltin("variable_instance_set", { buffStruct, curBuffData.buffName.c_str(), buff });
 		}
 		setInstanceVariable(playerMap[clientID], GML_buffs, buffStruct);
 	} while (true);
@@ -3261,11 +3264,11 @@ int sendInputMessage(uint32_t playerID)
 	args[4] = new RValue("aim_down");
 	origInputDirectionScript(globalInstance, nullptr, returnVal, 5, args);
 
-	char isDirHeld = (isDownHeld.AsBool() << 0) | (isUpHeld.AsBool() << 1) | (isLeftHeld.AsBool() << 2) | (isRightHeld.AsBool() << 3);
+	char isDirHeld = (isDownHeld.ToBoolean() << 0) | (isUpHeld.ToBoolean() << 1) | (isLeftHeld.ToBoolean() << 2) | (isRightHeld.ToBoolean() << 3);
 
 	if (returnVal.m_Kind == VALUE_UNDEFINED)
 	{
-		if (getInstanceVariable(playerMap[clientID], GML_mouseFollowMode).AsBool())
+		if (getInstanceVariable(playerMap[clientID], GML_mouseFollowMode).ToBoolean())
 		{
 			const int inputMessageLen = sizeof(messageInputMouseFollow) + 1;
 			char inputMessage[inputMessageLen];
@@ -3276,7 +3279,7 @@ int sendInputMessage(uint32_t playerID)
 			g_ModuleInterface->GetBuiltin("mouse_x", nullptr, NULL_INDEX, mouseX);
 			g_ModuleInterface->GetBuiltin("mouse_y", nullptr, NULL_INDEX, mouseY);
 			mouseY.m_Real += 16;
-			float direction = static_cast<float>(g_ModuleInterface->CallBuiltin("point_direction", { xPos, yPos, mouseX, mouseY }).AsReal());
+			float direction = static_cast<float>(g_ModuleInterface->CallBuiltin("point_direction", { xPos, yPos, mouseX, mouseY }).ToDouble());
 			messageInputMouseFollow sendMessage = messageInputMouseFollow(isDirHeld, direction);
 			sendMessage.serialize(inputMessage);
 			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
@@ -3285,7 +3288,7 @@ int sendInputMessage(uint32_t playerID)
 		{
 			const int inputMessageLen = sizeof(messageInputNoAim) + 1;
 			char inputMessage[inputMessageLen];
-			messageInputNoAim sendMessage = messageInputNoAim(isDirHeld, static_cast<float>(getInstanceVariable(playerMap[clientID], GML_direction).AsReal()));
+			messageInputNoAim sendMessage = messageInputNoAim(isDirHeld, static_cast<float>(getInstanceVariable(playerMap[clientID], GML_direction).ToDouble()));
 			sendMessage.serialize(inputMessage);
 			return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 		}
@@ -3294,7 +3297,7 @@ int sendInputMessage(uint32_t playerID)
 	{
 		const int inputMessageLen = sizeof(messageInputAim) + 1;
 		char inputMessage[inputMessageLen];
-		messageInputAim sendMessage = messageInputAim(isDirHeld, static_cast<float>(returnVal.AsReal()));
+		messageInputAim sendMessage = messageInputAim(isDirHeld, static_cast<float>(returnVal.ToDouble()));
 		sendMessage.serialize(inputMessage);
 		return sendBytesToPlayer(playerID, inputMessage, inputMessageLen, NETWORKING_MESSAGE_USING_UDP);
 	}
@@ -3306,8 +3309,8 @@ int sendAllRoomMessage()
 	char inputMessage[inputMessageLen];
 	RValue room;
 	g_ModuleInterface->GetBuiltin("room", nullptr, NULL_INDEX, room);
-	char gameMode = static_cast<char>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "gameMode" }).AsReal()));
-	messageRoom sendMessage = messageRoom(static_cast<char>(lround(room.AsReal())), gameMode);
+	char gameMode = static_cast<char>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "gameMode" }).ToDouble()));
+	messageRoom sendMessage = messageRoom(static_cast<char>(lround(room.ToDouble())), gameMode);
 	sendMessage.serialize(inputMessage);
 
 	for (auto& player : lobbyPlayerDataMap)
@@ -3391,32 +3394,32 @@ int sendAllClientPlayerDataMessage()
 		RValue curPlayerInstance = curPlayer.second;
 		RValue doesPlayerExist = g_ModuleInterface->CallBuiltin("instance_exists", { curPlayerInstance });
 		// TODO: probably should handle this better than just skipping it
-		if (!doesPlayerExist.AsBool())
+		if (!doesPlayerExist.ToBoolean())
 		{
 			continue;
 		}
 
-		float xPos = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_x).AsReal());
-		float yPos = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_y).AsReal());
-		float imageXScale = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_image_xscale).AsReal());
-		float imageYScale = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_image_yscale).AsReal());
-		float direction = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_direction).AsReal());
+		float xPos = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_x).ToDouble());
+		float yPos = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_y).ToDouble());
+		float imageXScale = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_image_xscale).ToDouble());
+		float imageYScale = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_image_yscale).ToDouble());
+		float direction = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_direction).ToDouble());
 		// Probably should change this to uint16_t
-		short spriteIndex = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_sprite_index).AsReal()));
-		short curHP = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_currentHP).AsReal()));
-		short maxHP = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_HP).AsReal()));
-		float curAttack = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_ATK).AsReal());
-		float curSpeed = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_SPD).AsReal());
-		short curCrit = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_crit).AsReal()));
-		short curHaste = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_haste).AsReal()));
-		short curPickupRange = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_pickupRange).AsReal()));
-		short specialMeter = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_specialMeter).AsReal()));
+		short spriteIndex = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_sprite_index).ToDouble()));
+		short curHP = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_currentHP).ToDouble()));
+		short maxHP = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_HP).ToDouble()));
+		float curAttack = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_ATK).ToDouble());
+		float curSpeed = static_cast<float>(getInstanceVariable(curPlayerInstance, GML_SPD).ToDouble());
+		short curCrit = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_crit).ToDouble()));
+		short curHaste = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_haste).ToDouble()));
+		short curPickupRange = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_pickupRange).ToDouble()));
+		short specialMeter = static_cast<short>(lround(getInstanceVariable(curPlayerInstance, GML_specialMeter).ToDouble()));
 		// Not sure why the original player has a sprite index of -1 when it's created
 		if (spriteIndex < 0)
 		{
 			spriteIndex = 0;
 		}
-		char truncatedImageIndex = static_cast<char>(getInstanceVariable(curPlayerInstance, GML_image_index).AsReal());
+		char truncatedImageIndex = static_cast<char>(getInstanceVariable(curPlayerInstance, GML_image_index).ToDouble());
 		playerData curData(xPos, yPos, imageXScale, imageYScale, direction, spriteIndex, curHP, maxHP, curAttack, curSpeed, curCrit, curHaste, curPickupRange, specialMeter, truncatedImageIndex, curPlayer.first);
 		messageClientPlayerData sendMessage = messageClientPlayerData(curData);
 		sendMessage.serialize(inputMessage);
@@ -3544,24 +3547,28 @@ int sendAllPickupableDeleteMessage(short pickupableID)
 
 int sendAllGameDataMessage()
 {
-	uint32_t coinCount = static_cast<uint32_t>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).AsReal());
-	uint32_t enemyDefeated = static_cast<uint32_t>(g_ModuleInterface->CallBuiltin("variable_global_get", { "enemyDefeated" }).AsReal());
+	uint32_t coinCount = static_cast<uint32_t>(g_ModuleInterface->CallBuiltin("variable_global_get", { "currentRunMoneyGained" }).ToDouble());
+	uint32_t enemyDefeated = static_cast<uint32_t>(g_ModuleInterface->CallBuiltin("variable_global_get", { "enemyDefeated" }).ToDouble());
 
 	RValue timeArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "time" });
-	timeNum = static_cast<uint32_t>(lround(timeArr[0].AsReal()));
+	timeNum = static_cast<uint32_t>(lround(timeArr[0].ToDouble()));
 	timeNum *= 60;
-	timeNum += static_cast<uint32_t>(lround(timeArr[1].AsReal()));
+	timeNum += static_cast<uint32_t>(lround(timeArr[1].ToDouble()));
 	timeNum *= 60;
-	timeNum += static_cast<uint32_t>(lround(timeArr[2].AsReal()));
+	timeNum += static_cast<uint32_t>(lround(timeArr[2].ToDouble()));
 	timeNum *= 60;
-	timeNum += static_cast<uint32_t>(lround(timeArr[3].AsReal()));
+	timeNum += static_cast<uint32_t>(lround(timeArr[3].ToDouble()));
 
-	short playerLevel = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "PLAYERLEVEL" }).AsReal()));
-	float experience = static_cast<float>(g_ModuleInterface->CallBuiltin("variable_global_get", { "experience" }).AsReal());
-	float toNextLevel = static_cast<float>(getInstanceVariable(playerManagerInstanceVar, GML_toNextLevel).AsReal());
+	short playerLevel = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "PLAYERLEVEL" }).ToDouble()));
+	float experience = static_cast<float>(g_ModuleInterface->CallBuiltin("variable_global_get", { "experience" }).ToDouble());
+	float toNextLevel = 0;
+	if (playerManagerInstanceVar != nullptr)
+	{
+		toNextLevel = static_cast<float>(getInstanceVariable(playerManagerInstanceVar, GML_toNextLevel).ToDouble());
+	}
 
-	short goldenHammer = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammer" }).AsReal()));
-	short goldenHammerPieces = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammerPieces" }).AsReal()));
+	short goldenHammer = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammer" }).ToDouble()));
+	short goldenHammerPieces = static_cast<short>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "goldenHammerPieces" }).ToDouble()));
 
 	messageGameData data(timeNum, coinCount, enemyDefeated, experience, toNextLevel, static_cast<float>(moneyGainMultiplier), static_cast<float>(foodMultiplier), playerLevel, goldenHammer, goldenHammerPieces);
 	const int inputMessageLen = sizeof(messageGameData) + 1;
@@ -3591,9 +3598,9 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 		RValue offeredMod = getInstanceVariable(options[i], GML_offeredMod);
 		RValue gainedMods = getInstanceVariable(options[i], GML_gainedMods);
 		char weaponAndItemType = 4;
-		if (optionType.AsString().compare("Weapon") == 0)
+		if (optionType.ToString().compare("Weapon") == 0)
 		{
-			std::string_view weaponType = getInstanceVariable(options[i], GML_weaponType).AsString();
+			std::string_view weaponType = getInstanceVariable(options[i], GML_weaponType).ToString();
 			if (weaponType.compare("Melee") == 0)
 			{
 				weaponAndItemType = 0;
@@ -3607,9 +3614,9 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 				weaponAndItemType = 2;
 			}
 		}
-		else if (optionType.AsString().compare("Item") == 0)
+		else if (optionType.ToString().compare("Item") == 0)
 		{
-			std::string_view itemType = getInstanceVariable(options[i], GML_itemType).AsString();
+			std::string_view itemType = getInstanceVariable(options[i], GML_itemType).ToString();
 			if (itemType.compare("Healing") == 0)
 			{
 				weaponAndItemType = 0;
@@ -3623,17 +3630,17 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 				weaponAndItemType = 2;
 			}
 		}
-		std::vector<std::string_view> optionDescriptionList;
+		std::vector<std::string> optionDescriptionList;
 		if (optionDescription.m_Kind == VALUE_STRING)
 		{
-			optionDescriptionList.push_back(optionDescription.AsString());
+			optionDescriptionList.push_back(optionDescription.ToString());
 		}
 		else if (optionDescription.m_Kind == VALUE_ARRAY)
 		{
-			int optionDescriptionLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { optionDescription }).AsReal()));
+			int optionDescriptionLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { optionDescription }).ToDouble()));
 			for (int j = 0; j < optionDescriptionLength; j++)
 			{
-				optionDescriptionList.push_back(optionDescription[j].AsString());
+				optionDescriptionList.push_back(optionDescription[j].ToString());
 			}
 		}
 		else
@@ -3641,24 +3648,24 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 			g_ModuleInterface->Print(CM_RED, "UNEXPECTED TYPE WHEN SENDING OVER OPTION DESCRIPTION");
 		}
 		int gainedModsLength = -1;
-		if (gainedMods.m_Kind == VALUE_ARRAY && (gainedModsLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { gainedMods }).AsReal()))) > 0)
+		if (gainedMods.m_Kind == VALUE_ARRAY && (gainedModsLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { gainedMods }).ToDouble()))) > 0)
 		{
-			std::vector<std::string_view> modsList;
+			std::vector<std::string> modsList;
 			for (int j = 0; j < gainedModsLength; j++)
 			{
-				modsList.push_back(gainedMods[j].AsString());
+				modsList.push_back(gainedMods[j].ToString());
 			}
-			optionArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.AsReal()), 0, weaponAndItemType, modsList, 0);
+			optionArr[i] = levelUpOption(optionType.ToString(), optionName.ToString(), optionID.ToString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.ToDouble()), 0, weaponAndItemType, modsList, 0);
 		}
 		else if (offeredMod.m_Kind == VALUE_STRING)
 		{
-			std::vector<std::string_view> modsList;
-			modsList.push_back(offeredMod.AsString());
-			optionArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.AsReal()), 0, weaponAndItemType, modsList, 1);
+			std::vector<std::string> modsList;
+			modsList.push_back(offeredMod.ToString());
+			optionArr[i] = levelUpOption(optionType.ToString(), optionName.ToString(), optionID.ToString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.ToDouble()), 0, weaponAndItemType, modsList, 1);
 		}
 		else
 		{
-			optionArr[i] = levelUpOption(optionType.AsString(), optionName.AsString(), optionID.AsString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.AsReal()), 0, weaponAndItemType);
+			optionArr[i] = levelUpOption(optionType.ToString(), optionName.ToString(), optionID.ToString(), optionDescriptionList, static_cast<uint16_t>(optionIcon.ToDouble()), 0, weaponAndItemType);
 		}
 	}
 	messageLevelUpOptions clientNumberMessage = messageLevelUpOptions(optionArr);
@@ -3845,7 +3852,7 @@ int sendAllInteractablePlayerInteractedMessage(uint32_t playerID, short id, char
 	return messageBufferLen;
 }
 
-int sendAllStickerPlayerInteractedMessage(uint32_t playerID, std::string_view stickerID, short id)
+int sendAllStickerPlayerInteractedMessage(uint32_t playerID, std::string stickerID, short id)
 {
 	messageStickerPlayerInteracted curMessage = messageStickerPlayerInteracted(stickerID, playerID, id);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
@@ -3896,7 +3903,7 @@ int sendBoxTakeOptionMessage(uint32_t playerID, char boxItemNum)
 	return sentLen;
 }
 
-int sendAnvilChooseOptionMessage(uint32_t playerID, std::string_view optionID, std::string_view optionType, uint32_t coinCost, char anvilOptionType)
+int sendAnvilChooseOptionMessage(uint32_t playerID, std::string optionID, std::string optionType, uint32_t coinCost, char anvilOptionType)
 {
 	messageAnvilChooseOption curMessage = messageAnvilChooseOption(optionID, optionType, coinCost, anvilOptionType);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
@@ -3917,7 +3924,7 @@ int sendClientGainMoneyMessage(uint32_t playerID, uint32_t money)
 	return sentLen;
 }
 
-int sendClientAnvilEnchantMessage(uint32_t playerID, std::string_view optionID, std::vector<std::string_view> gainedMods, uint32_t coinCost)
+int sendClientAnvilEnchantMessage(uint32_t playerID, std::string optionID, std::vector<std::string> gainedMods, uint32_t coinCost)
 {
 	messageClientAnvilEnchant curMessage = messageClientAnvilEnchant(optionID, gainedMods, coinCost);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());

@@ -1,5 +1,5 @@
 #pragma once
-#include <YYToolkit/shared.hpp>
+#include <YYToolkit/YYTK_Shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 #include "ModuleMain.h"
 
@@ -9,7 +9,7 @@ inline RValue getInstanceVariable(RValue instance, VariableNames variableName)
 	RValue inputArgs[2];
 	inputArgs[0] = instance;
 	inputArgs[1] = GMLVarIndexMapGMLHash[variableName];
-	origStructGetFromHashFunc(&result, globalInstance, nullptr, 2, inputArgs);
+	origStructGetFromHashFunc(result, globalInstance, nullptr, 2, inputArgs);
 	return result;
 //	return g_ModuleInterface->CallBuiltin("struct_get_from_hash", { instance, GMLVarIndexMapGMLHash[variableName]});
 }
@@ -20,7 +20,7 @@ inline RValue getInstanceVariable(CInstance* instance, VariableNames variableNam
 	RValue inputArgs[2];
 	inputArgs[0] = instance;
 	inputArgs[1] = GMLVarIndexMapGMLHash[variableName];
-	origStructGetFromHashFunc(&result, globalInstance, nullptr, 2, inputArgs);
+	origStructGetFromHashFunc(result, globalInstance, nullptr, 2, inputArgs);
 	return result;
 //	return g_ModuleInterface->CallBuiltin("struct_get_from_hash", { instance, GMLVarIndexMapGMLHash[variableName] });
 }
@@ -32,7 +32,7 @@ inline void setInstanceVariable(RValue instance, VariableNames variableName, RVa
 	inputArgs[0] = instance;
 	inputArgs[1] = GMLVarIndexMapGMLHash[variableName];
 	inputArgs[2] = setValue;
-	origStructSetFromHashFunc(&result, globalInstance, nullptr, 3, inputArgs);
+	origStructSetFromHashFunc(result, globalInstance, nullptr, 3, inputArgs);
 //	g_ModuleInterface->CallBuiltin("struct_set_from_hash", { instance, GMLVarIndexMapGMLHash[variableName], setValue });
 }
 
@@ -43,6 +43,6 @@ inline void setInstanceVariable(CInstance* instance, VariableNames variableName,
 	inputArgs[0] = instance;
 	inputArgs[1] = GMLVarIndexMapGMLHash[variableName];
 	inputArgs[2] = setValue;
-	origStructSetFromHashFunc(&result, globalInstance, nullptr, 3, inputArgs);
+	origStructSetFromHashFunc(result, globalInstance, nullptr, 3, inputArgs);
 //	g_ModuleInterface->CallBuiltin("struct_set_from_hash", { instance, GMLVarIndexMapGMLHash[variableName], setValue });
 }

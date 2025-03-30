@@ -1,12 +1,11 @@
 #pragma once
 
-#include <YYToolkit/shared.hpp>
+#include <YYToolkit/YYTK_Shared.hpp>
 using namespace Aurie;
 using namespace YYTK;
 
 typedef std::tuple<CInstance*, CInstance*, CCode*, int, RValue*> CodeEventArgs;
 typedef void (*CodeEvent)(CodeEventArgs&);
-using TRoutine = void(__cdecl*)(RValue* Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args);
 
 struct CallbackManagerInterface : AurieInterfaceBase
 {

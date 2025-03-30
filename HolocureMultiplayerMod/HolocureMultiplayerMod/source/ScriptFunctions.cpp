@@ -1,7 +1,7 @@
 #pragma comment(lib, "iphlpapi.lib")
 #include <WS2tcpip.h>
 #include "ScriptFunctions.h"
-#include <YYToolkit/shared.hpp>
+#include <YYToolkit/YYTK_Shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 #include "ModuleMain.h"
 #include "CommonFunctions.h"
@@ -57,7 +57,7 @@ inline void addWeapon(RValue& weapons, RValue& attacks, RValue& attackID)
 	RValue combos;
 	g_RunnerInterface.StructCreate(&combos);
 	g_RunnerInterface.StructAddRValue(&mainWeapon, "combos", &combos);
-	g_RunnerInterface.StructAddRValue(&weapons, attackID.AsString().data(), &mainWeapon);
+	g_RunnerInterface.StructAddRValue(&weapons, attackID.ToString().data(), &mainWeapon);
 }
 
 std::unordered_map<uint32_t, RValue> playerMap;
@@ -103,18 +103,18 @@ RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr
 
 RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr)
 {
-	int origArrayLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { origArray }).AsReal()));
+	int origArrayLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { origArray }).ToDouble()));
 	RValue copiedArray = g_ModuleInterface->CallBuiltin("array_create", { origArrayLen });
 	for (int i = 0; i < origArrayLen; i++)
 	{
 		RValue curArrayVal = origArray[i];
 		// Apparently methods are considered as structs also, so the check for is_method needs to go before is_struct
-		if (g_ModuleInterface->CallBuiltin("is_array", { curArrayVal }).AsBool())
+		if (g_ModuleInterface->CallBuiltin("is_array", { curArrayVal }).ToBoolean())
 		{
 			RValue copiedCurArrayVal = deepCopyArray(Self, curArrayVal, parentStructPtr);
 			copiedArray[i] = copiedCurArrayVal;
 		}
-		else if (g_ModuleInterface->CallBuiltin("is_method", { curArrayVal }).AsBool())
+		else if (g_ModuleInterface->CallBuiltin("is_method", { curArrayVal }).ToBoolean())
 		{
 			RValue methodSelf = g_ModuleInterface->CallBuiltin("method_get_self", { curArrayVal });
 			if (methodSelf.m_Kind == VALUE_REAL || methodSelf.m_Kind == VALUE_REF)
@@ -135,7 +135,7 @@ RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr
 				g_ModuleInterface->Print(CM_RED, "Unhandled kind %d for array index %d", methodSelf.m_Kind, i);
 			}
 		}
-		else if (g_ModuleInterface->CallBuiltin("is_struct", { curArrayVal }).AsBool())
+		else if (g_ModuleInterface->CallBuiltin("is_struct", { curArrayVal }).ToBoolean())
 		{
 			RValue copiedCurArrayVal = deepCopyStruct(Self, curArrayVal, parentStructPtr);
 			copiedArray[i] = copiedCurArrayVal;
@@ -158,23 +158,23 @@ RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructP
 	}
 	// TODO: Find a more performant way to iterate through a struct
 	RValue structNames = g_ModuleInterface->CallBuiltin("struct_get_names", { origStruct });
-	int structNamesLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { structNames }).AsReal()));
+	int structNamesLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { structNames }).ToDouble()));
 	for (int i = 0; i < structNamesLen; i++)
 	{
 		RValue curStructName = structNames[i];
 		RValue curStructVal = g_ModuleInterface->CallBuiltin("variable_instance_get", { origStruct, curStructName });
-		if (g_ModuleInterface->CallBuiltin("is_array", { curStructVal }).AsBool())
+		if (g_ModuleInterface->CallBuiltin("is_array", { curStructVal }).ToBoolean())
 		{
 			RValue copiedCurStructVal = deepCopyArray(Self, curStructVal, parentStructPtr);
-			g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.AsString().data(), &copiedCurStructVal);
+			g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.ToString().data(), &copiedCurStructVal);
 		}
-		else if (g_ModuleInterface->CallBuiltin("is_method", { curStructVal }).AsBool())
+		else if (g_ModuleInterface->CallBuiltin("is_method", { curStructVal }).ToBoolean())
 		{
 			RValue methodSelf = g_ModuleInterface->CallBuiltin("method_get_self", { curStructVal });
 			if (methodSelf.m_Kind == VALUE_REAL || methodSelf.m_Kind == VALUE_REF)
 			{
 				// Assume that the method can be safely copied since it's bound to a script function method
-				g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.AsString().data(), &curStructVal);
+				g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.ToString().data(), &curStructVal);
 			}
 			else if (methodSelf.m_Kind == VALUE_OBJECT)
 			{
@@ -182,21 +182,21 @@ RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructP
 				// TODO: Seems like the methods defined in a struct will retain information about their parent even if you copy them to a different object of the same type.
 				// TODO: Should probably find a way to only copy these functions while assigning the parent as the new struct and not doing that for all the other methods
 				RValue copiedMethod = g_ModuleInterface->CallBuiltin("method", { *parentStructPtr, curStructVal });
-				g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.AsString().data(), &copiedMethod);
+				g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.ToString().data(), &copiedMethod);
 			}
 			else
 			{
-				g_ModuleInterface->Print(CM_RED, "Unhandled kind %d for method %s", methodSelf.m_Kind, curStructName.AsString().data());
+				g_ModuleInterface->Print(CM_RED, "Unhandled kind %d for method %s", methodSelf.m_Kind, curStructName.ToString().data());
 			}
 		}
-		else if (g_ModuleInterface->CallBuiltin("is_struct", { curStructVal }).AsBool())
+		else if (g_ModuleInterface->CallBuiltin("is_struct", { curStructVal }).ToBoolean())
 		{
 			RValue copiedCurStructVal = deepCopyStruct(Self, curStructVal, parentStructPtr);
-			g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.AsString().data(), &copiedCurStructVal);
+			g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.ToString().data(), &copiedCurStructVal);
 		}
 		else
 		{
-			g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.AsString().data(), &curStructVal);
+			g_RunnerInterface.StructAddRValue(&copiedStruct, curStructName.ToString().data(), &curStructVal);
 		}
 	}
 	return copiedStruct;
@@ -205,7 +205,7 @@ RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructP
 void addCollabData(RValue& weapons, RValue& attacks)
 {
 	RValue attacksKeysArr = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { attacks });
-	int attacksKeysArrLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { attacksKeysArr }).AsReal()));
+	int attacksKeysArrLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { attacksKeysArr }).ToDouble()));
 	for (int i = 0; i < attacksKeysArrLength; i++)
 	{
 		RValue curKey = attacksKeysArr[i];
@@ -215,11 +215,11 @@ void addCollabData(RValue& weapons, RValue& attacks)
 		RValue attackObjConfigCombos = g_ModuleInterface->CallBuiltin("variable_instance_get", { attackObjConfig, "combos" });
 		RValue attackObjAttackID = g_ModuleInterface->CallBuiltin("ds_map_find_value", { attackObj, "attackID" });
 
-		if (attackObjConfigOptionType.AsString().compare("Collab") == 0)
+		if (attackObjConfigOptionType.ToString().compare("Collab") == 0)
 		{
 			// TODO: Make a new weaponCollabs struct and add to it
-			if (g_ModuleInterface->CallBuiltin("variable_struct_exists", { weapons, attackObjConfigCombos[0] }).AsBool() &&
-				g_ModuleInterface->CallBuiltin("variable_struct_exists", { weapons, attackObjConfigCombos[1] }).AsBool())
+			if (g_ModuleInterface->CallBuiltin("variable_struct_exists", { weapons, attackObjConfigCombos[0] }).ToBoolean() &&
+				g_ModuleInterface->CallBuiltin("variable_struct_exists", { weapons, attackObjConfigCombos[1] }).ToBoolean())
 			{
 				RValue weaponOne = g_ModuleInterface->CallBuiltin("variable_instance_get", { weapons, attackObjConfigCombos[0] });
 				RValue weaponTwo = g_ModuleInterface->CallBuiltin("variable_instance_get", { weapons, attackObjConfigCombos[1] });
@@ -229,7 +229,7 @@ void addCollabData(RValue& weapons, RValue& attacks)
 				g_ModuleInterface->CallBuiltin("variable_instance_set", { weaponTwoCombos, attackObjConfigCombos[0], attackObjAttackID });
 			}
 		}
-		else if (attackObjConfigOptionType.AsString().compare("SuperCollab") == 0)
+		else if (attackObjConfigOptionType.ToString().compare("SuperCollab") == 0)
 		{
 			// TODO: Add super collab code
 		}
@@ -239,7 +239,7 @@ void addCollabData(RValue& weapons, RValue& attacks)
 RValue deepCopyMap(CInstance* Self, RValue& origMap)
 {
 	RValue origMapKeys = g_ModuleInterface->CallBuiltin("ds_map_keys_to_array", { origMap });
-	int origMapKeysLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { origMapKeys }).AsReal()));
+	int origMapKeysLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { origMapKeys }).ToDouble()));
 	RValue copiedMap = g_ModuleInterface->CallBuiltin("ds_map_create", {});
 	for (int i = 0; i < origMapKeysLength; i++)
 	{
@@ -380,7 +380,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 
 			RValue playerSave = g_ModuleInterface->CallBuiltin("variable_global_get", { "PlayerSave" });
 			RValue unlockedWeapons = g_ModuleInterface->CallBuiltin("ds_map_find_value", { playerSave, "unlockedWeapons" });
-			int unlockedWeaponsLength = static_cast<int>(g_ModuleInterface->CallBuiltin("array_length", { unlockedWeapons }).AsReal());
+			int unlockedWeaponsLength = static_cast<int>(g_ModuleInterface->CallBuiltin("array_length", { unlockedWeapons }).ToDouble());
 
 			RValue prevWeapons = getInstanceVariable(Self, GML_weapons);
 			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevWeapons });
@@ -458,7 +458,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newCurrentStickers });
 
 				RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
-				RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName });
+				RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName.c_str() });
 				charSelectedMap[clientID] = charData;
 				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, charData });
 
@@ -491,8 +491,8 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				// TODO: deal with apply progression stats for the client character
 				setInstanceVariable(newCreatedChar, GML_challenge, getInstanceVariable(charData, GML_challenge));
 				RValue baseStats = getInstanceVariable(Self, GML_baseStats);
-				moneyGainMultiplier = getInstanceVariable(baseStats, GML_moneyGain).AsReal();
-				foodMultiplier = getInstanceVariable(baseStats, GML_food).AsReal();
+				moneyGainMultiplier = getInstanceVariable(baseStats, GML_moneyGain).ToDouble();
+				foodMultiplier = getInstanceVariable(baseStats, GML_food).ToDouble();
 				setInstanceVariable(newCreatedChar, GML_HP, getInstanceVariable(baseStats, GML_HP));
 				setInstanceVariable(newCreatedChar, GML_currentHP, getInstanceVariable(baseStats, GML_HP));
 				setInstanceVariable(newCreatedChar, GML_ATK, getInstanceVariable(baseStats, GML_ATK));
@@ -545,7 +545,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				RValue charPerks;
 				g_RunnerInterface.StructCreate(&charPerks);
 				RValue perksNamesArr = g_ModuleInterface->CallBuiltin("variable_struct_get_names", { getInstanceVariable(charData, GML_perks) });
-				int perksNamesArrLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { perksNamesArr }).AsReal()));
+				int perksNamesArrLen = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { perksNamesArr }).ToDouble()));
 				for (int i = 0; i < perksNamesArrLen; i++)
 				{
 					g_ModuleInterface->CallBuiltin("variable_instance_set", { charPerks, perksNamesArr[i], 0.0 });
@@ -661,7 +661,7 @@ RValue& InitPlayerManagerCreateFuncBefore(CInstance* Self, CInstance* Other, RVa
 	{
 		// TODO: temp code to get playermanager working
 		RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
-		RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName });
+		RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName.c_str() });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charData });
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "outfitSelected", "default" });
 	}
@@ -782,7 +782,7 @@ RValue& GLRMeshDestroyFuncBefore(CInstance* Self, CInstance* Other, RValue& Retu
 
 optionType convertStringOptionTypeToEnum(RValue optionType)
 {
-	std::string_view optionTypeString = optionType.AsString();
+	std::string optionTypeString = optionType.ToString();
 	if (optionTypeString.compare("StatUp") == 0)
 	{
 		return optionType_StatUp;
@@ -930,10 +930,10 @@ RValue& LevelUpPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 			optionType optionType2 = convertStringOptionTypeToEnum(getInstanceVariable(options[2], GML_optionType));
 			optionType optionType3 = convertStringOptionTypeToEnum(getInstanceVariable(options[3], GML_optionType));
 			levelUpOptionNamesMap[playerID] = levelUpOptionNames(
-				std::make_pair(optionType0, std::string(getInstanceVariable(options[0], GML_optionID).AsString())),
-				std::make_pair(optionType1, std::string(getInstanceVariable(options[1], GML_optionID).AsString())),
-				std::make_pair(optionType2, std::string(getInstanceVariable(options[2], GML_optionID).AsString())),
-				std::make_pair(optionType3, std::string(getInstanceVariable(options[3], GML_optionID).AsString()))
+				std::make_pair(optionType0, std::string(getInstanceVariable(options[0], GML_optionID).ToString())),
+				std::make_pair(optionType1, std::string(getInstanceVariable(options[1], GML_optionID).ToString())),
+				std::make_pair(optionType2, std::string(getInstanceVariable(options[2], GML_optionID).ToString())),
+				std::make_pair(optionType3, std::string(getInstanceVariable(options[3], GML_optionID).ToString()))
 			);
 			clientUnpausedMap[playerID] = false;
 			swapPlayerDataPop(Self, attackController);
@@ -972,13 +972,13 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 			// TODO: Might have to do something specific for game over?
 			// TODO: Do something specific for reviving
 			RValue canControl = getInstanceVariable(Self, GML_canControl);
-			if (!canControl.AsBool())
+			if (!canControl.ToBoolean())
 			{
 				callbackManagerInterfacePtr->CancelOriginalFunction();
 				return ReturnValue;
 			}
 			RValue paused = getInstanceVariable(Self, GML_paused);
-			if (!paused.AsBool())
+			if (!paused.ToBoolean())
 			{
 				callbackManagerInterfacePtr->CancelOriginalFunction();
 				return ReturnValue;
@@ -990,28 +990,28 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 			RValue gameOvered = getInstanceVariable(Self, GML_gameOvered);
 			RValue gameWon = getInstanceVariable(Self, GML_gameWon);
 			RValue quitConfirm = getInstanceVariable(Self, GML_quitConfirm);
-			if (leveled.AsBool())
+			if (leveled.ToBoolean())
 			{
 				// Not sure if controls free check is necessary
 				RValue controlsFree = getInstanceVariable(Self, GML_controlsFree);
-				if (!controlsFree.AsBool())
+				if (!controlsFree.ToBoolean())
 				{
 					callbackManagerInterfacePtr->CancelOriginalFunction();
 					return ReturnValue;
 				}
 				RValue collabListShowing = getInstanceVariable(Self, GML_collabListShowing);
-				if (collabListShowing.AsBool())
+				if (collabListShowing.ToBoolean())
 				{
 					callbackManagerInterfacePtr->CancelOriginalFunction();
 					return ReturnValue;
 				}
 				RValue collabListSelected = getInstanceVariable(Self, GML_collabListSelected);
-				if (collabListSelected.AsBool())
+				if (collabListSelected.ToBoolean())
 				{
 					return ReturnValue;
 				}
 				RValue levelOptionSelect = getInstanceVariable(Self, GML_levelOptionSelect);
-				char selectedOption = static_cast<char>(lround(levelOptionSelect.AsReal()));
+				char selectedOption = static_cast<char>(lround(levelOptionSelect.ToDouble()));
 				// Run the original eliminate code
 				if (selectedOption == 5)
 				{
@@ -1022,19 +1022,19 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				{
 					// TODO: Should probably set the reroll amount and eliminate amount to whatever the host originally has
 					RValue rerollTimes = g_ModuleInterface->CallBuiltin("variable_global_get", { "rerollTimes" });
-					if (static_cast<int>(lround(rerollTimes.AsReal())) >= 1)
+					if (static_cast<int>(lround(rerollTimes.ToDouble())) >= 1)
 					{
 						// TODO: Check if the message failed to send
 						sendLevelUpClientChoiceMessage(0, selectedOption);
 						setInstanceVariable(Self, GML_eliminateMode, RValue(false));
 						// TODO: Maybe should wait until an acknowledgement is received from the host before reducing the count (low priority)
-						g_ModuleInterface->CallBuiltin("variable_global_set", { "rerollTimes", rerollTimes.AsReal() - 1 });
+						g_ModuleInterface->CallBuiltin("variable_global_set", { "rerollTimes", rerollTimes.ToDouble() - 1 });
 						callbackManagerInterfacePtr->CancelOriginalFunction();
 					}
 					return ReturnValue;
 				}
 				RValue eliminateMode = getInstanceVariable(Self, GML_eliminateMode);
-				if (eliminateMode.AsBool())
+				if (eliminateMode.ToBoolean())
 				{
 					RValue options = getInstanceVariable(Self, GML_options);
 					optionType levelUpType = convertStringOptionTypeToEnum(getInstanceVariable(options[selectedOption], GML_optionType));
@@ -1043,7 +1043,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 						return ReturnValue;
 					}
 					RValue eliminateTimes = g_ModuleInterface->CallBuiltin("variable_global_get", { "eliminateTimes" });
-					g_ModuleInterface->CallBuiltin("variable_global_set", { "eliminateTimes", eliminateTimes.AsReal() - 1 });
+					g_ModuleInterface->CallBuiltin("variable_global_set", { "eliminateTimes", eliminateTimes.ToDouble() - 1 });
 					setInstanceVariable(Self, GML_eliminateMode, RValue(false));
 					setInstanceVariable(Self, GML_eliminatedThisLevel, RValue(true));
 					sendEliminateLevelUpClientChoiceMessage(0, selectedOption);
@@ -1056,7 +1056,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				}
 
 				RValue options = getInstanceVariable(Self, GML_options);
-				if (getInstanceVariable(options[selectedOption], GML_optionName).AsString().empty())
+				if (getInstanceVariable(options[selectedOption], GML_optionName).ToString().empty())
 				{
 					callbackManagerInterfacePtr->CancelOriginalFunction();
 					return ReturnValue;
@@ -1082,15 +1082,15 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 
 				callbackManagerInterfacePtr->CancelOriginalFunction();
 			}
-			else if (gotBox.AsBool())
+			else if (gotBox.ToBoolean())
 			{
-				if (getInstanceVariable(Self, GML_boxOpenned).AsBool())
+				if (getInstanceVariable(Self, GML_boxOpenned).ToBoolean())
 				{
-					if (static_cast<int>(lround(getInstanceVariable(Self, GML_itemBoxTakeOption).AsReal())) == 0)
+					if (static_cast<int>(lround(getInstanceVariable(Self, GML_itemBoxTakeOption).ToDouble())) == 0)
 					{
-						sendBoxTakeOptionMessage(HOST_INDEX, static_cast<char>(lround(getInstanceVariable(Self, GML_currentBoxItem).AsReal())));
+						sendBoxTakeOptionMessage(HOST_INDEX, static_cast<char>(lround(getInstanceVariable(Self, GML_currentBoxItem).ToDouble())));
 					}
-					else if (getInstanceVariable(Self, GML_superBox).AsBool())
+					else if (getInstanceVariable(Self, GML_superBox).ToBoolean())
 					{
 						// Need to do this since the super item check only checks from the items map
 						RValue randomWeaponArr = getInstanceVariable(playerManagerInstanceVar, GML_randomWeapon);
@@ -1104,13 +1104,13 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					}
 				}
 			}
-			else if (gotSticker.AsBool())
+			else if (gotSticker.ToBoolean())
 			{
 				RValue stickerActionSelected = getInstanceVariable(Self, GML_stickerActionSelected);
-				if (stickerActionSelected.AsBool())
+				if (stickerActionSelected.ToBoolean())
 				{
-					int stickerAction = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerAction).AsReal()));
-					int stickerOption = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerOption).AsReal()));
+					int stickerAction = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerAction).ToDouble()));
+					int stickerOption = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerOption).ToDouble()));
 					sendStickerChooseOptionMessage(HOST_INDEX, stickerOption, stickerAction);
 					if (stickerAction == 1)
 					{
@@ -1119,24 +1119,24 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					}
 				}
 			}
-			else if (gotGoldenAnvil.AsBool())
+			else if (gotGoldenAnvil.ToBoolean())
 			{
 				RValue collabDone = getInstanceVariable(Self, GML_collabDone);
-				if (collabDone.AsBool())
+				if (collabDone.ToBoolean())
 				{
 					RValue collabingWeapon = getInstanceVariable(Self, GML_collabingWeapon);
 					RValue attackID = getInstanceVariable(collabingWeapon, GML_attackID);
 					RValue optionType = getInstanceVariable(collabingWeapon, GML_optionType);
-					levelUpOption curOption = levelUpOption(optionType.AsString(), "", attackID.AsString(), std::vector<std::string_view>(), 0, 0, 0);
+					levelUpOption curOption = levelUpOption(optionType.ToString(), "", attackID.ToString(), std::vector<std::string>(), 0, 0, 0);
 					sendChooseCollabMessage(HOST_INDEX, curOption);
 				}
 			}
-			else if (gameOvered.AsBool() || gameWon.AsBool())
+			else if (gameOvered.ToBoolean() || gameWon.ToBoolean())
 			{
 				RValue gameOverTime = getInstanceVariable(Self, GML_gameOverTime);
-				if (!(gameOvered.AsBool() && gameOverTime.AsReal() < 330) && !(gameWon.AsBool() && gameOverTime.AsReal() < 120))
+				if (!(gameOvered.ToBoolean() && gameOverTime.ToDouble() < 330) && !(gameWon.ToBoolean() && gameOverTime.ToDouble() < 120))
 				{
-					int pauseOption = static_cast<int>(lround(getInstanceVariable(Self, GML_pauseOption).AsReal()));
+					int pauseOption = static_cast<int>(lround(getInstanceVariable(Self, GML_pauseOption).ToDouble()));
 					if (pauseOption == 2)
 					{
 						clientLeaveGame(false);
@@ -1149,9 +1149,9 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					}
 				}
 			}
-			else if (quitConfirm.AsBool())
+			else if (quitConfirm.ToBoolean())
 			{
-				int quitOption = static_cast<int>(lround(getInstanceVariable(Self, GML_quitOption).AsReal()));
+				int quitOption = static_cast<int>(lround(getInstanceVariable(Self, GML_quitOption).ToDouble()));
 				if (quitOption == 0)
 				{
 					clientLeaveGame(false);
@@ -1162,13 +1162,13 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 		else
 		{
 			RValue canControl = getInstanceVariable(Self, GML_canControl);
-			if (!canControl.AsBool())
+			if (!canControl.ToBoolean())
 			{
 				callbackManagerInterfacePtr->CancelOriginalFunction();
 				return ReturnValue;
 			}
 			RValue paused = getInstanceVariable(Self, GML_paused);
-			if (!paused.AsBool())
+			if (!paused.ToBoolean())
 			{
 				callbackManagerInterfacePtr->CancelOriginalFunction();
 				return ReturnValue;
@@ -1176,12 +1176,12 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 			RValue gameOvered = getInstanceVariable(Self, GML_gameOvered);
 			RValue gameWon = getInstanceVariable(Self, GML_gameWon);
 			RValue quitConfirm = getInstanceVariable(Self, GML_quitConfirm);
-			if (gameOvered.AsBool() || gameWon.AsBool())
+			if (gameOvered.ToBoolean() || gameWon.ToBoolean())
 			{
 				RValue gameOverTime = getInstanceVariable(Self, GML_gameOverTime);
-				if (!(gameOvered.AsBool() && gameOverTime.AsReal() < 330) && !(gameWon.AsBool() && gameOverTime.AsReal() < 120))
+				if (!(gameOvered.ToBoolean() && gameOverTime.ToDouble() < 330) && !(gameWon.ToBoolean() && gameOverTime.ToDouble() < 120))
 				{
-					int pauseOption = static_cast<int>(lround(getInstanceVariable(Self, GML_pauseOption).AsReal()));
+					int pauseOption = static_cast<int>(lround(getInstanceVariable(Self, GML_pauseOption).ToDouble()));
 					if (pauseOption == 0)
 					{
 						// TODO: Change retry to just restart the game again with all the clients. For now, just bring everyone back to the lobby
@@ -1238,9 +1238,9 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					callbackManagerInterfacePtr->CancelOriginalFunction();
 				}
 			}
-			else if (quitConfirm.AsBool())
+			else if (quitConfirm.ToBoolean())
 			{
-				int quitOption = static_cast<int>(lround(getInstanceVariable(Self, GML_quitOption).AsReal()));
+				int quitOption = static_cast<int>(lround(getInstanceVariable(Self, GML_quitOption).ToDouble()));
 				if (quitOption == 0)
 				{
 					for (auto& clientSocket : clientSocketMap)
@@ -1297,7 +1297,7 @@ void unpauseHost()
 	// Make sure to actually delete the paused screen
 	RValue inputArgs[1];
 	inputArgs[0] = getInstanceVariable(playerManagerInstanceVar, GML_paused_screen_sprite);
-	origSpriteDeleteScript(&returnVal, playerManagerInstanceVar, nullptr, 1, inputArgs);
+	origSpriteDeleteScript(returnVal, playerManagerInstanceVar, nullptr, 1, inputArgs);
 }
 
 bool isHostWaitingForClientUnpause = false;
@@ -1311,7 +1311,7 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 			// TODO: Prevent the paused menu from showing up as well
 			RValue paused = getInstanceVariable(Self, GML_paused);
 			// Need to check if the game is now unpaused or not because sometimes this function will be called without actually unpausing the game
-			if (!paused.AsBool())
+			if (!paused.ToBoolean())
 			{
 				// Probably shouldn't be necessary to check if the host is in the level up menu because it's not paused anymore
 				isHostInLevelUp = false;
@@ -1358,7 +1358,7 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 			{
 				isClientUsingBox = false;
 				sendInteractFinishedMessage(HOST_INDEX);
-				uint32_t boxCoinGain = static_cast<uint32_t>(floor(getInstanceVariable(Self, GML_boxCoinGain).AsReal()));
+				uint32_t boxCoinGain = static_cast<uint32_t>(floor(getInstanceVariable(Self, GML_boxCoinGain).ToDouble()));
 				sendClientGainMoneyMessage(HOST_INDEX, boxCoinGain);
 
 				// Need to manually remove certain instances created while paused since the game originally created them in a different room which would automatically destroy them when moved,
@@ -1368,43 +1368,43 @@ RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 			else if (isClientUsingAnvil)
 			{
 				RValue usedAnvil = getInstanceVariable(Self, GML_usedAnvil);
-				if (usedAnvil.AsBool())
+				if (usedAnvil.ToBoolean())
 				{
 					RValue loadOutList = getInstanceVariable(Self, GML_loadOutList);
-					int anvilOption = static_cast<int>(lround(getInstanceVariable(Self, GML_anvilOption).AsReal()));
+					int anvilOption = static_cast<int>(lround(getInstanceVariable(Self, GML_anvilOption).ToDouble()));
 					RValue loadOut = loadOutList[anvilOption];
 					RValue optionID = getInstanceVariable(loadOut, GML_optionID);
 					RValue optionType = getInstanceVariable(loadOut, GML_optionType);
 
-					int upgradeOption = static_cast<int>(lround(getInstanceVariable(Self, GML_upgradeOption).AsReal()));
+					int upgradeOption = static_cast<int>(lround(getInstanceVariable(Self, GML_upgradeOption).ToDouble()));
 					if (upgradeOption == 0)
 					{
 						RValue enhancing = getInstanceVariable(Self, GML_enhancing);
 						// Enhancing anvil
-						if (enhancing.AsBool())
+						if (enhancing.ToBoolean())
 						{
 							// Attempted to enhance weapon
 							RValue enhanceResult = getInstanceVariable(Self, GML_enhanceResult);
-							if (enhanceResult.AsBool())
+							if (enhanceResult.ToBoolean())
 							{
 								RValue enhanceCostMult = g_ModuleInterface->CallBuiltin("variable_global_get", { "enhanceCostMultiplier" });
 								RValue enhancements = getInstanceVariable(loadOut, GML_enhancements);
-								uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.AsReal() * enhancements.AsReal() * 50));
-								sendAnvilChooseOptionMessage(HOST_INDEX, optionID.AsString(), optionType.AsString(), enhanceCost, 1);
+								uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.ToDouble() * enhancements.ToDouble() * 50));
+								sendAnvilChooseOptionMessage(HOST_INDEX, optionID.ToString(), optionType.ToString(), enhanceCost, 1);
 							}
 						}
 						else
 						{
 							// Levelled up weapon
-							sendAnvilChooseOptionMessage(HOST_INDEX, optionID.AsString(), optionType.AsString(), 0, 0);
+							sendAnvilChooseOptionMessage(HOST_INDEX, optionID.ToString(), optionType.ToString(), 0, 0);
 						}
 					}
 					else if (upgradeOption == 1)
 					{
 						// Enchanting anvil
 						RValue enhanceCostMult = g_ModuleInterface->CallBuiltin("variable_global_get", { "enhanceCostMultiplier" });
-						uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.AsReal() * 250));
-						sendClientAnvilEnchantMessage(HOST_INDEX, optionID.AsString(), currentAnvilRolledMods, enhanceCost);
+						uint32_t enhanceCost = static_cast<uint32_t>(floor(enhanceCostMult.ToDouble() * 250));
+						sendClientAnvilEnchantMessage(HOST_INDEX, optionID.ToString(), currentAnvilRolledMods, enhanceCost);
 					}
 					setInstanceVariable(Self, GML_usedAnvil, RValue(false));
 					g_ModuleInterface->CallBuiltin("instance_destroy", { objItemLightBeamIndex });
@@ -1467,21 +1467,21 @@ RValue& ExecuteAttackBefore(CInstance* Self, CInstance* Other, RValue& ReturnVal
 					RValue origPlayerCreator = getInstanceVariable(config, GML_origPlayerCreator);
 					if (origPlayerCreator.m_Kind != VALUE_UNDEFINED && origPlayerCreator.m_Kind != VALUE_UNSET)
 					{
-						playerID = getPlayerID(origPlayerCreator.m_Object);
+						playerID = getPlayerID(origPlayerCreator.ToInstance());
 					}
 					else
 					{
-						playerID = getPlayerID(getInstanceVariable(creator, GML_id).m_Object);
+						playerID = getPlayerID(getInstanceVariable(creator, GML_id).ToInstance());
 					}
 				}
 				else
 				{
-					playerID = getPlayerID(getInstanceVariable(creator, GML_id).m_Object);
+					playerID = getPlayerID(getInstanceVariable(creator, GML_id).ToInstance());
 				}
 			}
 			else
 			{
-				playerID = getPlayerID(getInstanceVariable(*attacker, GML_id).m_Object);
+				playerID = getPlayerID(getInstanceVariable(*attacker, GML_id).ToInstance());
 			}
 		}
 		// Check if the index is a valid player or not
@@ -1529,9 +1529,9 @@ RValue& DieObstacleCreateBefore(CInstance* Self, CInstance* Other, RValue& Retur
 {
 	if (hasConnected && isHost)
 	{
-		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).AsReal());
-		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).AsReal());
-		short destructableID = static_cast<short>(lround(getInstanceVariable(Self, GML_destructableID).AsReal()));
+		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).ToDouble());
+		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).ToDouble());
+		short destructableID = static_cast<short>(lround(getInstanceVariable(Self, GML_destructableID).ToDouble()));
 		sendAllDestructableBreakMessage(destructableData(xPos, yPos, destructableID, 0));
 	}
 
@@ -1563,7 +1563,7 @@ RValue& ApplyBuffAttackControllerBefore(CInstance* Self, CInstance* Other, RValu
 			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 			return ReturnValue;
 		}
-		RValue isPlayer = getInstanceVariable(creator, GML_isPlayer);
+		RValue isPlayer = getInstanceVariable(*creator, GML_isPlayer);
 		if (isPlayer.m_Kind == VALUE_UNDEFINED || isPlayer.m_Kind == VALUE_UNSET)
 		{
 			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
@@ -1580,7 +1580,7 @@ RValue& ApplyBuffAttackControllerBefore(CInstance* Self, CInstance* Other, RValu
 		}
 		else
 		{
-			playerID = getPlayerID(getInstanceVariable(*creator, GML_id).m_Object);
+			playerID = getPlayerID(getInstanceVariable(*creator, GML_id).ToInstance());
 		}
 		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 	}
@@ -1602,7 +1602,7 @@ RValue& DestroyHoloAnvilBefore(CInstance* Self, CInstance* Other, RValue& Return
 {
 	if (hasConnected && isHost)
 	{
-		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
+		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).ToDouble()));
 		sendAllInteractableDeleteMessage(interactableMapIndexVal, 1);
 	}
 	return ReturnValue;
@@ -1612,7 +1612,7 @@ RValue& DestroyGoldenAnvilBefore(CInstance* Self, CInstance* Other, RValue& Retu
 {
 	if (hasConnected && isHost)
 	{
-		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
+		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).ToDouble()));
 		sendAllInteractableDeleteMessage(interactableMapIndexVal, 2);
 	}
 	return ReturnValue;
@@ -1622,7 +1622,7 @@ RValue& DestroyStickerBefore(CInstance* Self, CInstance* Other, RValue& ReturnVa
 {
 	if (hasConnected && isHost)
 	{
-		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).AsReal()));
+		short interactableMapIndexVal = static_cast<short>(lround(getInstanceVariable(Self, GML_interactableMapIndex).ToDouble()));
 		sendAllInteractableDeleteMessage(interactableMapIndexVal, 4);
 	}
 	return ReturnValue;
@@ -1635,7 +1635,7 @@ RValue& TakeDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue&
 {
 	if (hasConnected && isHost)
 	{
-		uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).m_Object);
+		uint32_t playerID = getPlayerID(getInstanceVariable(Self, GML_id).ToInstance());
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 		if (playerID != 100000)
 		{
@@ -1655,7 +1655,7 @@ RValue& TakeDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue&
 					creator = origPlayerCreator;
 				}
 			}
-			playerID = getPlayerID(creator.m_Object);
+			playerID = getPlayerID(creator.ToInstance());
 			hasEnemyTakenDamage = true;
 		}
 		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
@@ -1680,7 +1680,7 @@ RValue& RollModAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int
 	if (hasConnected && !isHost)
 	{
 		// TODO: Check if this will have issues if RollMod returns -1. Not really sure when that happens
-		currentAnvilRolledMods.push_back(ReturnValue.AsString());
+		currentAnvilRolledMods.push_back(ReturnValue.ToString());
 	}
 	return ReturnValue;
 }
@@ -1823,7 +1823,7 @@ RValue& ReturnCharSelectCreateBefore(CInstance* Self, CInstance* Other, RValue& 
 RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
 	RValue holoHouseMode = g_ModuleInterface->CallBuiltin("variable_global_get", { "holoHouseMode" });
-	if (!holoHouseMode.AsBool())
+	if (!holoHouseMode.ToBoolean())
 	{
 		std::shared_ptr<menuGridData> curMenuGridDataPtr;
 		holoCureMenuInterfacePtr->GetCurrentMenuGrid(MODNAME, curMenuGridDataPtr);
@@ -1835,7 +1835,7 @@ RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& R
 				// Send player back to the lobby after selecting a character
 				// TODO: Allow for outfit selection later
 				// TODO: There might be an issue if the player left clicks and right clicks at the same time?
-				lobbyPlayerDataMap[clientID].charName = getInstanceVariable(charSelected, GML_id).AsString();
+				lobbyPlayerDataMap[clientID].charName = getInstanceVariable(charSelected, GML_id).ToString();
 				callbackManagerInterfacePtr->LogToFile(MODNAME, "Selected character %s", lobbyPlayerDataMap[clientID].charName.data());
 				lobbyPlayerDataMap[clientID].stageSprite = curSelectedStageSprite;
 				holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
@@ -1846,18 +1846,18 @@ RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& R
 		}
 		else if (curMenuGridDataPtr.get() == selectingMapMenuGrid.menuGridPtr.get())
 		{
-			int stageSelected = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "playingStage" }).AsReal()));
+			int stageSelected = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "playingStage" }).ToDouble()));
 			if (stageSelected != -1)
 			{
 				// Send player back to the lobby after selecting a map
 				hasSelectedMap = true;
 				curSelectedMap = stageSelected;
-				curSelectedGameMode = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "gameMode" }).AsReal()));
+				curSelectedGameMode = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("variable_global_get", { "gameMode" }).ToDouble()));
 				RValue whichSet = getInstanceVariable(Self, GML_availableStages);
-				int selectedStage = static_cast<int>(lround(getInstanceVariable(Self, GML_selectedStage).AsReal()));
+				int selectedStage = static_cast<int>(lround(getInstanceVariable(Self, GML_selectedStage).ToDouble()));
 				if (curSelectedGameMode == 0 || curSelectedGameMode == 1)
 				{
-					curSelectedStageSprite = static_cast<int>(lround(getInstanceVariable(whichSet[selectedStage], GML_stageSprite).AsReal()));
+					curSelectedStageSprite = static_cast<int>(lround(getInstanceVariable(whichSet[selectedStage], GML_stageSprite).ToDouble()));
 					lobbyPlayerDataMap[HOST_INDEX].stageSprite = curSelectedStageSprite;
 				}
 				holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
@@ -1938,7 +1938,7 @@ RValue& ParseAndPushCommandTypePlayerManagerOtherBefore(CInstance* Self, CInstan
 	{
 		if (isHost)
 		{
-			callbackManagerInterfacePtr->LogToFile(MODNAME, "ParseAndPush %s", Args[0]->AsString().data());
+			callbackManagerInterfacePtr->LogToFile(MODNAME, "ParseAndPush %s", Args[0]->ToString().data());
 		}
 		else
 		{
@@ -1974,7 +1974,7 @@ RValue& HealBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int n
 {
 	if (hasConnected && isHost)
 	{
-		uint32_t playerID = getPlayerID(getInstanceVariable(*Args[0], GML_id).m_Object);
+		uint32_t playerID = getPlayerID(getInstanceVariable(*Args[0], GML_id).ToInstance());
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 		swapPlayerDataPush(playerManagerInstanceVar, attackController, static_cast<int>(playerID));
 	}
@@ -1985,7 +1985,7 @@ RValue& HealAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int nu
 {
 	if (hasConnected && isHost)
 	{
-		uint32_t playerID = getPlayerID(getInstanceVariable(*Args[0], GML_id).m_Object);
+		uint32_t playerID = getPlayerID(getInstanceVariable(*Args[0], GML_id).ToInstance());
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	}

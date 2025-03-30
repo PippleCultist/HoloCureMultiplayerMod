@@ -95,19 +95,6 @@ inline void readByteBufferToLong(uint32_t* outputLong, char* inputBuffer, int& s
 	startPos += 4;
 }
 
-inline void writeStringViewToByteBuffer(char* outputBuffer, std::string_view inputString, int& startPos)
-{
-	writeShortToByteBuffer(outputBuffer, static_cast<short>(inputString.size()), startPos);
-	memcpy(&outputBuffer[startPos], inputString.data(), inputString.size());
-	startPos += static_cast<int>(inputString.size());
-}
-
-inline void readByteBufferToStringView(std::string_view* outputString, char* inputBuffer, int inputBufferLen, int& startPos)
-{
-	*outputString = std::string_view(&inputBuffer[startPos], inputBufferLen);
-	startPos += inputBufferLen;
-}
-
 inline void writeStringToByteBuffer(char* outputBuffer, std::string inputString, int& startPos)
 {
 	writeShortToByteBuffer(outputBuffer, static_cast<short>(inputString.size()), startPos);
@@ -153,7 +140,6 @@ inline void setBitInByte(char& inputByte, int bitPos)
 }
 
 int receiveString(uint32_t playerID, std::string* outputString);
-int receiveStringView(uint32_t playerID, std::string_view* outputString);
 
 // Probably should optimize this/make a separate struct for the updates
 // TODO: Improve this by reducing the xPos,yPos to a diff + round + truncate.
@@ -876,11 +862,11 @@ struct messageGameData
 struct levelUpOption
 {
 	// TODO: can probably change optionType to a number
-	std::string_view optionType;
-	std::string_view optionName;
-	std::string_view optionID;
-	std::vector<std::string_view> optionDescription;
-	std::vector<std::string_view> modsList;
+	std::string optionType;
+	std::string optionName;
+	std::string optionID;
+	std::vector<std::string> optionDescription;
+	std::vector<std::string> modsList;
 	uint16_t optionIcon;
 	uint16_t optionIcon_Super;
 	char weaponAndItemType;
@@ -890,12 +876,12 @@ struct levelUpOption
 	{
 	}
 
-	levelUpOption(std::string_view optionType, std::string_view optionName, std::string_view optionID, std::vector<std::string_view> optionDescription, uint16_t optionIcon, uint16_t optionIcon_Super, char weaponAndItemType)
+	levelUpOption(std::string optionType, std::string optionName, std::string optionID, std::vector<std::string> optionDescription, uint16_t optionIcon, uint16_t optionIcon_Super, char weaponAndItemType)
 		: optionType(optionType), optionName(optionName), optionID(optionID), optionDescription(optionDescription), optionIcon(optionIcon), optionIcon_Super(optionIcon_Super), weaponAndItemType(weaponAndItemType), isModsListNew(0)
 	{
 	}
 
-	levelUpOption(std::string_view optionType, std::string_view optionName, std::string_view optionID, std::vector<std::string_view> optionDescription, uint16_t optionIcon, uint16_t optionIcon_Super, char weaponAndItemType, std::vector<std::string_view> modsList, char isModsListNew)
+	levelUpOption(std::string optionType, std::string optionName, std::string optionID, std::vector<std::string> optionDescription, uint16_t optionIcon, uint16_t optionIcon_Super, char weaponAndItemType, std::vector<std::string> modsList, char isModsListNew)
 		: optionType(optionType), optionName(optionName), optionID(optionID), optionDescription(optionDescription), optionIcon(optionIcon), optionIcon_Super(optionIcon_Super), weaponAndItemType(weaponAndItemType), modsList(modsList), isModsListNew(isModsListNew)
 	{
 	}
@@ -908,16 +894,16 @@ struct levelUpOption
 		writeCharToByteBuffer(messageBuffer, static_cast<char>(modsList.size()), startBufferPos);
 		for (int i = 0; i < modsList.size(); i++)
 		{
-			writeStringViewToByteBuffer(messageBuffer, modsList[i], startBufferPos);
+			writeStringToByteBuffer(messageBuffer, modsList[i], startBufferPos);
 		}
 		writeCharToByteBuffer(messageBuffer, static_cast<char>(optionDescription.size()), startBufferPos);
 		for (int i = 0; i < optionDescription.size(); i++)
 		{
-			writeStringViewToByteBuffer(messageBuffer, optionDescription[i], startBufferPos);
+			writeStringToByteBuffer(messageBuffer, optionDescription[i], startBufferPos);
 		}
-		writeStringViewToByteBuffer(messageBuffer, optionType, startBufferPos);
-		writeStringViewToByteBuffer(messageBuffer, optionName, startBufferPos);
-		writeStringViewToByteBuffer(messageBuffer, optionID, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, optionType, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, optionName, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, optionID, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, static_cast<short>(optionIcon), startBufferPos);
 		writeShortToByteBuffer(messageBuffer, static_cast<short>(optionIcon_Super), startBufferPos);
 		writeCharToByteBuffer(messageBuffer, weaponAndItemType, startBufferPos);
@@ -1483,7 +1469,7 @@ struct messageInteractablePlayerInteracted
 
 struct messageStickerPlayerInteracted
 {
-	std::string_view stickerID;
+	std::string stickerID;
 	uint32_t m_playerID;
 	short id;
 
@@ -1491,7 +1477,7 @@ struct messageStickerPlayerInteracted
 	{
 	}
 
-	messageStickerPlayerInteracted(std::string_view stickerID, uint32_t m_playerID, short id) : stickerID(stickerID), m_playerID(m_playerID), id(id)
+	messageStickerPlayerInteracted(std::string stickerID, uint32_t m_playerID, short id) : stickerID(stickerID), m_playerID(m_playerID), id(id)
 	{
 	}
 
@@ -1501,7 +1487,7 @@ struct messageStickerPlayerInteracted
 	{
 		int startBufferPos = 0;
 		writeCharToByteBuffer(messageBuffer, MESSAGE_STICKER_PLAYER_INTERACTED, startBufferPos);
-		writeStringViewToByteBuffer(messageBuffer, stickerID, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, stickerID, startBufferPos);
 		writeLongToByteBuffer(messageBuffer, m_playerID, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, id, startBufferPos);
 	}
@@ -1615,8 +1601,8 @@ struct messageBoxTakeOption
 struct messageAnvilChooseOption
 {
 	uint32_t m_playerID;
-	std::string_view optionID;
-	std::string_view optionType;
+	std::string optionID;
+	std::string optionType;
 	uint32_t coinCost;
 	char anvilOptionType; // 0 is level up, 1 is enhance
 
@@ -1624,7 +1610,7 @@ struct messageAnvilChooseOption
 	{
 	}
 
-	messageAnvilChooseOption(std::string_view optionID, std::string_view optionType, uint32_t coinCost, char anvilOptionType) : m_playerID(0), optionID(optionID), optionType(optionType), coinCost(coinCost), anvilOptionType(anvilOptionType)
+	messageAnvilChooseOption(std::string optionID, std::string optionType, uint32_t coinCost, char anvilOptionType) : m_playerID(0), optionID(optionID), optionType(optionType), coinCost(coinCost), anvilOptionType(anvilOptionType)
 	{
 	}
 
@@ -1634,8 +1620,8 @@ struct messageAnvilChooseOption
 	{
 		int startBufferPos = 0;
 		writeCharToByteBuffer(messageBuffer, MESSAGE_ANVIL_CHOOSE_OPTION, startBufferPos);
-		writeStringViewToByteBuffer(messageBuffer, optionID, startBufferPos);
-		writeStringViewToByteBuffer(messageBuffer, optionType, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, optionID, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, optionType, startBufferPos);
 		writeLongToByteBuffer(messageBuffer, coinCost, startBufferPos);
 		writeCharToByteBuffer(messageBuffer, anvilOptionType, startBufferPos);
 	}
@@ -1685,15 +1671,15 @@ struct messageClientGainMoney
 struct messageClientAnvilEnchant
 {
 	uint32_t m_playerID;
-	std::vector<std::string_view> gainedMods;
-	std::string_view optionID;
+	std::vector<std::string> gainedMods;
+	std::string optionID;
 	uint32_t coinCost;
 
 	messageClientAnvilEnchant() : m_playerID(0), coinCost(0)
 	{
 	}
 
-	messageClientAnvilEnchant(std::string_view optionID, std::vector<std::string_view> gainedMods, uint32_t coinCost) : m_playerID(0), optionID(optionID), gainedMods(gainedMods), coinCost(coinCost)
+	messageClientAnvilEnchant(std::string optionID, std::vector<std::string> gainedMods, uint32_t coinCost) : m_playerID(0), optionID(optionID), gainedMods(gainedMods), coinCost(coinCost)
 	{
 	}
 
@@ -1710,9 +1696,9 @@ struct messageClientAnvilEnchant
 		writeCharToByteBuffer(messageBuffer, static_cast<char>(gainedMods.size()), startBufferPos);
 		for (int i = 0; i < gainedMods.size(); i++)
 		{
-			writeStringViewToByteBuffer(messageBuffer, gainedMods[i], startBufferPos);
+			writeStringToByteBuffer(messageBuffer, gainedMods[i], startBufferPos);
 		}
-		writeStringViewToByteBuffer(messageBuffer, optionID, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, optionID, startBufferPos);
 		writeLongToByteBuffer(messageBuffer, coinCost, startBufferPos);
 	}
 
@@ -1799,7 +1785,7 @@ struct messageChooseCollab
 
 struct buffData
 {
-	std::string_view buffName;
+	std::string buffName;
 	short timer;
 	short stacks;
 
@@ -1807,7 +1793,7 @@ struct buffData
 	{
 	}
 
-	buffData(std::string_view buffName, short timer, short stacks) : buffName(buffName), timer(timer), stacks(stacks)
+	buffData(std::string buffName, short timer, short stacks) : buffName(buffName), timer(timer), stacks(stacks)
 	{
 	}
 
@@ -1816,7 +1802,7 @@ struct buffData
 	void serialize(char* messageBuffer)
 	{
 		int startBufferPos = 0;
-		writeStringViewToByteBuffer(messageBuffer, buffName, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, buffName, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, timer, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, stacks, startBufferPos);
 	}
@@ -1876,7 +1862,7 @@ struct messageBuffData
 
 struct lobbyPlayerData
 {
-	std::string_view charName;
+	std::string charName;
 	std::string playerName;
 	short stageSprite;
 	char isReady;
@@ -1885,7 +1871,7 @@ struct lobbyPlayerData
 	{
 	}
 
-	lobbyPlayerData(std::string_view charName, std::string playerName, short stageSprite, char isReady) : charName(charName), playerName(playerName), stageSprite(stageSprite), isReady(isReady)
+	lobbyPlayerData(std::string charName, std::string playerName, short stageSprite, char isReady) : charName(charName), playerName(playerName), stageSprite(stageSprite), isReady(isReady)
 	{
 	}
 
@@ -1894,7 +1880,7 @@ struct lobbyPlayerData
 	void serialize(char* messageBuffer)
 	{
 		int startBufferPos = 0;
-		writeStringViewToByteBuffer(messageBuffer, charName, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, charName, startBufferPos);
 		writeStringToByteBuffer(messageBuffer, playerName, startBufferPos);
 		writeShortToByteBuffer(messageBuffer, stageSprite, startBufferPos);
 		writeCharToByteBuffer(messageBuffer, isReady, startBufferPos);

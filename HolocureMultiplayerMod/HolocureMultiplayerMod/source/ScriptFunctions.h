@@ -1,5 +1,5 @@
 #pragma once
-#include <YYToolkit/shared.hpp>
+#include <YYToolkit/YYTK_Shared.hpp>
 #include "ModuleMain.h"
 #include "Button.h"
 #include "steam/steamnetworkingtypes.h"

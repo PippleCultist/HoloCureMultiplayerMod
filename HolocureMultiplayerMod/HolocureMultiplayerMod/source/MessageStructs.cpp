@@ -14,7 +14,7 @@ int receiveString(uint32_t playerID, std::string* outputString)
 	readByteBufferToShort(&messageLen, messageLenArr, startBufferPos);
 	if (messageLen == 0)
 	{
-		*outputString = std::string("");
+		*outputString = "";
 		return result;
 	}
 	char* inputMessage = new char[static_cast<int>(messageLen) + 1];
@@ -25,35 +25,6 @@ int receiveString(uint32_t playerID, std::string* outputString)
 	}
 	startBufferPos = 0;
 	readByteBufferToString(outputString, inputMessage, messageLen, startBufferPos);
-	// TODO: Unsure if removing this causes a memory leak or not. It seems like deleting this here would cause a use after free error when trying to display the options
-//	delete[] inputMessage;
-	return result;
-}
-
-int receiveStringView(uint32_t playerID, std::string_view* outputString)
-{
-	char messageLenArr[2];
-	short messageLen = -1;
-	int result = -1;
-	if ((result = receiveBytesFromPlayer(playerID, messageLenArr, sizeof(messageLenArr))) <= 0)
-	{
-		return result;
-	}
-	int startBufferPos = 0;
-	readByteBufferToShort(&messageLen, messageLenArr, startBufferPos);
-	if (messageLen == 0)
-	{
-		*outputString = std::string_view("");
-		return result;
-	}
-	char* inputMessage = new char[static_cast<int>(messageLen) + 1];
-	inputMessage[messageLen] = '\0';
-	if ((result = receiveBytesFromPlayer(playerID, inputMessage, messageLen)) <= 0)
-	{
-		return result;
-	}
-	startBufferPos = 0;
-	readByteBufferToStringView(outputString, inputMessage, messageLen, startBufferPos);
 	// TODO: Unsure if removing this causes a memory leak or not. It seems like deleting this here would cause a use after free error when trying to display the options
 //	delete[] inputMessage;
 	return result;
@@ -71,8 +42,8 @@ int levelUpOption::receiveMessage(uint32_t playerID)
 	messageLen++;
 	for (int i = 0; i < static_cast<int>(modsListSize); i++)
 	{
-		std::string_view curGainedMod;
-		if ((result = receiveStringView(playerID, &curGainedMod)) <= 0)
+		std::string curGainedMod;
+		if ((result = receiveString(playerID, &curGainedMod)) <= 0)
 		{
 			return result;
 		}
@@ -88,8 +59,8 @@ int levelUpOption::receiveMessage(uint32_t playerID)
 	messageLen++;
 	for (int i = 0; i < static_cast<int>(optionDescriptionSize); i++)
 	{
-		std::string_view curOptionDescription;
-		if ((result = receiveStringView(playerID, &curOptionDescription)) <= 0)
+		std::string curOptionDescription;
+		if ((result = receiveString(playerID, &curOptionDescription)) <= 0)
 		{
 			return result;
 		}
@@ -97,17 +68,17 @@ int levelUpOption::receiveMessage(uint32_t playerID)
 		messageLen += result;
 	}
 
-	if ((result = receiveStringView(playerID, &optionType)) <= 0)
+	if ((result = receiveString(playerID, &optionType)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
-	if ((result = receiveStringView(playerID, &optionName)) <= 0)
+	if ((result = receiveString(playerID, &optionName)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
-	if ((result = receiveStringView(playerID, &optionID)) <= 0)
+	if ((result = receiveString(playerID, &optionID)) <= 0)
 	{
 		return result;
 	}
@@ -364,7 +335,7 @@ int messageStickerPlayerInteracted::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveStringView(playerID, &stickerID)) <= 0)
+	if ((result = receiveString(playerID, &stickerID)) <= 0)
 	{
 		return result;
 	}
@@ -451,12 +422,12 @@ int messageAnvilChooseOption::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveStringView(playerID, &optionID)) <= 0)
+	if ((result = receiveString(playerID, &optionID)) <= 0)
 	{
 		return result;
 	}
 	messageLen += result;
-	if ((result = receiveStringView(playerID, &optionType)) <= 0)
+	if ((result = receiveString(playerID, &optionType)) <= 0)
 	{
 		return result;
 	}
@@ -504,15 +475,15 @@ int messageClientAnvilEnchant::receiveMessage(uint32_t playerID)
 	messageLen++;
 	for (int i = 0; i < static_cast<int>(numGainedMods); i++)
 	{
-		std::string_view curGainedMod;
-		if ((result = receiveStringView(playerID, &curGainedMod)) <= 0)
+		std::string curGainedMod;
+		if ((result = receiveString(playerID, &curGainedMod)) <= 0)
 		{
 			return result;
 		}
 		gainedMods.push_back(std::move(curGainedMod));
 		messageLen += result;
 	}
-	if ((result = receiveStringView(playerID, &optionID)) <= 0)
+	if ((result = receiveString(playerID, &optionID)) <= 0)
 	{
 		return result;
 	}
@@ -559,7 +530,7 @@ int buffData::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveStringView(playerID, &buffName)) <= 0)
+	if ((result = receiveString(playerID, &buffName)) <= 0)
 	{
 		return result;
 	}
@@ -614,7 +585,7 @@ int lobbyPlayerData::receiveMessage(uint32_t playerID)
 {
 	int messageLen = 0;
 	int result = -1;
-	if ((result = receiveStringView(playerID, &charName)) <= 0)
+	if ((result = receiveString(playerID, &charName)) <= 0)
 	{
 		return result;
 	}

@@ -3,7 +3,7 @@
 #define STEAM_API_NODLL
 #include "steam/steam_api.h"
 #include "Aurie/shared.hpp"
-#include "YYToolkit/Shared.hpp"
+#include "YYToolkit/YYTK_Shared.hpp"
 #include <Windows.h>
 using namespace Aurie;
 using namespace YYTK;

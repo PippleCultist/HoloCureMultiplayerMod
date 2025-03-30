@@ -1,42 +1,204 @@
-// File: Shared.hpp
+// File: YYTK_Shared_Interface.hpp
 // 
-// Defines stuff shared between the tool and its plugins.
-// Structs are meant to be opaque here, unless YYTK_INCLUDE_PRIVATE is defined.
-// YYTK_INCLUDE_PRIVATE is set to 1 in the main YYTK project through Visual Studio's Project Properties.
+// Defines the types and stuff necessary to interface with GameMaker.
 
-#ifndef YYTK_SHARED_H_
-#define YYTK_SHARED_H_
-
-#define YYTK_MAJOR 3
-#define YYTK_MINOR 2
-#define YYTK_PATCH 3
-
-#ifndef YYTK_CPP_VERSION
-#ifndef _MSVC_LANG
-#define YYTK_CPP_VERSION __cplusplus
-#else
-#define YYTK_CPP_VERSION _MSVC_LANG
-#endif // _MSVC_LANG
-#endif // YYTK_CPP_VERSION
-
-#include <Aurie/shared.hpp>
-#include <FunctionWrapper/FunctionWrapper.hpp>
-#include <d3d11.h>
-#include <functional>
-
-#include <cstdint>
-#include <string>
-
-#ifndef UTEXT
-#define UTEXT(x) ((const unsigned char*)(x))
-#endif // UTEXT
-
-#ifndef NULL_INDEX
-#define NULL_INDEX INT_MIN
-#endif
+#ifndef YYTK_SHARED_TYPES_H_
+#define YYTK_SHARED_TYPES_H_
+#include "YYTK_Shared_Base.hpp"
+#include <map>
 
 namespace YYTK
 {
+#pragma region Definitions
+
+	// Represents an array with an attached size.
+	template <typename T>
+	struct CArrayStructure;
+
+	// Opaque struct.
+	struct CBackGM;
+
+	// Represents a code entry - usually used in object calls.
+	struct CCode;
+
+	// Represents an object event.
+	struct CEvent;
+
+	// Represents a hashmap structure.
+	// Requires ISA enabled.
+	template <typename TKey, typename TValue, int TInitialSize>
+	struct CHashMap;
+
+	// Represents a GameMaker instance.
+	struct CInstance;
+
+	// The base type for all GameMaker instances.
+	// Unused.
+	struct CInstanceBase;
+
+	// Internal type used by YYToolkit to properly align struct members.
+	struct CInstanceInternal;
+
+	// Represents a GameMaker layer.
+	struct CLayer;
+
+	// Opaque struct.
+	struct CLayerEffectInfo;
+
+	// Represents a layer element. Can either be an instance, or a sprite.
+	struct CLayerElementBase;
+
+	// Represents a layer element. Refers to an instance.
+	struct CLayerInstanceElement;
+
+	// Represents a layer element. Refers to a sprite.
+	struct CLayerSpriteElement;
+
+	// Represents a GameMaker object.
+	struct CObjectGM;
+
+	// Stores information about physics for a particular object.
+	struct CPhysicsDataGM;
+
+	// Opaque struct.
+	struct CPhysicsObject;
+
+	// Opaque struct.
+	struct CPhysicsWorld;
+
+	// Represents a room at runtime.
+	struct CRoom;
+
+	// Internal type used by YYTK.
+	struct CRoomInternal;
+
+	// Represents a script entry.
+	struct CScript;
+
+	// Represents a method.
+	struct CScriptRef;
+
+	// Opaque struct.
+	struct CSkeletonInstance;
+
+	// Opaque struct.
+	struct CViewGM;
+
+	// Represents a weak reference.
+	struct CWeakRef;
+
+	// Stores information about a loaded extension.
+	// Used when initializing extensions loaded by the runner.
+	struct DLL_RFunction;
+
+	// Used for buffer formatting.
+	enum eBuffer_Format : int32_t;
+
+	// Stores objects for garbage collection.
+	struct GCObjectContainer;
+
+	// Represents a GameMaker buffer.
+	struct IBuffer;
+
+	// Represents a linked list.
+	template <typename T>
+	struct LinkedList;
+
+	template <typename T>
+	struct OLinkedList;
+
+	// Opaque struct.
+	struct RTile;
+
+	// Used in legacy Delphi stuff.
+	struct RToken;
+
+	// Represents a varialbe in GameMaker.
+	// Contents depend on the type.
+	struct RValue;
+
+	// Represents a function entry.
+	struct RVariableRoutine;
+
+	// Stores information about a script function.
+	struct YYGMLFuncs;
+
+	// Represents a struct, instance, or other non-trivial object.
+	struct YYObjectBase;
+
+	// Represents a rectangle.
+	struct YYRECT;
+
+	// A representation of a room, as from the data.win file.
+	struct YYRoom;
+
+	// Opaque struct.
+	struct YYRoomInstances;
+
+	// Opaque struct.
+	struct YYRoomTiles;
+
+	// Represents a runner interface. Is defined by Opera / YoYoGames.
+	struct YYRunnerInterface;
+
+	// YYTK's interface type.
+	struct YYTKInterface;
+
+#pragma endregion
+
+#pragma region Declarations
+
+	typedef void* HYYMUTEX;
+	typedef void* HSPRITEASYNC;
+
+	struct HTTP_REQ_CONTEXT;
+	typedef int (*PFUNC_async)(HTTP_REQ_CONTEXT* _pContext, void* _pPayload, int* _pMap);
+	typedef void (*PFUNC_cleanup)(HTTP_REQ_CONTEXT* _pContext);
+	typedef void (*PFUNC_process)(HTTP_REQ_CONTEXT* _pContext);
+
+	enum EventTriggers : uint32_t
+	{
+		EVENT_OBJECT_CALL = 1,	// The event represents a Code_Execute() call.
+		EVENT_FRAME = 2,		// The event represents an IDXGISwapChain::Present() call.
+		EVENT_RESIZE = 3,		// The event represents an IDXGISwapChain::ResizeBuffers() call.
+		EVENT_UNUSED = 4,		// This value is unused.
+		EVENT_WNDPROC = 5		// The event represents a WndProc() call.
+	};
+
+	enum InstanceKeywords : int32_t
+	{
+		VAR_SELF = -1,
+		VAR_OTHER = -2,
+		VAR_ALL = -3,
+		VAR_NOONE = -4,
+		VAR_GLOBAL = -5,
+		VAR_BUILTIN = -6,
+		VAR_LOCAL = -7,
+		VAR_STACKTOP = -9,
+		VAR_ARGUMENT = -15,
+	};
+
+	enum RValueType : uint32_t
+	{
+		VALUE_REAL = 0,				// Real value
+		VALUE_STRING = 1,			// String value
+		VALUE_ARRAY = 2,			// Array value
+		VALUE_PTR = 3,				// Ptr value
+		VALUE_VEC3 = 4,				// Vec3 (x,y,z) value (within the RValue)
+		VALUE_UNDEFINED = 5,		// Undefined value
+		VALUE_OBJECT = 6,			// YYObjectBase* value 
+		VALUE_INT32 = 7,			// Int32 value
+		VALUE_VEC4 = 8,				// Vec4 (x,y,z,w) value (allocated from pool)
+		VALUE_VEC44 = 9,			// Vec44 (matrix) value (allocated from pool)
+		VALUE_INT64 = 10,			// Int64 value
+		VALUE_ACCESSOR = 11,		// Actually an accessor
+		VALUE_NULL = 12,			// JS Null
+		VALUE_BOOL = 13,			// Bool value
+		VALUE_ITERATOR = 14,		// JS For-in Iterator
+		VALUE_REF = 15,				// Reference value
+		VALUE_UNSET = 0x0ffffff		// Unset value (never initialized)
+	};
+
 	enum CmColor : uint8_t
 	{
 		CM_BLACK = 0,
@@ -57,93 +219,12 @@ namespace YYTK
 		CM_BRIGHTWHITE
 	};
 
-	enum RValueType : uint32_t
-	{
-		VALUE_REAL = 0,				// Real value
-		VALUE_STRING = 1,			// String value
-		VALUE_ARRAY = 2,			// Array value
-		VALUE_PTR = 3,				// Ptr value
-		VALUE_VEC3 = 4,				// Vec3 (x,y,z) value (within the RValue)
-		VALUE_UNDEFINED = 5,		// Undefined value
-		VALUE_OBJECT = 6,			// YYObjectBase* value 
-		VALUE_INT32 = 7,			// Int32 value
-		VALUE_VEC4 = 8,				// Vec4 (x,y,z,w) value (allocated from pool)
-		VALUE_VEC44 = 9,			// Vec44 (matrix) value (allocated from pool)
-		VALUE_INT64 = 10,			// Int64 value
-		VALUE_ACCESSOR = 11,		// Actually an accessor
-		VALUE_NULL = 12,			// JS Null
-		VALUE_BOOL = 13,			// Bool value
-		VALUE_ITERATOR = 14,		// JS For-in Iterator
-		VALUE_REF = 15,				// Reference value (uses the ptr to point at a RefBase structure)
-		VALUE_UNSET = 0x0ffffff		// Unset value (never initialized)
-	};
-
-	// These cannot be bitwise-operated on anymore
-	enum EventTriggers : uint32_t
-	{
-		EVENT_OBJECT_CALL = 1,	// The event represents a Code_Execute() call.
-		EVENT_FRAME = 2,		// The event represents an IDXGISwapChain::Present() call.
-		EVENT_RESIZE = 3,		// The event represents an IDXGISwapChain::ResizeBuffers() call.
-		EVENT_SCRIPT_CALL = 4,	// The event represents a DoCallScript() call.
-		EVENT_WNDPROC = 5		// The event represents a WndProc() call.
-	};
-
-	enum InstanceKeywords : int32_t
-	{
-		VAR_SELF = -1,
-		VAR_OTHER = -2,
-		VAR_ALL = -3,
-		VAR_NOONE = -4,
-		VAR_GLOBAL = -5,
-		VAR_BUILTIN = -6,
-		VAR_LOCAL = -7,
-		VAR_STACKTOP = -9,
-		VAR_ARGUMENT = -15,
-	};
-
-	struct IBuffer;
-	struct CInstance;
-	struct YYObjectBase;
-	struct YYRunnerInterface;
-	class YYTKInterface;
-	struct RValue;
-	struct RVariableRoutine;
-	struct CRoom;
-	struct CBackGM;
-	struct CViewGM;
-	struct CPhysicsWorld;
-	struct RTile;
-	struct YYRoomTiles;
-	struct YYRoomInstances;
-	struct CLayer;
-	struct CLayerEffectInfo;
-	struct CLayerElementBase;
-	struct CLayerInstanceElement;
-	struct CLayerSpriteElement;
-	struct CInstanceBase;
-	struct CWeakRef;
-	struct CObjectGM;
-	struct CPhysicsObject;
-	struct CSkeletonInstance;
-	struct CPhysicsDataGM;
-	struct GCObjectContainer;
-	struct YYRECT;
-	struct CInstanceInternal;
-
-	template <typename TKey, typename TValue, int TInitialMask>
-	struct CHashMap;
-
-	struct YYGMLException
-	{
-		char m_Object[16];
-	};
-
 	using TRoutine = void(*)(
-		OUT RValue* Result,
+		OUT RValue& Result,
 		IN CInstance* Self,
 		IN CInstance* Other,
 		IN int ArgumentCount,
-		IN RValue* Arguments
+		IN RValue Arguments[]
 		);
 
 	using PFUNC_YYGML = void(*)(
@@ -158,203 +239,20 @@ namespace YYTK
 		IN CInstance* Other,
 		OUT RValue& Result,
 		IN int ArgumentCount,
-		IN RValue** Arguments // Array of RValue pointers
+		IN RValue* Arguments[]
 		);
 
-#pragma pack(push, 4)
-	struct RValue
-	{
-		union
-		{
-			int32_t m_i32;
-			int64_t m_i64;
-			double m_Real;
-
-			CInstance* m_Object;
-			PVOID m_Pointer;
-		};
-
-		unsigned int m_Flags;
-		RValueType m_Kind;
-
-		// Constructors
-		RValue();
-
-		RValue(
-			IN std::initializer_list<RValue> Values
+	using PFN_YYObjectBaseAdd = void(__thiscall*)(
+		IN YYObjectBase* This,
+		IN const char* Name,
+		IN const RValue& Value,
+		IN int Flags
 		);
 
-		RValue(
-			IN bool Value
+	using PFN_FindAllocSlot = int(*)(
+		OPTIONAL IN YYObjectBase* Object,
+		IN const char* Name
 		);
-
-		RValue(
-			IN double Value
-		);
-
-		RValue(
-			IN int64_t Value
-		);
-
-		RValue(
-			IN int32_t Value
-		);
-
-		RValue(
-			IN CInstance* Object
-		);
-
-		RValue(
-			IN const char* Value
-		);
-
-#if YYTK_CPP_VERSION > 202002L
-		RValue(
-			IN const char8_t* Value
-		);
-#endif // YYTK_CPP_VERSION
-		RValue(
-			IN std::string_view Value
-		);
-
-#if YYTK_CPP_VERSION > 202002L
-		RValue(
-			IN std::u8string_view Value
-		);
-#endif // YYTK_CPP_VERSION
-		RValue(
-			IN const std::string& Value
-		);
-
-#if YYTK_CPP_VERSION > 202002L
-		RValue(
-			IN const std::u8string& Value
-		);
-#endif // YYTK_CPP_VERSION
-		RValue(
-			IN std::string_view Value,
-			IN YYTKInterface* Interface
-		);
-
-		// Custom getters
-		bool AsBool() const;
-
-		double AsReal() const;
-
-		std::string_view AsString();
-
-		std::string_view AsString(
-			IN YYTKInterface* Interface
-		);
-
-		// Overloaded operators
-		RValue& operator[](
-			IN size_t Index
-			);
-
-		RValue& operator[](
-			IN std::string_view Element
-			);
-
-		// STL-like access
-		RValue& at(
-			IN size_t Index
-		);
-
-		RValue& at(
-			IN std::string_view Element
-		);
-
-		RValue* data();
-
-		size_t length();
-	};
-#pragma pack(pop)
-
-	struct RToken
-	{
-		int m_Kind;
-		unsigned int m_Type;
-		int m_Ind;
-		int m_Ind2;
-		RValue m_Value;
-		int m_ItemNumber;
-		RToken* m_Items;
-		int m_Position;
-	};
-
-	struct YYGMLFuncs
-	{
-		const char* m_Name;
-		union
-		{
-			PFUNC_YYGMLScript m_ScriptFunction;
-			PFUNC_YYGML m_CodeFunction;
-			PFUNC_RAW m_RawFunction;
-		};
-		PVOID m_FunctionVariables; // YYVAR
-	};
-
-	struct CCode
-	{
-		int (**_vptr$CCode)(void);
-		CCode* m_Next;
-		int m_Kind;
-		int m_Compiled;
-		const char* m_Str;
-		RToken m_Token;
-		RValue m_Value;
-		PVOID m_VmInstance;
-		PVOID m_VmDebugInfo;
-		char* m_Code;
-		const char* m_Name;
-		int m_CodeIndex;
-		YYGMLFuncs* m_Functions;
-		bool m_Watch;
-		int m_Offset;
-		int m_LocalsCount;
-		int m_ArgsCount;
-		int m_Flags;
-		YYObjectBase* m_Prototype;
-
-		const char* GetName() const { return this->m_Name; }
-	};
-
-	struct CScript
-	{
-		int (**_vptr$CScript)(void);
-		CCode* m_Code;
-		YYGMLFuncs* m_Functions;
-		CInstance* m_StaticObject;
-
-		union
-		{
-			const char* m_Script;
-			int m_CompiledIndex;
-		};
-
-		const char* m_Name;
-		int m_Offset;
-
-		const char* GetName() const { return this->m_Name; }
-	};
-
-	enum eBuffer_Format {
-		eBuffer_Format_Fixed = 0,
-		eBuffer_Format_Grow = 1,
-		eBuffer_Format_Wrap = 2,
-		eBuffer_Format_Fast = 3,
-		eBuffer_Format_VBuffer = 4,
-		eBuffer_Format_Network = 5,
-	};
-
-	typedef void* HYYMUTEX;
-	typedef void* HSPRITEASYNC;
-
-	struct HTTP_REQ_CONTEXT;
-	typedef int (*PFUNC_async)(HTTP_REQ_CONTEXT* _pContext, void* _pPayload, int* _pMap);
-	typedef void (*PFUNC_cleanup)(HTTP_REQ_CONTEXT* _pContext);
-	typedef void (*PFUNC_process)(HTTP_REQ_CONTEXT* _pContext);
 
 	//
 	// Copyright (C) 2020 Opera Norway AS. All rights reserved.
@@ -1093,7 +991,7 @@ namespace YYTK
 		 * - eBuffer_Format_VBuffer:  4
 		 * - eBuffer_Format_Network:  5
 		 */
-		int (*CreateBuffer)(int _size, enum eBuffer_Format _bf, int _alignment);
+		int (*CreateBuffer)(int _size, eBuffer_Format _bf, int _alignment);
 
 
 		// ########################################################################
@@ -1681,194 +1579,407 @@ namespace YYTK
 		}
 	};
 
-	// Not defined in YYTK_DEFINE_INTERNAL due to YYObjectBase not being defined yet
-#if not YYTK_DEFINE_INTERNAL
-	struct CInstance
+	template <typename T>
+	concept CGameMakerObject = requires(T Param)
 	{
-		// Overloaded operators
-		RValue& operator[](
-			IN std::string_view Element
+		requires std::is_pointer_v<T>;
+		requires
+	std::is_base_of_v<CInstanceBase, std::remove_pointer_t<T>> ||
+		std::is_base_of_v<YYObjectBase, std::remove_pointer_t<T>> ||
+		std::is_base_of_v<CInstance, std::remove_pointer_t<T>>;
+	};
+
+#pragma pack(push, 4)
+
+	// Note: 
+	// The inline initialization (setting kind to undefined, etc.) is needed
+	// because *this = RValue() calls the copy constructor which would try to free
+	// an RValue which has not yet been initialized!
+
+	struct RValue
+	{
+		union
+		{
+			int32_t m_i32;
+			int64_t m_i64;
+			double m_Real;
+
+			YYObjectBase* m_Object;
+			CInstance* m_Instance;
+
+			PVOID m_Pointer = nullptr;
+		};
+
+		uint32_t m_Flags = 0;
+		RValueType m_Kind = VALUE_UNDEFINED;
+
+		/* Explicit conversions */
+
+		// Converts the RValue to a double.
+		double ToDouble() const;
+
+		// Converts the RValue to a 32-bit integer.
+		int32_t ToInt32() const;
+
+		// Converts the RValue to a 64-bit integer.
+		int64_t ToInt64() const;
+
+		// Converts the RValue to a void*.
+		void* ToPointer() const;
+
+		// Converts the RValue to a boolean.
+		bool ToBoolean() const;
+
+		// Returns the stringified kind of the RValue.
+		std::string GetKindName() const;
+
+		// Converts the RValue to a pointer-compatible type.
+		template <typename T> requires std::is_pointer_v<T>
+		T ToPointer() const
+		{
+			return static_cast<T>(ToPointer());
+		}
+
+		// Converts the RValue to an object.
+		YYObjectBase* ToObject() const;
+
+		// Converts the RValue to an instance.
+		CInstance* ToInstance() const;
+
+		// Converts the RValue to a C-style string.
+		const char* ToCString() const;
+
+		// Converts the RValue to a string.
+		std::string ToString() const;
+
+		// Converts the RValue to a UTF-8 string.
+		std::u8string ToUTF8String() const;
+
+		// Converts the RValue into a key-value map.
+		// Only applicable for VALUE_OBJECT RValues.
+		// 
+		// Keys of the map are member variable names, 
+		// while values are references to the struct members.
+		std::map<std::string, RValue*> ToRefMap();
+
+		// Converts the RValue into a key-value map.
+		// Only applicable for VALUE_OBJECT RValues.
+		//
+		// Keys of the map are member variable names,
+		// while values are copies of the struct members.
+		std::map<std::string, RValue> ToMap() const;
+
+		// Converts the RValue into a vector.
+		// Only applicable for VALUE_ARRAY RValues.
+		//
+		// Elements of the vector are references to the array members.
+		std::vector<RValue*> ToRefVector();
+
+		// Converts the RValue into a vector.
+		// Only applicable for VALUE_ARRAY RValues.
+		//
+		// Elements of the vector are copies of the array members.
+		std::vector<RValue> ToVector() const;
+
+		// Retrieves a nested member from the RValue.
+		// Only applicable for VALUE_OBJECT RValues.
+		//
+		// The returned value is a pointer to the variable.
+		// If the variable does not exist, the function returns NULL.
+		RValue* GetRefMember(
+			IN const char* MemberName
+		);
+
+		// Retrieves a nested member from the RValue.
+		// Only applicable for VALUE_OBJECT RValues.
+		//
+		// The returned value is a pointer to the variable.
+		RValue* GetRefMember(
+			IN const std::string& MemberName
+		);
+
+		// Retrieves a nested member from the RValue.
+		// Only applicable for VALUE_OBJECT RValues.
+		//
+		// The returned value is a copy of the variable.
+		RValue GetMember(
+			IN const char* MemberName
+		) const;
+
+		// Retrieves a nested member from the RValue.
+		// Only applicable for VALUE_OBJECT RValues.
+		//
+		// The returned value is a copy of the variable.
+		RValue GetMember(
+			IN const std::string& MemberName
+		) const;
+
+		// Retrieves the member variable count from the RValue.
+		// Only applicable for VALUE_OBJECT RValues.
+		int32_t GetMemberCount() const;
+
+		// Converts the RValue into a C-style array of RValues.
+		// Only applicable for VALUE_ARRAY RValues.
+		RValue* ToArray();
+
+		/* Constructors / destructors */
+
+		// Empty constructor, creates an undefined RValue (not an unset one).
+		RValue();
+
+		// Copy constructor
+		RValue(
+			IN const RValue& Other
+		);
+
+		// Copy assignment operator
+		RValue& operator=(
+			IN const RValue& Other
 			);
 
-		// STL-like access
-		RValue& at(
-			IN std::string_view Element
+		// Destroys the RValue.
+		~RValue();
+
+		// Creates an INT64-type RValue.
+		// A generic overload for any whole number type.
+		template <CIntegerCompatible Integer>
+		RValue(
+			IN const Integer& Value
+		)
+		{
+			*this = RValue();
+
+			this->m_i64 = static_cast<int64_t>(Value);
+			this->m_Kind = VALUE_INT64;
+		}
+
+		// Creates an REAL-type RValue.
+		// A generic overload for any floating point type.
+		template <typename TDoubleCompatible>
+			requires std::floating_point<TDoubleCompatible>&& std::is_convertible_v<TDoubleCompatible, double>
+		RValue(
+			IN const TDoubleCompatible& Value
+		)
+		{
+			*this = RValue();
+
+			this->m_Real = static_cast<double>(Value);
+			this->m_Kind = VALUE_REAL;
+		}
+
+		// Creates an OBJECT-type RValue.
+		// A generic overload for any pointer, where the pointed-to
+		// class inherits from CInstanceBase.
+		template <CGameMakerObject TGameMakerObject>
+		RValue(
+			IN TGameMakerObject Value
+		)
+		{
+			*this = RValue();
+
+			this->m_Pointer = (PVOID)(Value);
+			this->m_Kind = VALUE_OBJECT;
+		}
+
+		RValue(
+			IN RValue* Pointer
+		) = delete;
+
+		RValue(
+			IN void* Pointer
+		);
+
+		// Creates an ARRAY-type RValue.
+		RValue(
+			IN const std::vector<RValue>& Values
+		);
+
+		// Creates a STRING-type RValue.
+		RValue(
+			IN std::string_view Value
+		);
+
+		// Creates a STRING-type RValue.
+		// Used for UTF-8 strings.
+		RValue(
+			IN std::u8string_view Value
+		);
+
+		// Creates a STRING-type RValue.
+		RValue(
+			IN const char* Value
+		);
+
+		// Creates a STRING-type RValue.
+		RValue(
+			IN const char8_t* Value
+		);
+
+		// Creates a BOOL-type RValue.
+		RValue(
+			IN bool Value
+		);
+
+		// Creates a struct RValue.
+		RValue(
+			IN const std::map<std::string, RValue>& Values
+		);
+
+		/* Overloaded operators */
+
+		RValue& operator[](
+			IN size_t Index
+			);
+
+		RValue operator[](
+			IN size_t Index
+			) const;
+
+		RValue& operator[](
+			IN std::string_view MemberName
+			);
+
+		const RValue& operator[](
+			IN std::string_view MemberName
+			) const;
+
+		bool ContainsValue(
+			IN std::string_view MemberName
+		) const;
+
+		/* Casting */
+
+		explicit operator bool();
+
+		explicit operator double();
+
+		explicit operator std::string();
+
+		explicit operator std::u8string();
+
+		explicit operator int32_t();
+
+		explicit operator int64_t();
+
+	private:
+		void __Free();
+	};
+#pragma pack(pop)
+
+	struct RToken
+	{
+		int m_Kind;
+		unsigned int m_Type;
+		int m_Ind;
+		int m_Ind2;
+		RValue m_Value;
+		int m_ItemNumber;
+		RToken* m_Items;
+		int m_Position;
+	};
+
+	struct CCode
+	{
+		int (**_vptr$CCode)(void);
+		CCode* m_Next;
+		int m_Kind;
+		int m_Compiled;
+		const char* m_Str;
+		RToken m_Token;
+		RValue m_Value;
+		PVOID m_VmInstance;
+		PVOID m_VmDebugInfo;
+		char* m_Code;
+		const char* m_Name;
+		int m_CodeIndex;
+		YYGMLFuncs* m_Functions;
+		bool m_Watch;
+		int m_Offset;
+		int m_LocalsCount;
+		int m_ArgsCount;
+		int m_Flags;
+		YYObjectBase* m_Prototype;
+
+		const char* GetName() const { return this->m_Name; }
+	};
+
+	struct CScript
+	{
+		int (**_vptr$CScript)(void);
+		CCode* m_Code;
+		YYGMLFuncs* m_Functions;
+		CInstance* m_StaticObject;
+
+		union
+		{
+			const char* m_Script;
+			int m_CompiledIndex;
+		};
+
+		const char* m_Name;
+		int m_Offset;
+
+		const char* GetName() const { return this->m_Name; }
+	};
+
+	struct YYGMLFuncs
+	{
+		const char* m_Name;
+		union
+		{
+			PFUNC_YYGMLScript m_ScriptFunction;
+			PFUNC_YYGML m_CodeFunction;
+			PFUNC_RAW m_RawFunction;
+		};
+		PVOID m_FunctionVariables; // YYVAR
+	};
+
+#if not YYTK_DEFINE_INTERNAL
+
+	struct CInstanceBase {};
+	struct YYObjectBase : CInstanceBase {};
+	struct CInstance : YYObjectBase
+	{
+		RValue ToRValue() const;
+
+		RValue* GetRefMember(
+			IN const char* MemberName
+		);
+
+		RValue* GetRefMember(
+			IN const std::string& MemberName
+		);
+
+		const RValue* GetRefMember(
+			IN const char* MemberName
+		) const;
+
+		const RValue* GetRefMember(
+			IN const std::string& MemberName
+		) const;
+
+		RValue GetMember(
+			IN const char* MemberName
+		) const;
+
+		RValue GetMember(
+			IN const std::string& MemberName
+		) const;
+
+		int32_t GetMemberCount() const;
+
+		static CInstance* FromInstanceID(
+			IN int32_t InstanceID
 		);
 	};
-#endif
 
-	// ExecuteIt
-	using FWCodeEvent = FunctionWrapper<bool(CInstance*, CInstance*, CCode*, int, RValue*)>;
-	// IDXGISwapChain::Present
-	using FWFrame = FunctionWrapper<HRESULT(IDXGISwapChain*, UINT, UINT)>;
-	// IDXGISwapChain::ResizeBuffers
-	using FWResize = FunctionWrapper<HRESULT(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT)>;
-	// DoCallScript (only in VM)
-	using FWScriptEvent = FunctionWrapper<PVOID(CScript*, int, char*, PVOID, CInstance*, CInstance*)>;
-	// WndProc calls
-	using FWWndProc = FunctionWrapper<LRESULT(HWND, UINT, WPARAM, LPARAM)>;
+	struct CScriptRef : YYObjectBase {};
+	struct GCObjectContainer : YYObjectBase {};
 
-	class YYTKInterface : public Aurie::AurieInterfaceBase
-	{
-	public:
-		// === Interface Functions ===
-		virtual Aurie::AurieStatus Create() = 0;
+#endif // !YYTK_DEFINE_INTERNAL
+#pragma endregion
 
-		virtual void Destroy() = 0;
-
-		virtual void QueryVersion(
-			OUT short& Major,
-			OUT short& Minor,
-			OUT short& Patch
-		) = 0;
-
-		virtual Aurie::AurieStatus GetNamedRoutineIndex(
-			IN const char* FunctionName,
-			OUT int* FunctionIndex
-		) = 0;
-
-		virtual Aurie::AurieStatus GetNamedRoutinePointer(
-			IN const char* FunctionName,
-			OUT PVOID* FunctionPointer
-		) = 0;
-
-		virtual Aurie::AurieStatus GetGlobalInstance(
-			OUT CInstance** Instance
-		) = 0;
-
-		virtual RValue CallBuiltin(
-			IN const char* FunctionName,
-			IN std::vector<RValue> Arguments
-		) = 0;
-
-		virtual Aurie::AurieStatus CallBuiltinEx(
-			OUT RValue& Result,
-			IN const char* FunctionName,
-			IN CInstance* SelfInstance,
-			IN CInstance* OtherInstance,
-			IN std::vector<RValue> Arguments
-		) = 0;
-
-		virtual void Print(
-			IN CmColor Color,
-			IN std::string_view Format,
-			IN ...
-		) = 0;
-
-		virtual void PrintInfo(
-			IN std::string_view Format,
-			IN ...
-		) = 0;
-
-		virtual void PrintWarning(
-			IN std::string_view Format,
-			IN ...
-		) = 0;
-
-		virtual void PrintError(
-			IN std::string_view Filepath,
-			IN const int Line,
-			IN std::string_view Format,
-			IN ...
-		) = 0;
-
-		virtual Aurie::AurieStatus CreateCallback(
-			IN Aurie::AurieModule* Module,
-			IN EventTriggers Trigger,
-			IN PVOID Routine,
-			IN int32_t Priority
-		) = 0;
-
-		virtual Aurie::AurieStatus RemoveCallback(
-			IN Aurie::AurieModule* Module,
-			IN PVOID Routine
-		) = 0;
-
-		virtual Aurie::AurieStatus GetInstanceMember(
-			IN RValue Instance,
-			IN const char* MemberName,
-			OUT RValue*& Member
-		) = 0;
-
-		virtual Aurie::AurieStatus EnumInstanceMembers(
-			IN RValue Instance,
-			IN std::function<bool(IN const char* MemberName, RValue* Value)> EnumFunction
-		) = 0;
-
-		virtual Aurie::AurieStatus RValueToString(
-			IN const RValue& Value,
-			OUT std::string& String
-		) = 0;
-
-		virtual Aurie::AurieStatus StringToRValue(
-			IN const std::string_view String,
-			OUT RValue& Value
-		) = 0;
-
-		virtual const YYRunnerInterface& GetRunnerInterface() = 0;
-
-		virtual void InvalidateAllCaches() = 0;
-
-		virtual Aurie::AurieStatus GetScriptData(
-			IN int Index,
-			OUT CScript*& Script
-		) = 0;
-
-		virtual Aurie::AurieStatus GetBuiltinVariableIndex(
-			IN std::string_view Name,
-			OUT size_t& Index
-		) = 0;
-
-		virtual Aurie::AurieStatus GetBuiltinVariableInformation(
-			IN size_t Index,
-			OUT RVariableRoutine*& VariableInformation
-		) = 0;
-
-		virtual Aurie::AurieStatus GetBuiltin(
-			IN std::string_view Name,
-			IN CInstance* TargetInstance,
-			OPTIONAL IN int ArrayIndex,
-			OUT RValue& Value
-		) = 0;
-
-		virtual Aurie::AurieStatus SetBuiltin(
-			IN std::string_view Name,
-			IN CInstance* TargetInstance,
-			OPTIONAL IN int ArrayIndex,
-			IN RValue& Value
-		) = 0;
-
-		virtual Aurie::AurieStatus GetArrayEntry(
-			IN RValue& Value,
-			IN size_t ArrayIndex,
-			OUT RValue*& ArrayElement
-		) = 0;
-
-		virtual Aurie::AurieStatus GetArraySize(
-			IN RValue& Value,
-			OUT size_t& Size
-		) = 0;
-
-		virtual Aurie::AurieStatus GetRoomData(
-			IN int32_t RoomID,
-			OUT CRoom*& Room
-		) = 0;
-
-		virtual Aurie::AurieStatus GetCurrentRoomData(
-			OUT CRoom*& CurrentRoom
-		) = 0;
-
-		virtual Aurie::AurieStatus GetInstanceObject(
-			IN int32_t InstanceID,
-			OUT CInstance*& Instance
-		) = 0;
-
-		virtual Aurie::AurieStatus InvokeWithObject(
-			IN const RValue& Object,
-			IN std::function<void(CInstance* Self, CInstance* Other)> Method
-		) = 0;
-	};
-
+#pragma region ISA Definitions
 #if YYTK_DEFINE_INTERNAL
 	using CHashMapHash = uint32_t;
 
@@ -1905,6 +2016,71 @@ namespace YYTK
 		{
 			return ((static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(Key)) >> 8) + 1) & INT_MAX;
 		};
+
+		static CHashMapHash CHashMapCalculateHash(
+			IN const char* Key
+		)
+		{
+			// https://github.com/jwerle/murmurhash.c - Licensed under MIT
+			size_t len = strlen(Key);
+			uint32_t c1 = 0xcc9e2d51;
+			uint32_t c2 = 0x1b873593;
+			uint32_t r1 = 15;
+			uint32_t r2 = 13;
+			uint32_t m = 5;
+			uint32_t n = 0xe6546b64;
+			uint32_t h = 0;
+			uint32_t k = 0;
+			uint8_t* d = (uint8_t*)Key; // 32 bit extract from 'key'
+			const uint32_t* chunks = NULL;
+			const uint8_t* tail = NULL; // tail - last 8 bytes
+			int i = 0;
+			int l = len / 4; // chunk length
+
+			chunks = (const uint32_t*)(d + l * 4); // body
+			tail = (const uint8_t*)(d + l * 4); // last 8 byte chunk of `key'
+
+			// for each 4 byte chunk of `key'
+			for (i = -l; i != 0; ++i) {
+				// next 4 byte chunk of `key'
+				k = chunks[i];
+
+				// encode next 4 byte chunk of `key'
+				k *= c1;
+				k = (k << r1) | (k >> (32 - r1));
+				k *= c2;
+
+				// append to hash
+				h ^= k;
+				h = (h << r2) | (h >> (32 - r2));
+				h = h * m + n;
+			}
+
+			k = 0;
+
+			// remainder
+			switch (len & 3) { // `len % 4'
+			case 3: k ^= (tail[2] << 16);
+			case 2: k ^= (tail[1] << 8);
+
+			case 1:
+				k ^= tail[0];
+				k *= c1;
+				k = (k << r1) | (k >> (32 - r1));
+				k *= c2;
+				h ^= k;
+			}
+
+			h ^= len;
+
+			h ^= (h >> 16);
+			h *= 0x85ebca6b;
+			h ^= (h >> 13);
+			h *= 0xc2b2ae35;
+			h ^= (h >> 16);
+
+			return h;
+		}
 
 	public:
 		int32_t m_CurrentSize;
@@ -1961,14 +2137,53 @@ namespace YYTK
 		}
 	};
 
+	struct DLL_RFunction
+	{
+		// The DLL name
+		const char* m_ModuleName;
+
+		// The base address of the DLL
+		PVOID m_DllBaseAddress;
+
+		// Name of the exported function which is called
+		const char* m_FunctionName;
+
+		// The init function
+		void(*m_Function)(YYRunnerInterface* Interface, size_t Size);
+
+		int m_CallingConvention;
+		int m_ArgumentCount;
+		int m_ArgumentKinds[17];
+		int m_ResultKind;
+
+		uint64_t m_Unknown;
+	};
+
+	// Newer struct, later renamed to LinkedList - OLinkedList is used in older x86 games, 
+	// and causes misalingment due to alignment changing from 8-bytes in x64 to 4-bytes in x86.
 	template <typename T>
 	struct LinkedList
 	{
 		T* m_First;
 		T* m_Last;
 		int32_t m_Count;
+		int32_t m_DeleteType;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(LinkedList<CInstance>) == 0x18);
+#endif // _WIN64
+
+	template <typename T>
+	struct OLinkedList
+	{
+		T* m_First;
+		T* m_Last;
+		int32_t m_Count;
+	};
+#ifdef _WIN64
+	static_assert(sizeof(OLinkedList<CInstance>) == 0x18);
+	static_assert(sizeof(OLinkedList<CInstance>) == sizeof(LinkedList<CInstance>));
+#endif // _WIN64
 
 	enum eBuffer_Type : int32_t
 	{
@@ -2018,7 +2233,9 @@ namespace YYTK
 		virtual uint8_t* Compress(int _offset, int _size, uint32_t& resultSize) = 0;
 		virtual uint8_t* Decompress(uint32_t& resultSize) = 0;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(IBuffer) == 0x8);
+#endif // _WIN64
 
 	struct CLayerElementBase
 	{
@@ -2040,14 +2257,18 @@ namespace YYTK
 			CLayerElementBase* m_Blink;
 		};
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CLayerElementBase) == 0x30);
+#endif // _WIN64
 
 	struct CLayerInstanceElement : CLayerElementBase
 	{
 		int32_t m_InstanceID;
 		CInstance* m_Instance;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CLayerInstanceElement) == 0x40);
+#endif // _WIN64
 
 	struct CLayerSpriteElement : CLayerElementBase
 	{
@@ -2065,9 +2286,11 @@ namespace YYTK
 		float m_X;
 		float m_Y;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CLayerSpriteElement) == 0x68);
+#endif // _WIN64
 
-	__declspec(align(8)) struct CLayer
+	struct CLayer
 	{
 		int32_t m_Id;
 		int32_t m_Depth;
@@ -2091,9 +2314,62 @@ namespace YYTK
 		CLayer* m_Blink;
 		PVOID m_GCProxy;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CLayer) == 0xA0);
+#endif // _WIN64
 
-	// A representation of a room, as from the data.win file
+	// Note: this is not how RValues store arrays
+	template <typename T>
+	struct CArrayStructure
+	{
+		int32_t Length;
+		T* Array;
+	};
+#ifdef _WIN64
+	static_assert(sizeof(CArrayStructure<int>) == 0x10);
+#endif // _WIN64
+
+	struct CRoomInternal
+	{
+		// CBackGM* m_Backgrounds[8];
+		bool m_EnableViews;
+		bool m_ClearScreen;
+		bool m_ClearDisplayBuffer;
+		CViewGM* m_Views[8];
+		const char* m_LegacyCode;
+		CCode* m_CodeObject;
+		bool m_HasPhysicsWorld;
+		int32_t m_PhysicsGravityX;
+		int32_t m_PhysicsGravityY;
+		float m_PhysicsPixelToMeters;
+		OLinkedList<CInstance> m_ActiveInstances;
+		LinkedList<CInstance> m_InactiveInstances;
+		CInstance* m_MarkedFirst;
+		CInstance* m_MarkedLast;
+		int32_t* m_CreationOrderList;
+		int32_t m_CreationOrderListSize;
+		YYRoom* m_WadRoom;
+		PVOID m_WadBaseAddress;
+		CPhysicsWorld* m_PhysicsWorld;
+		int32_t m_TileCount;
+		CArrayStructure<RTile> m_Tiles;
+		YYRoomTiles* m_WadTiles;
+		YYRoomInstances* m_WadInstances;
+		const char* m_Name;
+		bool m_IsDuplicate;
+		LinkedList<CLayer> m_Layers;
+		CHashMap<int32_t, CLayer*, 7> m_LayerLookup;
+		CHashMap<int32_t, CLayerElementBase*, 7> m_LayerElementLookup;
+		CLayerElementBase* m_LastElementLookedUp;
+		CHashMap<int32_t, CLayerInstanceElement*, 7> m_InstanceElementLookup;
+		int32_t* m_SequenceInstanceIDs;
+		int32_t m_SequenceInstanceIdCount;
+		int32_t m_SequenceInstanceIdMax;
+		int32_t* m_EffectLayerIDs;
+		int32_t m_EffectLayerIdCount;
+		int32_t m_EffectLayerIdMax;
+	};
+
 	struct YYRoom
 	{
 		// The name of the room
@@ -2128,16 +2404,9 @@ namespace YYTK
 		float m_PhysicsGravityY;
 		float m_PhysicsPixelToMeters;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(YYRoom) == 0x58);
-
-	// Note: this is not how RValues store arrays
-	template <typename T>
-	struct CArrayStructure
-	{
-		int32_t Length;
-		T* Array;
-	};
-	static_assert(sizeof(CArrayStructure<int>) == 0x10);
+#endif // _WIN64
 
 	// Seems to be mostly stable, some elements at the end are however omitted
 	struct CRoom
@@ -2151,45 +2420,25 @@ namespace YYTK
 		bool m_Persistent;
 		uint32_t m_Color;
 		bool m_ShowColor;
-		CBackGM* m_Backgrounds[8];
-		bool m_EnableViews;
-		bool m_ClearScreen;
-		bool m_ClearDisplayBuffer;
-		CViewGM* m_Views[8];
-		const char* m_LegacyCode;
-		CCode* m_CodeObject;
-		bool m_HasPhysicsWorld;
-		int32_t m_PhysicsGravityX;
-		int32_t m_PhysicsGravityY;
-		float m_PhysicsPixelToMeters;
-		LinkedList<CInstance> m_ActiveInstances;
-		LinkedList<CInstance> m_InactiveInstances;
-		CInstance* m_MarkedFirst;
-		CInstance* m_MarkedLast;
-		int32_t* m_CreationOrderList;
-		int32_t m_CreationOrderListSize;
-		YYRoom* m_WadRoom;
-		PVOID m_WadBaseAddress;
-		CPhysicsWorld* m_PhysicsWorld;
-		int32_t m_TileCount;
-		CArrayStructure<RTile> m_Tiles;
-		YYRoomTiles* m_WadTiles;
-		YYRoomInstances* m_WadInstances;
-		const char* m_Name;
-		bool m_IsDuplicate;
-		LinkedList<CLayer> m_Layers;
-		CHashMap<int32_t, CLayer*, 7> m_LayerLookup;
-		CHashMap<int32_t, CLayerElementBase*, 7> m_LayerElementLookup;
-		CLayerElementBase* m_LastElementLookedUp;
-		CHashMap<int32_t, CLayerInstanceElement*, 7> m_InstanceElementLookup;
-		int32_t* m_SequenceInstanceIDs;
-		int32_t m_SequenceInstanceIdCount;
-		int32_t m_SequenceInstanceIdMax;
-		int32_t* m_EffectLayerIDs;
-		int32_t m_EffectLayerIdCount;
-		int32_t m_EffectLayerIdMax;
+	private:
+
+		// Last confirmed use in 2023.8, might be later even
+		struct
+		{
+			CBackGM* Backgrounds[8];
+			CRoomInternal Internals;
+		} WithBackgrounds;
+
+		// 2024.6 (first confirmed use) has Backgrounds removed.
+		// CRoomInternal cannot be properly aligned (due to bool having 1-byte alignment),
+		// so GetMembers() crafts the pointer manually instead of having a defined struct here.
+
+	public:
+		CRoomInternal& GetMembers();
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CRoom) == 0x218);
+#endif // _WIN64
 
 	struct CInstanceBase
 	{
@@ -2197,7 +2446,9 @@ namespace YYTK
 
 		RValue* m_YYVars;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CInstanceBase) == 0x10);
+#endif // _WIN64
 
 	enum EJSRetValBool : int32_t
 	{
@@ -2295,6 +2546,18 @@ namespace YYTK
 
 		virtual RValue* GetDispose() = 0;
 
+		bool Add(
+			IN const char* Name,
+			IN const RValue& Value,
+			IN int Flags
+		);
+
+		bool IsExtensible();
+
+		RValue* FindOrAllocValue(
+			IN const char* Name
+		);
+
 		YYObjectBase* m_Flink;
 		YYObjectBase* m_Blink;
 		YYObjectBase* m_Prototype;
@@ -2318,7 +2581,9 @@ namespace YYTK
 		int32_t m_RValueInitType;
 		int32_t m_CurrentSlot;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(YYObjectBase) == 0x88);
+#endif // _WIN64
 
 	struct CScriptRef : YYObjectBase
 	{
@@ -2332,7 +2597,9 @@ namespace YYTK
 		PVOID m_Construct;
 		const char* m_Tag;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CScriptRef) == 0xE0);
+#endif // _WIN64
 
 	struct CPhysicsDataGM
 	{
@@ -2350,14 +2617,18 @@ namespace YYTK
 		float m_PhysicsFriction;
 		int m_PhysicsVertexCount;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CPhysicsDataGM) == 0x30);
+#endif // _WIN64
 
 	struct CEvent
 	{
 		CCode* m_Code;
 		int32_t m_OwnerObjectID;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CEvent) == 0x10);
+#endif // _WIN64
 
 	struct CObjectGM
 	{
@@ -2375,13 +2646,17 @@ namespace YYTK
 		int32_t m_Mask;
 		int32_t m_ID;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CObjectGM) == 0x98);
+#endif // _WIN64
 
 	struct GCObjectContainer : YYObjectBase
 	{
 		CHashMap<YYObjectBase*, YYObjectBase*, 3>* m_YYObjectMap;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(GCObjectContainer) == 0x90);
+#endif // _WIN64
 
 	struct YYRECT
 	{
@@ -2434,7 +2709,9 @@ namespace YYTK
 		CInstance* m_Flink;
 		CInstance* m_Blink;
 	};
+#ifdef _WIN64
 	static_assert(sizeof(CInstanceInternal) == 0xF8);
+#endif // _WIN64
 
 	struct CInstance : YYObjectBase
 	{
@@ -2450,6 +2727,16 @@ namespace YYTK
 		// Use GetMembers() to get a CInstanceVariables reference.
 		union
 		{
+			// Islets 1.0.0.3 Steam (x86), GM 2022.6
+			struct
+			{
+			public:
+				CInstanceInternal Members;
+			} MembersOnly;
+#ifdef _WIN64
+			static_assert(sizeof(MembersOnly) == 0xF8);
+#endif // _WIN64
+
 			// 2023.x => 2023.8 (and presumably 2023.11)
 			struct
 			{
@@ -2457,8 +2744,10 @@ namespace YYTK
 				PVOID m_SequenceInstance;
 			public:
 				CInstanceInternal Members;
-			} Unmasked;
-			static_assert(sizeof(Unmasked) == 0x100);
+			} SequenceInstanceOnly;
+#ifdef _WIN64
+			static_assert(sizeof(SequenceInstanceOnly) == 0x100);
+#endif // _WIN64
 
 			// 2022.1 => 2023.1 (may be used later, haven't checked)
 			struct
@@ -2468,28 +2757,54 @@ namespace YYTK
 				PVOID m_SequenceInstance;
 			public:
 				CInstanceInternal Members;
-			} Masked;
-			static_assert(sizeof(Masked) == 0x108);
+			} WithSkeletonMask;
+#ifdef _WIN64
+			static_assert(sizeof(WithSkeletonMask) == 0x108);
+#endif // _WIN64
 		};
 	public:
-
 		CInstanceInternal& GetMembers();
 
-		// Overloaded operators
-		RValue& operator[](
-			IN std::string_view Element
-			);
+		RValue ToRValue() const;
 
-		// STL-like access
-		RValue& at(
-			IN std::string_view Element
+		RValue* GetRefMember(
+			IN const char* MemberName
+		);
+
+		RValue* GetRefMember(
+			IN const std::string& MemberName
+		);
+
+		const RValue* GetRefMember(
+			IN const char* MemberName
+		) const;
+
+		const RValue* GetRefMember(
+			IN const std::string& MemberName
+		) const;
+
+		RValue GetMember(
+			IN const char* MemberName
+		) const;
+
+		RValue GetMember(
+			IN const std::string& MemberName
+		) const;
+
+		int32_t GetMemberCount() const;
+
+		static CInstance* FromInstanceID(
+			IN int32_t InstanceID
 		);
 	};
 	// sizeof(0x1A8) is for PreMasked instances
 	// sizeof(0x1B0) is for Masked instances
+#ifdef _WIN64
 	static_assert(sizeof(CInstance) == 0x1A8 || sizeof(CInstance) == 0x1B0);
+#endif // _WIN64
 
 #endif // YYTK_DEFINE_INTERNAL
+#pragma endregion
 }
 
-#endif // YYTK_SHARED_H_
+#endif // YYTK_SHARED_TYPES_H_

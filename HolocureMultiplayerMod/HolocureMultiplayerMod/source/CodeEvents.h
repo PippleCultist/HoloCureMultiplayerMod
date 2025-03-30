@@ -1,5 +1,5 @@
 #pragma once
-#include <YYToolkit/shared.hpp>
+#include <YYToolkit/YYTK_Shared.hpp>
 #include "CallbackManager/CallbackManagerInterface.h"
 #include "MessageStructs.h"
 

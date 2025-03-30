@@ -18,9 +18,6 @@
     <ClCompile Include="source\ModuleMain.cpp">
       <Filter>Zdrojové soubory</Filter>
     </ClCompile>
-    <ClCompile Include="include\YYToolkit\Shared.cpp">
-      <Filter>Zdrojové soubory</Filter>
-    </ClCompile>
     <ClCompile Include="source\BuiltinFunctions.cpp">
       <Filter>Zdrojové soubory</Filter>
     </ClCompile>
@@ -51,6 +48,9 @@
     <ClCompile Include="source\SteamAPIWrapper.cpp">
       <Filter>Zdrojové soubory</Filter>
     </ClCompile>
+    <ClCompile Include="include\YYToolkit\YYTK_Shared_Types.cpp">
+      <Filter>Zdrojové soubory</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\Aurie\shared.hpp">
@@ -63,9 +63,6 @@
       <Filter>Hlavičkové soubory</Filter>
     </ClInclude>
     <ClInclude Include="include\YYTKTypes\RefThing.h">
-      <Filter>Hlavičkové soubory</Filter>
-    </ClInclude>
-    <ClInclude Include="include\YYToolkit\Shared.hpp">
       <Filter>Hlavičkové soubory</Filter>
     </ClInclude>
     <ClInclude Include="source\BuiltinFunctions.h">
@@ -240,6 +237,18 @@
       <Filter>Hlavičkové soubory</Filter>
     </ClInclude>
     <ClInclude Include="include\HoloCureMenuInterface\HoloCureMenuInterface.h">
+      <Filter>Hlavičkové soubory</Filter>
+    </ClInclude>
+    <ClInclude Include="include\YYToolkit\YYTK_Shared.hpp">
+      <Filter>Hlavičkové soubory</Filter>
+    </ClInclude>
+    <ClInclude Include="include\YYToolkit\YYTK_Shared_Base.hpp">
+      <Filter>Hlavičkové soubory</Filter>
+    </ClInclude>
+    <ClInclude Include="include\YYToolkit\YYTK_Shared_Interface.hpp">
+      <Filter>Hlavičkové soubory</Filter>
+    </ClInclude>
+    <ClInclude Include="include\YYToolkit\YYTK_Shared_Types.hpp">
       <Filter>Hlavičkové soubory</Filter>
     </ClInclude>
   </ItemGroup>

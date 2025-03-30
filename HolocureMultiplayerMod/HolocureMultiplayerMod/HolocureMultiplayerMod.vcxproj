@@ -143,7 +143,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="include\YYToolkit\Shared.cpp" />
+    <ClCompile Include="include\YYToolkit\YYTK_Shared_Types.cpp" />
     <ClCompile Include="source\BuiltinFunctions.cpp" />
     <ClCompile Include="source\Button.cpp" />
     <ClCompile Include="source\CodeEvents.cpp" />
@@ -207,7 +207,10 @@
     <ClInclude Include="include\steam\steam_api_internal.h" />
     <ClInclude Include="include\steam\steam_gameserver.h" />
     <ClInclude Include="include\YYTKTypes\RefThing.h" />
-    <ClInclude Include="include\YYToolkit\Shared.hpp" />
+    <ClInclude Include="include\YYToolkit\YYTK_Shared.hpp" />
+    <ClInclude Include="include\YYToolkit\YYTK_Shared_Base.hpp" />
+    <ClInclude Include="include\YYToolkit\YYTK_Shared_Interface.hpp" />
+    <ClInclude Include="include\YYToolkit\YYTK_Shared_Types.hpp" />
     <ClInclude Include="source\BuiltinFunctions.h" />
     <ClInclude Include="source\Button.h" />
     <ClInclude Include="source\CodeEvents.h" />
