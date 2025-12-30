@@ -1,15 +1,19 @@
 # Holocure Multiplayer Mod
 A Holocure mod that adds multiplayer to the game. Will probably be buggy and have random crashes since a lot has been modified in the game to get it working.
 ## Installation Steps
-- Download `HoloCureMultiplayerMod.dll`, `HoloCureMenuMod.dll`, and `CallbackManagerMod.dll` from the latest version of the mod https://github.com/PippleCultist/HoloCureMultiplayerMod/releases
-- Download `AurieManager.exe` from the latest version of Aurie https://github.com/AurieFramework/Aurie/releases
-    - Note: This launcher may be marked as a Trojan by your antivirus. Aurie is opensource and has been used in several modding communities without issues.
-- Launch `AurieManager.exe`, click `Add Game`, and select `HoloCure.exe`
+# Follow these instructions if you've used mods before December 2025
+- Run `AurieManager.exe` and uninstall Aurie from `HoloCure.exe`
+    - The latest version of Aurie is moving away from AurieManager and is instead patching the game to run the mods. This has the benefit of not requiring admin privileges anymore and easily disabling mods by deleting the mods folder or replacing the original exe without crashing.
+# Normal installation steps
+- Download `HoloCureMultiplayerMod.dll`, `HoloCureMenuMod.dll`, `CallbackManagerMod.dll`, `AurieCore.dll`, and `YYToolkit.dll` from the latest version of the mod https://github.com/PippleCultist/HoloCureMultiplayerMod/releases
+- Download `AurieInstaller.exe` from the latest version of Aurie https://github.com/AurieFramework/Aurie/releases
+- Launch `AurieInstaller.exe`, click `Find my game!`, and select `HoloCure.exe`
     - You can find `HoloCure.exe` through Steam by clicking `Browse local files`
-- Click `Install Aurie`
-- Click `Add Mods` and add `HoloCureMultiplayerMod.dll`, `HoloCureMenuMod.dll`, and `CallbackManagerMod.dll`
+- Click `Confirm Version`
+- Go to the `mods` folder where `HoloCure.exe` is located and locate the `Aurie` folder and `Native` folder.
+    - In the `Aurie` folder, replace `YYToolkit.dll` and copy over `HoloCureMultiplayerMod.dll`, `CallbackManagerMod.dll`, and `HoloCureMenuMod.dll`
+    - In the `Native` folder, replace `AurieCore.dll`
 - Running the game either using the executable or through Steam should now launch the mods as well
-    - Note: Don't try to run the game through AurieManager since it currently has issues. Only try to run it through Steam or running the game exe directly.
 ## Common Issues
 - If you deleted the mods folder and are seeing `Missing game executable`, you most likely didn't click `Uninstall Aurie` in AurieManager before deleting the folder. To fix this issue, uninstall Aurie through AurieManager.
 - If you get issues saying `Missing game executable` when trying to run the game, it's likely that Windows Defender or your antivirus is blocking `AurieLoader.exe` from installing. Try putting it in the whitelist or manually downloading it from `https://github.com/AurieFramework/Aurie/releases` and putting it in the mods folder.
