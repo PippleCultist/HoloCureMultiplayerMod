@@ -6,6 +6,9 @@ using namespace YYTK;
 
 typedef std::tuple<CInstance*, CInstance*, CCode*, int, RValue*> CodeEventArgs;
 typedef void (*CodeEvent)(CodeEventArgs&);
+typedef void (*initFunc)();
+
+void CodeCallback(FWCodeEvent& CodeContext);
 
 struct CallbackManagerInterface : AurieInterfaceBase
 {
@@ -151,4 +154,9 @@ struct CallbackManagerInterface : AurieInterfaceBase
 	* to make sure that callbacks don't run while the mods are still initializing
 	*/
 	virtual void InitEnableCallback();
+
+	/*
+	* Call this in the EVENT_RUNNER_INIT callback to register your initialization function for hooking and setting up variables.
+	*/
+	virtual void RegisterInitFunction(initFunc initFunction);
 };

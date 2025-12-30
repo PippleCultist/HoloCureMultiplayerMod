@@ -38,7 +38,7 @@ bool SteamAPI_Init()
 {
 	if (lpfnDll_SteamAPI_Init == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamAPI_Init is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamAPI_Init is nullptr");
 		return false;
 	}
 	return lpfnDll_SteamAPI_Init();
@@ -48,7 +48,7 @@ void SteamAPI_RunCallbacks()
 {
 	if (lpfnDll_SteamAPI_RunCallbacks == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamAPI_RunCallbacks is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamAPI_RunCallbacks is nullptr");
 		return;
 	}
 	lpfnDll_SteamAPI_RunCallbacks();
@@ -58,7 +58,7 @@ HSteamUser SteamAPI_GetHSteamUser()
 {
 	if (lpfnDll_SteamAPI_GetHSteamUser == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamAPI_GetHSteamUser is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamAPI_GetHSteamUser is nullptr");
 		return 0;
 	}
 	return lpfnDll_SteamAPI_GetHSteamUser();
@@ -68,7 +68,7 @@ void* SteamInternal_ContextInit(void* pContextInitData)
 {
 	if (lpfnDll_SteamInternal_ContextInit == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamInternal_ContextInit is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamInternal_ContextInit is nullptr");
 		return nullptr;
 	}
 	return lpfnDll_SteamInternal_ContextInit(pContextInitData);
@@ -78,7 +78,7 @@ void* SteamInternal_FindOrCreateUserInterface(HSteamUser hSteamUser, const char*
 {
 	if (lpfnDll_SteamInternal_FindOrCreateUserInterface == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamInternal_FindOrCreateUserInterface is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamInternal_FindOrCreateUserInterface is nullptr");
 		return nullptr;
 	}
 	return lpfnDll_SteamInternal_FindOrCreateUserInterface(hSteamUser, pszVersion);
@@ -88,7 +88,7 @@ void* SteamInternal_FindOrCreateGameServerInterface(HSteamUser hSteamUser, const
 {
 	if (lpfnDll_SteamInternal_FindOrCreateGameServerInterface == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamInternal_FindOrCreateGameServerInterface is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamInternal_FindOrCreateGameServerInterface is nullptr");
 		return nullptr;
 	}
 	return lpfnDll_SteamInternal_FindOrCreateGameServerInterface(hSteamUser, pszVersion);
@@ -98,7 +98,7 @@ void SteamAPI_RegisterCallback(class CCallbackBase* pCallback, int iCallback)
 {
 	if (lpfnDll_SteamAPI_RegisterCallback == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamAPI_RegisterCallback is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamAPI_RegisterCallback is nullptr");
 		return;
 	}
 	lpfnDll_SteamAPI_RegisterCallback(pCallback, iCallback);
@@ -108,7 +108,7 @@ void SteamAPI_UnregisterCallback(class CCallbackBase* pCallback)
 {
 	if (lpfnDll_SteamAPI_UnregisterCallback == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamAPI_UnregisterCallback is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamAPI_UnregisterCallback is nullptr");
 		return;
 	}
 	lpfnDll_SteamAPI_UnregisterCallback(pCallback);
@@ -118,7 +118,7 @@ void SteamAPI_RegisterCallResult(class CCallbackBase* pCallback, SteamAPICall_t 
 {
 	if (lpfnDll_SteamAPI_RegisterCallResult == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamAPI_RegisterCallResult is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamAPI_RegisterCallResult is nullptr");
 		return;
 	}
 	lpfnDll_SteamAPI_RegisterCallResult(pCallback, hAPICall);
@@ -128,7 +128,7 @@ void SteamAPI_UnregisterCallResult(class CCallbackBase* pCallback, SteamAPICall_
 {
 	if (lpfnDll_SteamAPI_UnregisterCallResult == nullptr)
 	{
-		g_ModuleInterface->Print(CM_RED, "lpfnDll_SteamAPI_UnregisterCallResult is nullptr");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "lpfnDll_SteamAPI_UnregisterCallResult is nullptr");
 		return;
 	}
 	return lpfnDll_SteamAPI_UnregisterCallResult(pCallback, hAPICall);
@@ -143,75 +143,75 @@ void initSteamAPIWrapperFuncs()
 		lpfnDll_SteamAPI_Init = reinterpret_cast<LPFNDLL_SteamAPI_Init>(GetProcAddress(hinstSteamAPILib, "SteamAPI_Init"));
 		if (lpfnDll_SteamAPI_Init == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamAPI_Init from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamAPI_Init from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 
 		lpfnDll_SteamAPI_RunCallbacks = reinterpret_cast<LPFNDLL_SteamAPI_RunCallbacks>(GetProcAddress(hinstSteamAPILib, "SteamAPI_RunCallbacks"));
 		if (lpfnDll_SteamAPI_RunCallbacks == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamAPI_RunCallbacks from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamAPI_RunCallbacks from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 
 		lpfnDll_SteamAPI_GetHSteamUser = reinterpret_cast<LPFNDLL_SteamAPI_GetHSteamUser>(GetProcAddress(hinstSteamAPILib, "SteamAPI_GetHSteamUser"));
 		if (lpfnDll_SteamAPI_GetHSteamUser == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamAPI_GetHSteamUser from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamAPI_GetHSteamUser from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 
 		lpfnDll_SteamInternal_ContextInit = reinterpret_cast<LPFNDLL_SteamInternal_ContextInit>(GetProcAddress(hinstSteamAPILib, "SteamInternal_ContextInit"));
 		if (lpfnDll_SteamInternal_ContextInit == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamInternal_ContextInit from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamInternal_ContextInit from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 
 		lpfnDll_SteamInternal_FindOrCreateUserInterface = reinterpret_cast<LPFNDLL_SteamInternal_FindOrCreateUserInterface>(GetProcAddress(hinstSteamAPILib, "SteamInternal_FindOrCreateUserInterface"));
 		if (lpfnDll_SteamInternal_FindOrCreateUserInterface == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamInternal_FindOrCreateUserInterface from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamInternal_FindOrCreateUserInterface from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 
 		lpfnDll_SteamInternal_FindOrCreateGameServerInterface = reinterpret_cast<LPFNDLL_SteamInternal_FindOrCreateGameServerInterface>(GetProcAddress(hinstSteamAPILib, "SteamInternal_FindOrCreateGameServerInterface"));
 		if (lpfnDll_SteamInternal_FindOrCreateGameServerInterface == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamInternal_FindOrCreateGameServerInterface from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamInternal_FindOrCreateGameServerInterface from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 
 		lpfnDll_SteamAPI_RegisterCallback = reinterpret_cast<LPFNDLL_SteamAPI_RegisterCallback>(GetProcAddress(hinstSteamAPILib, "SteamAPI_RegisterCallback"));
 		if (lpfnDll_SteamAPI_RegisterCallback == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamAPI_RegisterCallback from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamAPI_RegisterCallback from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 
 		lpfnDll_SteamAPI_UnregisterCallback = reinterpret_cast<LPFNDLL_SteamAPI_UnregisterCallback>(GetProcAddress(hinstSteamAPILib, "SteamAPI_UnregisterCallback"));
 		if (lpfnDll_SteamAPI_UnregisterCallback == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamAPI_UnregisterCallback from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamAPI_UnregisterCallback from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 
 		lpfnDll_SteamAPI_RegisterCallResult = reinterpret_cast<LPFNDLL_SteamAPI_RegisterCallResult>(GetProcAddress(hinstSteamAPILib, "SteamAPI_RegisterCallResult"));
 		if (lpfnDll_SteamAPI_RegisterCallResult == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamAPI_RegisterCallResult from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamAPI_RegisterCallResult from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 
 		lpfnDll_SteamAPI_UnregisterCallResult = reinterpret_cast<LPFNDLL_SteamAPI_UnregisterCallResult>(GetProcAddress(hinstSteamAPILib, "SteamAPI_UnregisterCallResult"));
 		if (lpfnDll_SteamAPI_UnregisterCallResult == NULL)
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't load SteamAPI_UnregisterCallResult from steam_api64.dll");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load SteamAPI_UnregisterCallResult from steam_api64.dll");
 			isSteamInitialized = false;
 		}
 	}
 	else
 	{
-		g_ModuleInterface->Print(CM_RED, "Couldn't load Steam API dll");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't load Steam API dll");
 	}
 }

@@ -64,7 +64,7 @@ CSteamHost::CSteamHost(bool isNewLobby)
 
 		// create the poll group
 //		m_hNetPollGroup = SteamNetworkingSockets()->CreatePollGroup();
-		g_ModuleInterface->Print(CM_BLUE, "Finished initializing host");
+		DbgPrintEx(LOG_SEVERITY_INFO, "Finished initializing host");
 		callbackManagerInterfacePtr->LogToFile(MODNAME, "Initializing host");
 
 		if (isNewLobby)
@@ -116,7 +116,7 @@ void CSteamHost::OnLobbyCreated(LobbyCreated_t* pCallback, bool bIOFailure)
 		if (SteamMatchmaking()->GetLobbyOwner(pCallback->m_ulSteamIDLobby) != SteamUser()->GetSteamID())
 		{
 			callbackManagerInterfacePtr->LogToFile(MODNAME, "Lobby owner doesn't match current steam id. Potential issue with steamworks not giving the correct lobby id.");
-			g_ModuleInterface->PrintWarning("Lobby owner doesn't match current steam id. Potential issue with steamworks not giving the correct lobby id.");
+			DbgPrintEx(LOG_SEVERITY_WARNING, "Lobby owner doesn't match current steam id. Potential issue with steamworks not giving the correct lobby id.");
 		}
 
 		// Setting this to NULL removes the key pair
@@ -135,7 +135,7 @@ void CSteamHost::OnLobbyCreated(LobbyCreated_t* pCallback, bool bIOFailure)
 	{
 		// failed, show error
 		callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to create lobby (lost connection to Steam back-end servers.");
-		g_ModuleInterface->Print(CM_RED, "Failed to create lobby (lost connection to Steam back-end servers.");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to create lobby (lost connection to Steam back-end servers.");
 		//		SetGameState(k_EClientGameConnectionFailure);
 	}
 }
@@ -171,7 +171,7 @@ void CSteamHost::OnNetConnectionStatusChanged(SteamNetConnectionStatusChangedCal
 				if (res != k_EResultOK)
 				{
 					callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to accept connection");
-					g_ModuleInterface->Print(CM_RED, "Failed to accept connection");
+					DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to accept connection");
 					SteamNetworkingSockets()->CloseConnection(hConn, k_ESteamNetConnectionEnd_AppException_Generic, "Failed to accept connection", false);
 					return;
 				}
@@ -208,7 +208,7 @@ void CSteamHost::OnNetConnectionStatusChanged(SteamNetConnectionStatusChangedCal
 		else
 		{
 			callbackManagerInterfacePtr->LogToFile(MODNAME, "Connection rejected from client");
-			g_ModuleInterface->Print(CM_RED, "Connection rejected from %llu", steamClientID.ConvertToUint64());
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Connection rejected from %llu", steamClientID.ConvertToUint64());
 		}
 		// Connection from a new client
 		// Search for an available slot
@@ -221,7 +221,7 @@ void CSteamHost::OnNetConnectionStatusChanged(SteamNetConnectionStatusChangedCal
 				EResult res = SteamNetworkingSockets()->AcceptConnection(hConn);
 				if (res != k_EResultOK)
 				{
-					g_ModuleInterface->Print(CM_RED, "Failed to accept connection");
+					DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to accept connection");
 					SteamNetworkingSockets()->CloseConnection(hConn, k_ESteamNetConnectionEnd_AppException_Generic, "Failed to accept connection", false);
 					return;
 				}
@@ -240,7 +240,7 @@ void CSteamHost::OnNetConnectionStatusChanged(SteamNetConnectionStatusChangedCal
 		}
 
 		// No empty slots.  Server full!
-		g_ModuleInterface->Print(CM_RED, "Rejecting connection; server full");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Rejecting connection; server full");
 		SteamNetworkingSockets()->CloseConnection(hConn, k_ESteamNetConnectionEnd_AppException_Generic, "Server full!", false);
 		*/
 	}

@@ -2,7 +2,7 @@
 #include <YYToolkit/YYTK_Shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.2.3"
+#define VERSION_NUM "v1.3.0"
 #define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
 #define BROADCAST_PORT "27015"
 #define GAME_PORT "27016"
@@ -206,6 +206,7 @@
 	DO(isPlayer) \
 	DO(origPlayerCreator) \
 	DO(player) \
+	DO(object_index) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -323,10 +324,10 @@ extern TRoutine origStructSetFromHashFunc;
 extern TRoutine origSpriteDeleteScript;
 
 template<typename... Args>
-void LogPrint(YYTK::CmColor Color, const char* LogFormat, Args... args)
+void LogPrint(AurieLogSeverity severity, const char* LogFormat, Args... args)
 {
 	callbackManagerInterfacePtr->LogToFile(MODNAME, LogFormat, args...);
-	g_ModuleInterface->Print(Color, LogFormat, args...);
+	DbgPrintEx(severity, LogFormat, args...);
 }
 
 std::string ConvertLPCWSTRToString(LPCWSTR lpcwszStr);

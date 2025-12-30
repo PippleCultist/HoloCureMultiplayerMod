@@ -36,7 +36,7 @@ inline PFUNC_YYGMLScript getScriptFunction(const char* name)
 	status = g_ModuleInterface->GetScriptData(scriptIndex, scriptPtr);
 	if (!AurieSuccess(status))
 	{
-		g_ModuleInterface->Print(CM_RED, "Failed obtaining script function data for %s at script index %d with status %d", name, scriptIndex, status);
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed obtaining script function data for %s at script index %d with status %d", name, scriptIndex, status);
 		return nullptr;
 	}
 	return scriptPtr->m_Functions->m_ScriptFunction;
@@ -132,7 +132,7 @@ RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr
 			}
 			else
 			{
-				g_ModuleInterface->Print(CM_RED, "Unhandled kind %d for array index %d", methodSelf.m_Kind, i);
+				DbgPrintEx(LOG_SEVERITY_ERROR, "Unhandled kind %d for array index %d", methodSelf.m_Kind, i);
 			}
 		}
 		else if (g_ModuleInterface->CallBuiltin("is_struct", { curArrayVal }).ToBoolean())
@@ -186,7 +186,7 @@ RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructP
 			}
 			else
 			{
-				g_ModuleInterface->Print(CM_RED, "Unhandled kind %d for method %s", methodSelf.m_Kind, curStructName.ToString().data());
+				DbgPrintEx(LOG_SEVERITY_ERROR, "Unhandled kind %d for method %s", methodSelf.m_Kind, curStructName.ToString().data());
 			}
 		}
 		else if (g_ModuleInterface->CallBuiltin("is_struct", { curStructVal }).ToBoolean())
@@ -837,7 +837,7 @@ void swapPlayerDataHelper(CInstance* playerManagerInstance, RValue attackControl
 		if (playerID == 100000)
 		{
 			// TODO: Seems like this occurs pretty often for some weapons. Need to investigate further
-//			g_ModuleInterface->Print(CM_RED, "Failed to swap player ID");
+//			DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to swap player ID");
 //			callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to swap player ID");
 		}
 		return;
@@ -1645,17 +1645,33 @@ RValue& TakeDamageBaseMobCreateBefore(CInstance* Self, CInstance* Other, RValue&
 		else
 		{
 			// Enemy is taking damage
-			RValue creator = getInstanceVariable(*Args[1], GML_creator);
-			RValue config = getInstanceVariable(*Args[1], GML_config);
-			if (config.m_Kind != VALUE_UNDEFINED && config.m_Kind != VALUE_UNSET)
+			
+			// Need to check the object index since it could be either an attack or a player
+			int objectIndex = getInstanceVariable(*Args[1], GML_object_index).ToInt32();
+
+			if (objectIndex == objAttackIndex)
 			{
-				RValue origPlayerCreator = getInstanceVariable(config, GML_origPlayerCreator);
-				if (origPlayerCreator.m_Kind != VALUE_UNDEFINED && origPlayerCreator.m_Kind != VALUE_UNSET)
+				RValue creator = getInstanceVariable(*Args[1], GML_creator);
+				RValue config = getInstanceVariable(*Args[1], GML_config);
+				if (config.m_Kind != VALUE_UNDEFINED && config.m_Kind != VALUE_UNSET)
 				{
-					creator = origPlayerCreator;
+					RValue origPlayerCreator = getInstanceVariable(config, GML_origPlayerCreator);
+					if (origPlayerCreator.m_Kind != VALUE_UNDEFINED && origPlayerCreator.m_Kind != VALUE_UNSET)
+					{
+						creator = origPlayerCreator;
+					}
 				}
+				playerID = getPlayerID(creator.ToInstance());
 			}
-			playerID = getPlayerID(creator.ToInstance());
+			else if (objectIndex == objPlayerIndex)
+			{
+				playerID = getPlayerID(Args[1]->ToInstance());
+			}
+			else
+			{
+				LogPrint(LOG_SEVERITY_ERROR, "Unknown creator type %d for takeDamage", objectIndex);
+			}
+
 			hasEnemyTakenDamage = true;
 		}
 		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
@@ -1924,7 +1940,7 @@ RValue& AddPerkPlayerManagerOtherAfter(CInstance* Self, CInstance* Other, RValue
 				else
 				{
 					// Seems like the host couldn't find the summon?
-//					g_ModuleInterface->Print(CM_RED, "Couldn't find player summon %d", playerSummon.m_Kind);
+//					DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't find player summon %d", playerSummon.m_Kind);
 				}
 			}
 		}

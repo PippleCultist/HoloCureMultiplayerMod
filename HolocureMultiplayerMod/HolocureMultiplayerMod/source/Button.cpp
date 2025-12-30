@@ -171,7 +171,7 @@ void clickUseSavedNetworkAdapter()
 	CreateDirectory(L"MultiplayerMod", NULL);
 	if (!std::filesystem::exists("MultiplayerMod/lastUsedNetworkAdapter"))
 	{
-		g_ModuleInterface->Print(CM_RED, "Couldn't find the last used network adapter file");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't find the last used network adapter file");
 		return;
 	}
 	std::ifstream inFile;
@@ -179,7 +179,7 @@ void clickUseSavedNetworkAdapter()
 	std::string line;
 	if (!std::getline(inFile, line))
 	{
-		g_ModuleInterface->Print(CM_RED, "Couldn't read network adapter name from MultiplayerMod/lastUsedNetworkAdapter");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't read network adapter name from MultiplayerMod/lastUsedNetworkAdapter");
 		inFile.close();
 		return;
 	}
@@ -268,7 +268,7 @@ void clickUseSavedNetworkAdapter()
 	free(adapterAddresses);
 	adapterAddresses = NULL;
 
-	g_ModuleInterface->Print(CM_RED, "Couldn't find network adapter %s", line);
+	DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't find network adapter %s", line);
 	inFile.close();
 }
 
@@ -279,7 +279,7 @@ void clickSelectNetworkAdapter()
 
 void clickCreateFriendsSteamLobby()
 {
-	LogPrint(CM_WHITE, "Hosting via steam");
+	DbgPrintEx(LOG_SEVERITY_INFO, "Hosting via steam");
 	steamHost = new CSteamHost(true);
 	isHost = true;
 	playerPingMap.clear();
@@ -642,7 +642,7 @@ void clickLobbySteamPlayerInvite()
 {
 	if (!curSelectedSteamID.IsValid())
 	{
-		LogPrint(CM_RED, "Steam ID isn't valid");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Steam ID isn't valid");
 		return;
 	}
 	std::shared_ptr<menuData> selectedMenuData;
@@ -662,7 +662,7 @@ void clickLobbySteamPlayerInvite()
 	steamIDToClientIDMap[inviteeSteamID] = 0;
 	SteamMatchmaking()->SendLobbyChatMsg(steamLobbyBrowser->getSteamLobbyID(), &inviteeSteamID, sizeof(inviteeSteamID));
 	curSelectedSteamID = CSteamID();
-	LogPrint(CM_WHITE, "Pressed invite button");
+	DbgPrintEx(LOG_SEVERITY_INFO, "Pressed invite button");
 }
 
 void networkAdapterDisclaimerMenuGridReturn()

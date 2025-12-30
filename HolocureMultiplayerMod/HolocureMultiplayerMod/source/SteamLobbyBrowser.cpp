@@ -246,7 +246,7 @@ void CSteamLobbyBrowser::OnLobbyEntered(LobbyEnter_t* pCallback, bool bIOFailure
 	{
 		// failed, show error
 		callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to enter lobby");
-		g_ModuleInterface->Print(CM_RED, "Failed to enter lobby");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to enter lobby");
 		return;
 	}
 	/*
@@ -337,7 +337,7 @@ void CSteamLobbyBrowser::OnNetConnectionStatusChanged(SteamNetConnectionStatusCh
 	{
 		// failed, error out
 		callbackManagerInterfacePtr->LogToFile(MODNAME, "Failed to make P2P connection, quiting server");
-		g_ModuleInterface->Print(CM_RED, "Failed to make P2P connection, quiting server");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to make P2P connection, quiting server");
 		SteamNetworkingSockets()->CloseConnection(m_hConn, m_info.m_eEndReason, nullptr, false);
 //		OnReceiveServerExiting();
 	}
@@ -367,7 +367,7 @@ void CSteamLobbyBrowser::OnGameJoinRequested(GameRichPresenceJoinRequested_t* pC
 	if (pchLobbyID == nullptr)
 	{
 		callbackManagerInterfacePtr->LogToFile(MODNAME, "Couldn't find lobby id from connect_lobby");
-		g_ModuleInterface->Print(CM_RED, "Couldn't find lobby id from connect_lobby");
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't find lobby id from connect_lobby");
 	}
 	else
 	{

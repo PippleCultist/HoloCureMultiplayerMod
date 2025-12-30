@@ -174,7 +174,7 @@ void clientReceiveMessageHandler()
 			result = receiveMessage(0);
 			if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
 			{
-				g_ModuleInterface->Print(CM_RED, "Server disconnected");
+				DbgPrintEx(LOG_SEVERITY_ERROR, "Server disconnected");
 				clientLeaveGame(true);
 				return;
 			}
@@ -197,7 +197,7 @@ void hostReceiveMessageHandler()
 				result = receiveMessage(clientPlayerID);
 				if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
 				{
-					g_ModuleInterface->Print(CM_RED, "Client disconnected");
+					DbgPrintEx(LOG_SEVERITY_ERROR, "Client disconnected");
 					playerDisconnectedList.push_back(clientPlayerID);
 				}
 			} while (result > 0);
@@ -266,7 +266,7 @@ void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInst
 					}
 					else
 					{
-//						g_ModuleInterface->Print(CM_RED, "Couldn't find player summon %d", playerSummon.m_Kind);
+//						DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't find player summon %d", playerSummon.m_Kind);
 					}
 				}
 			}
@@ -323,7 +323,7 @@ void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInst
 		}
 		default:
 		{
-			g_ModuleInterface->Print(CM_RED, "Unhandled level up type %d for %s", levelUpData.levelUpType, levelUpName.ToString().data());
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Unhandled level up type %d for %s", levelUpData.levelUpType, levelUpName.ToString().data());
 		}
 	}
 }
@@ -430,7 +430,7 @@ int receiveBytesFromPlayer(uint32_t playerID, char* outputBuffer, int length, bo
 		const char* dataBuffer = reinterpret_cast<const char*>(steamPlayerConnection->curMessage->GetData());
 		if (steamPlayerConnection->curMessage->GetSize() < static_cast<uint32_t>(length + steamPlayerConnection->curBytePos))
 		{
-			g_ModuleInterface->Print(CM_RED, "Trying to copy message data past its bounds");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Trying to copy message data past its bounds");
 			return -1;
 		}
 		memcpy(outputBuffer, &dataBuffer[steamPlayerConnection->curBytePos], length);
@@ -512,7 +512,7 @@ int sendBytesToPlayer(uint32_t playerID, char* outputBuffer, int length, network
 		EResult res = SteamNetworkingSockets()->SendMessageToConnection(steamPlayerConnection.curConnection, outputBuffer, length, messageSendFlags, nullptr);
 		if (res != k_EResultOK)
 		{
-			g_ModuleInterface->Print(CM_RED, "Failed to send message");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to send message");
 			return -1;
 		}
 	}
@@ -1798,7 +1798,7 @@ void handleDestructableBreakMessage()
 		auto destructablePair = destructableMap.find(curMessage.data.id);
 		if (destructablePair == destructableMap.end())
 		{
-			g_ModuleInterface->Print(CM_RED, "Couldn't find broken destructable in map");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't find broken destructable in map");
 		}
 		else
 		{
@@ -1868,7 +1868,7 @@ void handleEliminateLevelUpClientChoiceMessage()
 			}
 			default:
 			{
-				g_ModuleInterface->Print(CM_RED, "Error while eliminating - Unknown level up type");
+				DbgPrintEx(LOG_SEVERITY_ERROR, "Error while eliminating - Unknown level up type");
 			}
 		}
 
@@ -3229,7 +3229,7 @@ int receiveMessage(uint32_t playerID)
 			return receiveKaelaOreAmount(playerID);
 		}
 	}
-	g_ModuleInterface->Print(CM_RED, "Unknown message type received %d", messageType[0]);
+	DbgPrintEx(LOG_SEVERITY_ERROR, "Unknown message type received %d", messageType[0]);
 	return -1;
 }
 
@@ -3645,7 +3645,7 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 		}
 		else
 		{
-			g_ModuleInterface->Print(CM_RED, "UNEXPECTED TYPE WHEN SENDING OVER OPTION DESCRIPTION");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "UNEXPECTED TYPE WHEN SENDING OVER OPTION DESCRIPTION");
 		}
 		int gainedModsLength = -1;
 		if (gainedMods.m_Kind == VALUE_ARRAY && (gainedModsLength = static_cast<int>(lround(g_ModuleInterface->CallBuiltin("array_length", { gainedMods }).ToDouble()))) > 0)

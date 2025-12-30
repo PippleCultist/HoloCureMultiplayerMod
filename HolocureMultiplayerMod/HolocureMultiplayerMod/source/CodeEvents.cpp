@@ -167,23 +167,26 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 			drawTextOutline(Self, curXPos, curYPos + 10, std::format("{} ms", playerPingMap[playerID]), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
 		}
 
-		auto steamNetworkingSockets = SteamNetworkingSockets();
-		if (steamNetworkingSockets)
+		if (isSteamInitialized)
 		{
-			SteamNetConnectionRealTimeStatus_t status;
-			if (isHost && playerID != 0)
+			auto steamNetworkingSockets = SteamNetworkingSockets();
+			if (steamNetworkingSockets)
 			{
-				const auto& steamConnection = steamIDToConnectionMap[clientIDToSteamIDMap[playerID]];
-				steamNetworkingSockets->GetConnectionRealTimeStatus(steamConnection.curConnection, &status, 0, NULL);
-				// Display the upload speed to the client
-				drawTextOutline(Self, curXPos, curYPos + 20, std::format("{:.3} kbps", status.m_flOutBytesPerSec / 1000.0), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
-			}
-			else if (!isHost && playerID == 0)
-			{
-				const auto& steamConnection = steamLobbyBrowser->getSteamLobbyHostConnection();
-				steamNetworkingSockets->GetConnectionRealTimeStatus(steamConnection.curConnection, &status, 0, NULL);
-				// Display the upload speed to the host
-				drawTextOutline(Self, curXPos, curYPos + 20, std::format("{:.3} kbps", status.m_flInBytesPerSec / 1000.0), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
+				SteamNetConnectionRealTimeStatus_t status;
+				if (isHost && playerID != 0)
+				{
+					const auto& steamConnection = steamIDToConnectionMap[clientIDToSteamIDMap[playerID]];
+					steamNetworkingSockets->GetConnectionRealTimeStatus(steamConnection.curConnection, &status, 0, NULL);
+					// Display the upload speed to the client
+					drawTextOutline(Self, curXPos, curYPos + 20, std::format("{:.3} kbps", status.m_flOutBytesPerSec / 1000.0), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
+				}
+				else if (!isHost && playerID == 0)
+				{
+					const auto& steamConnection = steamLobbyBrowser->getSteamLobbyHostConnection();
+					steamNetworkingSockets->GetConnectionRealTimeStatus(steamConnection.curConnection, &status, 0, NULL);
+					// Display the upload speed to the host
+					drawTextOutline(Self, curXPos, curYPos + 20, std::format("{:.3} kbps", status.m_flInBytesPerSec / 1000.0), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
+				}
 			}
 		}
 
@@ -1354,7 +1357,7 @@ void PreCreateStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*
 				float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).ToDouble());
 				float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).ToDouble());
 				RValue preCreateMapIndex = getInstanceVariable(Self, GML_preCreateMapIndex);
-				if (preCreateMapIndex.m_Kind == VALUE_UNSET)
+				if (preCreateMapIndex.m_Kind == VALUE_UNSET || preCreateMapIndex.m_Kind == VALUE_UNDEFINED)
 				{
 					short preCreateID = availablePreCreateIDs.front();
 					availablePreCreateIDs.pop();
@@ -1738,7 +1741,7 @@ void HoloBoxCollisionPlayerBefore(std::tuple<CInstance*, CInstance*, CCode*, int
 					}
 					else
 					{
-						g_ModuleInterface->Print(CM_RED, "UNEXPECTED TYPE WHEN SENDING OVER OPTION DESCRIPTION");
+						DbgPrintEx(LOG_SEVERITY_ERROR, "UNEXPECTED TYPE WHEN SENDING OVER OPTION DESCRIPTION");
 					}
 					uint16_t optionIcon_Super = 0;
 					if (isSuperBox)
@@ -2043,7 +2046,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 					SOCKET clientSocket = accept(connectClientSocket, NULL, NULL);
 					if (clientSocket == INVALID_SOCKET)
 					{
-						g_ModuleInterface->Print(CM_RED, "COULDN'T ACCEPT SOCKET %d\n", WSAGetLastError());
+						DbgPrintEx(LOG_SEVERITY_ERROR, "COULDN'T ACCEPT SOCKET %d\n", WSAGetLastError());
 					}
 					u_long mode = 1;
 					ioctlsocket(clientSocket, FIONBIO, &mode);
@@ -2110,7 +2113,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 
 						if (iResult != 0)
 						{
-							g_ModuleInterface->Print(CM_RED, "Failed to get address info: %d\n", iResult);
+							DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to get address info: %d\n", iResult);
 							return;
 						}
 
@@ -2133,7 +2136,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 								{
 									return;
 								}
-								g_ModuleInterface->Print(CM_RED, "Couldn't connect %d\n", WSAGetLastError());
+								DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't connect %d\n", WSAGetLastError());
 								closesocket(serverSocket);
 								serverSocket = INVALID_SOCKET;
 								continue;
@@ -2164,7 +2167,7 @@ void TitleScreenStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValu
 					if (numTimesFailedToConnect >= 50)
 					{
 						// Didn't manage to connect, so close the socket and try again
-						g_ModuleInterface->Print(CM_RED, "Failed to connect to host");
+						DbgPrintEx(LOG_SEVERITY_ERROR, "Failed to connect to host");
 						closesocket(serverSocket);
 						serverSocket = INVALID_SOCKET;
 						numTimesFailedToConnect = 0;

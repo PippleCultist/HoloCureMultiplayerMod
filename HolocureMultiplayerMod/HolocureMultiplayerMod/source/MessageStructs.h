@@ -124,7 +124,7 @@ inline bool checkBitInByte(char inputByte, int bitPos)
 {
 	if (bitPos >= 8)
 	{
-		LogPrint(CM_RED, "Trying to check index %d outside of valid byte range", bitPos);
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Trying to check index %d outside of valid byte range", bitPos);
 		return false;
 	}
 	return (inputByte & (1 << bitPos)) != 0;
@@ -134,7 +134,7 @@ inline void setBitInByte(char& inputByte, int bitPos)
 {
 	if (bitPos >= 8)
 	{
-		LogPrint(CM_RED, "Trying to set index %d outside of valid byte range", bitPos);
+		DbgPrintEx(LOG_SEVERITY_ERROR, "Trying to set index %d outside of valid byte range", bitPos);
 	}
 	inputByte |= (1 << bitPos);
 }
@@ -1691,7 +1691,7 @@ struct messageClientAnvilEnchant
 		writeCharToByteBuffer(messageBuffer, MESSAGE_CLIENT_ANVIL_ENCHANT, startBufferPos);
 		if (gainedMods.size() >= 256)
 		{
-			g_ModuleInterface->Print(CM_RED, "TOO MANY ENCHANTS. MESSAGE WILL BE SENT INCORRECTLY");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "TOO MANY ENCHANTS. MESSAGE WILL BE SENT INCORRECTLY");
 		}
 		writeCharToByteBuffer(messageBuffer, static_cast<char>(gainedMods.size()), startBufferPos);
 		for (int i = 0; i < gainedMods.size(); i++)
@@ -1837,7 +1837,7 @@ struct messageBuffData
 		writeCharToByteBuffer(messageBuffer, MESSAGE_BUFF_DATA, startBufferPos);
 		if (buffDataList.size() >= 256)
 		{
-			g_ModuleInterface->Print(CM_RED, "TOO MANY BUFFS. MESSAGE WILL BE SENT INCORRECTLY");
+			DbgPrintEx(LOG_SEVERITY_ERROR, "TOO MANY BUFFS. MESSAGE WILL BE SENT INCORRECTLY");
 		}
 		writeCharToByteBuffer(messageBuffer, static_cast<char>(buffDataList.size()), startBufferPos);
 		for (int i = 0; i < buffDataList.size(); i++)
