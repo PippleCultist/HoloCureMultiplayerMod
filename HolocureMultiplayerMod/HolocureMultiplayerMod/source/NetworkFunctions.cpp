@@ -1756,6 +1756,7 @@ void handleDestructableCreateMessage()
 
 		destructableData curData = curMessage.data;
 		RValue obstacleInstance = RValue();
+		// TODO: Probably should find a better way to do this
 		if (curMessage.data.pillarType == 0)
 		{
 			obstacleInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, 12345, objDestructableIndex });

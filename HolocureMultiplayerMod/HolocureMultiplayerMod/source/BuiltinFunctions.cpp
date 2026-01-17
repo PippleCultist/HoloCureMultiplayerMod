@@ -175,3 +175,21 @@ void InstanceCreateDepthAfter(RValue* Result, CInstance* Self, CInstance* Other,
 		}
 	}
 }
+
+void InstanceFindBefore(RValue& Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args)
+{
+	if (hasConnected && isHost)
+	{
+		if (Args[0].ToInt32() == objPlayerIndex)
+		{
+			// Prevent it from swapping if the map hasn't been initialized yet
+			auto playerMapFind = playerMap.find(curPlayerID);
+			if (playerMapFind != playerMap.end())
+			{
+				// swap player to the actual current player
+				Result = playerMap[curPlayerID];
+				callbackManagerInterfacePtr->CancelOriginalFunction();
+			}
+		}
+	}
+}

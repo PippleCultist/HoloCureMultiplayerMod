@@ -186,6 +186,7 @@ void CSteamLobbyBrowser::OnLobbyChatUpdate(LobbyChatUpdate_t* pCallback)
 				messageHandlerThread.join();
 			}
 			cleanupPlayerClientData();
+			hasConnected = true;
 		}
 		steamHost = new CSteamHost(false);
 		isHost = true;
@@ -195,6 +196,7 @@ void CSteamLobbyBrowser::OnLobbyChatUpdate(LobbyChatUpdate_t* pCallback)
 		lobbyPlayerDataMap[0] = lobbyPlayerData();
 		// TODO: Let the host decide their own name eventually
 		lobbyPlayerDataMap[0].playerName = "0";
+		callbackManagerInterfacePtr->LogToFile(MODNAME, "Became new steam lobby owner");
 		holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
 	}
 	if (numClientsInGame >= 0)

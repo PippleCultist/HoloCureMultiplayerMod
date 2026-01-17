@@ -54,6 +54,7 @@ void CamStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Arg
 void CloudMakerAlarmBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void BaseMobCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AttackCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
+void AttackCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AttackStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AttackStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);
 void AttackCollisionBaseMobBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args);

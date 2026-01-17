@@ -98,6 +98,11 @@ std::vector<uint32_t> curPlayerIDStack;
 
 bool isClientInInitializeCharacter = false;
 
+int getCurPlayerID()
+{
+	return curPlayerID;
+}
+
 RValue deepCopyStruct(CInstance* Self, RValue& origStruct, RValue* parentStructPtr);
 RValue deepCopyArray(CInstance* Self, RValue& origArray, RValue* parentStructPtr);
 
@@ -595,6 +600,14 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				// deal with attacks copy
 				// deal with playercharacter baseStats
 				// deal with onCreate
+				
+				RValue onCreateMethod = getInstanceVariable(charData, GML_onCreate);
+				if (onCreateMethod.m_Kind != VALUE_UNDEFINED && onCreateMethod.m_Kind != VALUE_UNSET)
+				{
+					RValue methodArgs = g_ModuleInterface->CallBuiltin("array_create", { 1, newCreatedChar });
+					g_ModuleInterface->CallBuiltin("method_call", { onCreateMethod, methodArgs });
+				}
+
 				// deal with fandom
 				// deal with cooking
 				// deal with snapshot stats
@@ -961,6 +974,8 @@ RValue& LevelUpPlayerManagerFuncAfter(CInstance* Self, CInstance* Other, RValue&
 	return ReturnValue;
 }
 
+bool hasRemovedSticker = false;
+
 RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
 	if (hasConnected)
@@ -1115,7 +1130,8 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					if (stickerAction == 1)
 					{
 						// Remove the sticker locally since it will be recreated on the host side
-						g_ModuleInterface->CallBuiltin("variable_global_get", { "currentStickers" })[stickerOption - 1] = -1.0;
+						g_ModuleInterface->CallBuiltin("variable_global_get", { "currentStickers" })[stickerOption - 1] = -1;
+						hasRemovedSticker = true;
 					}
 				}
 			}
@@ -1230,6 +1246,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 						std::shared_ptr<menuGridData> nullptrMenu = nullptr;
 						holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, nullptrMenu);
 						hasSelectedMap = false;
+						callbackManagerInterfacePtr->LogToFile(MODNAME, "Game over quit game");
 						g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
 						g_ModuleInterface->CallBuiltin("room_restart", {});
 						g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });
@@ -1261,6 +1278,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 						steamHost = nullptr;
 						isHost = false;
 					}
+					callbackManagerInterfacePtr->LogToFile(MODNAME, "Quit game");
 					std::shared_ptr<menuGridData> nullptrMenu = nullptr;
 					holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, nullptrMenu);
 					hasSelectedMap = false;
@@ -1271,6 +1289,16 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				}
 			}
 		}
+	}
+	return ReturnValue;
+}
+
+RValue& ConfirmedPlayerManagerFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasRemovedSticker)
+	{
+		g_ModuleInterface->CallBuiltin("array_pop", { g_ModuleInterface->CallBuiltin("variable_global_get", { "removeStickers" }) });
+		hasRemovedSticker = false;
 	}
 	return ReturnValue;
 }
@@ -1529,10 +1557,18 @@ RValue& DieObstacleCreateBefore(CInstance* Self, CInstance* Other, RValue& Retur
 {
 	if (hasConnected && isHost)
 	{
-		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).ToDouble());
-		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).ToDouble());
-		short destructableID = static_cast<short>(lround(getInstanceVariable(Self, GML_destructableID).ToDouble()));
-		sendAllDestructableBreakMessage(destructableData(xPos, yPos, destructableID, 0));
+		RValue curID = getInstanceVariable(Self, GML_destructableID);
+		if (curID.m_Kind == VALUE_UNDEFINED || curID.m_Kind == VALUE_UNSET)
+		{
+			LogPrint(LOG_SEVERITY_WARNING, "Couldn't find an ID for the destroyed obstacle");
+		}
+		else
+		{
+			float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).ToDouble());
+			float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).ToDouble());
+			short destructableID = static_cast<short>(curID.ToInt32());
+			sendAllDestructableBreakMessage(destructableData(xPos, yPos, destructableID, 0));
+		}
 	}
 
 	return ReturnValue;
@@ -1875,6 +1911,7 @@ RValue& SelectCharSelectCreateAfter(CInstance* Self, CInstance* Other, RValue& R
 				{
 					curSelectedStageSprite = static_cast<int>(lround(getInstanceVariable(whichSet[selectedStage], GML_stageSprite).ToDouble()));
 					lobbyPlayerDataMap[HOST_INDEX].stageSprite = curSelectedStageSprite;
+					callbackManagerInterfacePtr->LogToFile(MODNAME, "Selected stage %s", getInstanceVariable(whichSet[selectedStage], GML_stageIDName).ToString().data());
 				}
 				holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
 				curSelectedSteamID = CSteamID();

@@ -8,3 +8,4 @@ void SpriteDeleteBefore(RValue& Result, CInstance* Self, CInstance* Other, int n
 void InstanceExistsBefore(RValue& Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args);
 void DsMapFindValueBefore(RValue& Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args);
 void InstanceCreateDepthAfter(RValue& Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args);
+void InstanceFindBefore(RValue& Result, CInstance* Self, CInstance* Other, int numArgs, RValue* Args);

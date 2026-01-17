@@ -1,3 +1,5 @@
+#define YYTK_DEFINE_INTERNAL true
+
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "Ws2_32.lib")
 #include <WS2tcpip.h>
@@ -84,7 +86,7 @@ PFUNC_YYGMLScript origAddCollabScript = nullptr;
 PFUNC_YYGMLScript origAddSuperCollabScript = nullptr;
 PFUNC_YYGMLScript origMouseOverButtonScript = nullptr;
 
-using PFUNC_YYGML_Variable_GetValue = void(*)(RValue* arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6);
+using PFUNC_YYGML_Variable_GetValue = void(*)(RValue* arg1, void* arg2, void* arg3, RValue* arg4, void* arg5, void* arg6);
 PVOID yyGMLVariableGetValueAddress = nullptr;
 PFUNC_YYGML_Variable_GetValue origYYGMLVariableGetValueFunc = nullptr;
 std::binary_semaphore initYYGMLVariableGetValueFuncSemaphore(1);
@@ -98,6 +100,14 @@ using PFUNC_YYGML_Instance_Destroy = void(*)(CInstance* Self, CInstance* Other, 
 PVOID yyGMLInstanceDestroyAddress = nullptr;
 PFUNC_YYGML_Instance_Destroy origYYGMLInstanceDestroyFunc = nullptr;
 std::binary_semaphore initYYGMLInstanceDestroyFuncSemaphore(1);
+
+using PFUNC_InitRunnerVariables = void(*)(void* arg1);
+PVOID InitRunnerVariablesAddress = nullptr;
+PFUNC_InitRunnerVariables origInitRunnerVariablesFunc = nullptr;
+
+using PFUNC_YYGML_Variable_SetValue = void(*)(RValue* arg1, int hash, void* arg3, RValue* setVal);
+PVOID yyGMLVariableSetValueAddress = nullptr;
+PFUNC_YYGML_Variable_SetValue origYYGMLVariableSetValueFunc = nullptr;
 
 CInstance* globalInstance = nullptr;
 
@@ -150,6 +160,14 @@ int rmTitle = -1;
 int rmCharSelect = -1;
 int rmPreIntro = -1;
 
+int onDeathHash = -1;
+
+uint64_t* curFunctionStackDebugAddress = nullptr;
+std::unordered_map<int32_t, std::unordered_map<int, int>> mobOnDeathFuncSwapPlayerIDMap;
+std::unordered_map<PFUNC_YYGMLScript, PFUNC_YYGMLScript> scriptFunctionToOrigFunctionMap;
+std::unordered_map<int, PFUNC_YYGMLScript> indexToScriptFunctionMap;
+std::unordered_map<PFUNC_YYGMLScript, int> scriptFunctionToIndexMap;
+
 char broadcastAddressBuffer[16] = { 0 };
 
 std::string ConvertLPCWSTRToString(LPCWSTR lpcwszStr)
@@ -185,7 +203,11 @@ AurieStatus FindMemoryPatternAddress(const unsigned char* Pattern, const char* P
 	return AURIE_SUCCESS;
 }
 
-void YYGMLVariableGetValueHookFunc(RValue* arg1, void* arg2, void* arg3, void* arg4, void* arg5, void* arg6)
+int32_t curOnDeathGetValueLineNum = -1;
+RValue* onDeathVarPtr = nullptr;
+RValue* onDeathMobPtr = nullptr;
+
+void YYGMLVariableGetValueHookFunc(RValue* arg1, void* arg2, void* arg3, RValue* arg4, void* arg5, void* arg6)
 {
 	// Sometimes the hook might happen before the originalFunc is set
 	if (origYYGMLVariableGetValueFunc == nullptr)
@@ -199,8 +221,19 @@ void YYGMLVariableGetValueHookFunc(RValue* arg1, void* arg2, void* arg3, void* a
 			return;
 		}
 	}
-	if (hasConnected)
+	if (hasConnected && isHost)
 	{
+		curOnDeathGetValueLineNum = -1;
+		onDeathVarPtr = nullptr;
+		if (reinterpret_cast<int64_t>(arg2) == onDeathHash)
+		{
+			if (curFunctionStackDebugAddress != nullptr)
+			{
+				curOnDeathGetValueLineNum = *reinterpret_cast<int32_t*>(*curFunctionStackDebugAddress + 16);
+				onDeathVarPtr = arg4;
+				onDeathMobPtr = arg1;
+			}
+		}
 		if (arg1->m_Kind == VALUE_REF && arg1->m_i32 == objPlayerIndex)
 		{
 			// Prevent it from swapping if the map hasn't been initialized yet
@@ -280,6 +313,84 @@ void YYGMLInstanceDestroyHookFunc(CInstance* Self, CInstance* Other, int arg3, v
 		}
 	}
 	origYYGMLInstanceDestroyFunc(Self, Other, arg3, arg4);
+}
+
+void InitRunnerVariablesHookFunc(void* arg1)
+{
+	origInitRunnerVariablesFunc(arg1);
+	curFunctionStackDebugAddress = static_cast<uint64_t**>(arg1)[6];
+}
+
+RValue& OnDeathScriptFunctionBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	int scriptFunctionIndex = -1;
+	callbackManagerInterfacePtr->GetCurrentScriptFunctionInfo(MODNAME, nullptr, scriptFunctionIndex);
+
+	int32_t mobID = getInstanceVariable(*Args[1], GML_id).ToInt32();
+	auto findMobID = mobOnDeathFuncSwapPlayerIDMap.find(mobID);
+	if (findMobID == mobOnDeathFuncSwapPlayerIDMap.end())
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Couldn't find mob id %d for script function id %d", mobID, scriptFunctionIndex);
+		return ReturnValue;
+	}
+	auto findScriptFunctionIndex = findMobID->second.find(scriptFunctionIndex);
+	if (findScriptFunctionIndex == findMobID->second.end())
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Couldn't find script function id %d", scriptFunctionIndex);
+		return ReturnValue;
+	}
+	int playerID = findScriptFunctionIndex->second;
+	RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+	swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
+	return ReturnValue;
+}
+
+RValue& OnDeathScriptFunctionAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+	swapPlayerDataPop(playerManagerInstanceVar, attackController);
+	return ReturnValue;
+}
+
+void YYGMLVariableSetValueHookFunc(RValue* arg1, int hash, void* arg3, RValue* setVal)
+{
+	if (onDeathVarPtr == arg1)
+	{
+		if (curFunctionStackDebugAddress != nullptr)
+		{
+			int32_t curLineNum = *reinterpret_cast<int32_t*>(*curFunctionStackDebugAddress + 16);
+			if (curLineNum == curOnDeathGetValueLineNum)
+			{
+				PFUNC_YYGMLScript onDeathScriptFunc = setVal->ToPointer<CScriptRef*>()->m_CallYYC;
+				int scriptFunctionIndex = -1;
+				if (!scriptFunctionToOrigFunctionMap.contains(onDeathScriptFunc))
+				{
+					PFUNC_YYGMLScript origScriptFunc = nullptr;
+
+					if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, onDeathScriptFunc, OnDeathScriptFunctionBefore, OnDeathScriptFunctionAfter, &origScriptFunc, scriptFunctionIndex)))
+					{
+						LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %p", onDeathScriptFunc);
+						return;
+					}
+					if (scriptFunctionIndex == -1)
+					{
+						LogPrint(LOG_SEVERITY_ERROR, "Failed to get script index for %p", onDeathScriptFunc);
+						return;
+					}
+					scriptFunctionToOrigFunctionMap[onDeathScriptFunc] = origScriptFunc;
+					indexToScriptFunctionMap[scriptFunctionIndex] = onDeathScriptFunc;
+					scriptFunctionToIndexMap[onDeathScriptFunc] = scriptFunctionIndex;
+				}
+				else
+				{
+					scriptFunctionIndex = scriptFunctionToIndexMap[onDeathScriptFunc];
+				}
+				int32_t mobID = getInstanceVariable(*onDeathMobPtr, GML_id).ToInt32();
+				mobOnDeathFuncSwapPlayerIDMap[mobID][scriptFunctionIndex] = getCurPlayerID();
+			}
+		}
+	}
+	origYYGMLVariableSetValueFunc(arg1, hash, arg3, setVal);
 }
 
 AurieStatus moduleInitStatus = AURIE_MODULE_INITIALIZATION_FAILED;
@@ -417,7 +528,7 @@ void initHooks()
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Object_obj_BaseMob_Create_0");
 		return;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Attack_Create_0", AttackCreateBefore, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_Attack_Create_0", AttackCreateBefore, AttackCreateAfter)))
 	{
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Object_obj_Attack_Create_0");
 		return;
@@ -752,6 +863,11 @@ void initHooks()
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Object_obj_Coronet_Collision_obj_Player");
 		return;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterCodeEventCallback(MODNAME, "gml_Object_obj_EXPAbsorb_Collision_obj_Player", AllPickupableCollisionPlayerBefore, nullptr)))
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Object_obj_EXPAbsorb_Collision_obj_Player");
+		return;
+	}
 
 
 
@@ -885,7 +1001,7 @@ void initHooks()
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_LevelUp@gml_Object_obj_PlayerManager_Create_0");
 		return;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Confirmed@gml_Object_obj_PlayerManager_Create_0", ConfirmedPlayerManagerFuncBefore, nullptr, nullptr)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Confirmed@gml_Object_obj_PlayerManager_Create_0", ConfirmedPlayerManagerFuncBefore, ConfirmedPlayerManagerFuncAfter, nullptr)))
 	{
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_Confirmed@gml_Object_obj_PlayerManager_Create_0");
 		return;
@@ -1137,6 +1253,11 @@ void initHooks()
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "instance_create_depth");
 		return;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterBuiltinFunctionCallback(MODNAME, "instance_find", InstanceFindBefore, nullptr, nullptr)))
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "instance_find");
+		return;
+	}
 
 	// TODO: Need to figure out how to include the GML crash error message into the file error log
 	// TODO: Probably should add a check if the players have the same version number when connecting
@@ -1295,6 +1416,13 @@ void initHooks()
 
 	moduleInitStatus = AURIE_SUCCESS;
 
+	onDeathHash = GMLVarIndexMapGMLHash[GML_onDeath].ToInt32();
+
+	if (curFunctionStackDebugAddress == nullptr)
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Couldn't get function stack debug address");
+	}
+
 	callbackManagerInterfacePtr->LogToFile(MODNAME, "Finished ModuleInitialize");
 }
 
@@ -1438,6 +1566,68 @@ EXPORTED AurieStatus ModulePreinitialize(
 	status = MmCreateHook(Module, "YYGML_Instance_Destroy", yyGMLInstanceDestroyAddress, YYGMLInstanceDestroyHookFunc, &YYGMLInstanceDestroyTrampolineFunc);
 	origYYGMLInstanceDestroyFunc = static_cast<PFUNC_YYGML_Instance_Destroy>(YYGMLInstanceDestroyTrampolineFunc);
 	initYYGMLInstanceDestroyFuncSemaphore.release();
+
+	status = FindMemoryPatternAddress(
+		UTEXT(
+			"\x8B\x05\x00\x00\x00\x00"			// MOV        EAX ,dword ptr [DAT_1459e3a68 ]
+			"\x05\x00\x00\x00\x00"				// ADD        EAX ,0x4ccf
+			"\x48\xC7\x01\x00\x00\x00\x00"		// MOV        qword ptr [RCX ],0x0
+			"\x89\x41\x0C"						// MOV        dword ptr [RCX  + 0xc ],EAX
+			"\x89\x41\x10"						// MOV        dword ptr [RCX  + 0x10 ],EAX
+		),
+		"xx????"
+		"x????"
+		"xxxxxxx"
+		"xxx"
+		"xxx",
+		InitRunnerVariablesAddress
+	);
+	if (!AurieSuccess(status))
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Failed to find memory address for %s", "InitRunnerVariables");
+		return AURIE_MODULE_INITIALIZATION_FAILED;
+	}
+
+	PVOID InitRunnerVariablesTrampolineFunc = nullptr;
+	status = MmCreateHook(Module, "InitRunnerVariables", InitRunnerVariablesAddress, InitRunnerVariablesHookFunc, &InitRunnerVariablesTrampolineFunc);
+	origInitRunnerVariablesFunc = static_cast<PFUNC_InitRunnerVariables>(InitRunnerVariablesTrampolineFunc);
+
+	status = FindMemoryPatternAddress(
+		UTEXT(
+			"\x48\x89\x5C\x24\x08"			// MOV        qword ptr [RSP  + local_res8 ],RBX
+			"\x48\x89\x74\x24\x10"			// MOV        qword ptr [RSP  + local_res10 ],RSI
+			"\x57"							// PUSH       RDI
+			"\x48\x83\xEC\x20"				// SUB        RSP ,0x20
+			"\x8B\x41\x0C"					// MOV        EAX ,dword ptr [RCX  + 0xc ]
+			"\x49\x8B\xD9"					// MOV        RBX ,R9
+			"\x25\xFF\xFF\xFF\x00"			// AND        EAX ,0xffffff
+			"\x41\x8B\xF8"					// MOV        EDI ,R8D
+			"\x8B\xF2"						// MOV        ESI ,EDX
+			"\x83\xF8\x0F"					// CMP        EAX ,0xf
+			"\x77\x30"						// JA         switchD_1437707a8::caseD_0
+		),
+		"xxxxx"
+		"xxxxx"
+		"x"
+		"xxxx"
+		"xxx"
+		"xxx"
+		"xxxxx"
+		"xxx"
+		"xx"
+		"xxx"
+		"xx",
+		yyGMLVariableSetValueAddress
+	);
+	if (!AurieSuccess(status))
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Failed to find memory address for %s", "YYGML_Variable_SetValue");
+		return AURIE_MODULE_INITIALIZATION_FAILED;
+	}
+
+	PVOID YYGMLVariableSetValueTrampolineFunc = nullptr;
+	status = MmCreateHook(Module, "YYGML_Variable_SetValue", yyGMLVariableSetValueAddress, YYGMLVariableSetValueHookFunc, &YYGMLVariableSetValueTrampolineFunc);
+	origYYGMLVariableSetValueFunc = static_cast<PFUNC_YYGML_Variable_SetValue>(YYGMLVariableSetValueTrampolineFunc);
 
 	g_ModuleInterface->CreateCallback(
 		Module,

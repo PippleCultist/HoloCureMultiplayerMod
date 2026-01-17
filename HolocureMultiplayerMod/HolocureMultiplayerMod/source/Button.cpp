@@ -549,6 +549,7 @@ void clickHostLanSession()
 	// TODO: Let the host decide their own name eventually
 	lobbyPlayerDataMap[0].playerName = "0";
 	isHost = true;
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "Clicked host LAN session");
 	holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
 }
 
@@ -557,6 +558,7 @@ void clickJoinLanSession()
 	playerPingMap.clear();
 	lobbyPlayerDataMap.clear();
 	isHost = false;
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "Clicked join LAN session");
 	holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);
 }
 
@@ -716,6 +718,7 @@ void lobbyMenuGridReturn()
 		steamHost = nullptr;
 		isHost = false;
 	}
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "Left lobby");
 	hasSelectedMap = false;
 }
 

@@ -342,6 +342,7 @@ void clientLeaveGame(bool isHostDisconnected)
 		free(adapterAddresses);
 	}
 	adapterAddresses = NULL;
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "client left game");
 	if (playerManagerInstanceVar != nullptr)
 	{
 		g_ModuleInterface->CallBuiltin("instance_destroy", { playerManagerInstanceVar });
@@ -741,6 +742,32 @@ void AttackCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>
 		{
 			callbackManagerInterfacePtr->CancelOriginalFunction();
 		}
+		else
+		{
+			CInstance* Self = std::get<0>(Args);
+			RValue creator = getInstanceVariable(Self, GML_creator);
+			RValue config = getInstanceVariable(Self, GML_config);
+			if (config.m_Kind != VALUE_UNDEFINED && config.m_Kind != VALUE_UNSET)
+			{
+				RValue origPlayerCreator = getInstanceVariable(config, GML_origPlayerCreator);
+				if (origPlayerCreator.m_Kind != VALUE_UNDEFINED && origPlayerCreator.m_Kind != VALUE_UNSET)
+				{
+					creator = origPlayerCreator;
+				}
+			}
+			uint32_t playerID = getPlayerID(creator.ToInstance());
+			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
+		}
+	}
+}
+
+void AttackCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
+{
+	if (hasConnected && isHost)
+	{
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
 	}
 }
 

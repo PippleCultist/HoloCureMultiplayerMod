@@ -2,7 +2,7 @@
 #include <YYToolkit/YYTK_Shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.3.0"
+#define VERSION_NUM "v1.3.1"
 #define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
 #define BROADCAST_PORT "27015"
 #define GAME_PORT "27016"
@@ -207,6 +207,9 @@
 	DO(origPlayerCreator) \
 	DO(player) \
 	DO(object_index) \
+	DO(stageIDName) \
+	DO(onCreate) \
+	DO(onDeath) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
