@@ -146,6 +146,7 @@ int objCharSelectIndex = -1;
 int objObstacleIndex = -1;
 int objGetFishIndex = -1;
 int objCocoWeaponIndex = -1;
+int objTitleScreenIndex = -1;
 int sprEmptyIndex = -1;
 int sprEmptyMaskIndex = -1;
 int sprGameCursorIndex = -1;
@@ -868,8 +869,7 @@ void initHooks()
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Object_obj_EXPAbsorb_Collision_obj_Player");
 		return;
 	}
-
-
+	
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_input_binding_set", nullptr, nullptr, &origInputBindingSetScript)))
 	{
@@ -1356,6 +1356,7 @@ void initHooks()
 	objObstacleIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Obstacle" }).ToInt32());
 	objGetFishIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_GetFish" }).ToInt32());
 	objCocoWeaponIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_CocoWeapon" }).ToInt32());
+	objTitleScreenIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_TitleScreen" }).ToInt32());
 	sprEmptyIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_empty" }).ToInt32());
 	sprGameCursorIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor" }).ToInt32());
 	sprGameCursor2Index = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "spr_GameCursor2" }).ToInt32());

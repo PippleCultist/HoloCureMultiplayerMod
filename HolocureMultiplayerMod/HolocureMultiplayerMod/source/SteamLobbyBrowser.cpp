@@ -389,7 +389,22 @@ void CSteamLobbyBrowser::OnGameJoinRequested(GameRichPresenceJoinRequested_t* pC
 void CSteamLobbyBrowser::OnGameLobbyJoinRequested(GameLobbyJoinRequested_t* pCallback)
 {
 	// TODO: Bring the player directly to the lobby menu and connect to the lobby
-	// TODO: Should probably check if the player is already in a lobby/other multiplayer menu
+	RValue titleScreen = g_ModuleInterface->CallBuiltin("instance_find", { objTitleScreenIndex, 0 });
+	if (!g_ModuleInterface->CallBuiltin("instance_exists", { titleScreen }).ToBoolean())
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Please return to the title screen before trying to join a lobby");
+		return;
+	}
+
+	std::shared_ptr<menuGridData> curMenuGridPtr;
+	holoCureMenuInterfacePtr->GetCurrentMenuGrid(MODNAME, curMenuGridPtr);
+	if (curMenuGridPtr != nullptr)
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Please exit the mod menu and return to the title screen before trying to join a lobby");
+		return;
+	}
+
+	LogPrint(LOG_SEVERITY_INFO, "On Game Lobby Join Requested");
 	setSteamLobbyID(pCallback->m_steamIDLobby);
 	SteamMatchmaking()->JoinLobby(pCallback->m_steamIDLobby);
 	holoCureMenuInterfacePtr->SwapToMenuGrid(MODNAME, lobbyMenuGrid.menuGridPtr);

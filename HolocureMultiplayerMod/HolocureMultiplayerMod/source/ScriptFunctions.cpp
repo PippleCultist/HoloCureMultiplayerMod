@@ -1849,7 +1849,10 @@ void cleanupPlayerClientData()
 		{
 			curSteamConnection.curMessage->Release();
 		}
-		SteamNetworkingSockets()->CloseConnection(curSteamConnection.curConnection, 0, nullptr, false);
+		if (curSteamConnection.curConnection != 0)
+		{
+			SteamNetworkingSockets()->CloseConnection(curSteamConnection.curConnection, 0, nullptr, false);
+		}
 	}
 	steamIDToConnectionMap.clear();
 	for (auto& listenForClientSocket : listenForClientSocketMap)
@@ -1868,6 +1871,7 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 
 RValue& ReturnCharSelectCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
+	// TODO: Don't cancel the return if it's not in the mod lobby
 	callbackManagerInterfacePtr->CancelOriginalFunction();
 	return ReturnValue;
 }
