@@ -1,4 +1,6 @@
 # Holocure Multiplayer Mod
+[![Github All Releases](https://img.shields.io/github/downloads/PippleCultist/HoloCureMultiplayerMod/HolocureMultiplayerMod.dll)](https://github.com/PippleCultist/HoloCureMultiplayerMod/releases)
+
 A Holocure mod that adds multiplayer to the game. Will probably be buggy and have random crashes since a lot has been modified in the game to get it working.
 ## Installation Steps
 # Follow these instructions if you've used mods before December 2025
