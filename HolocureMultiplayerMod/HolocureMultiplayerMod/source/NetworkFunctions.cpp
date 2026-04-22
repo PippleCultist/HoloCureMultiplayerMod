@@ -16,6 +16,7 @@ extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
 extern double foodMultiplier;
+extern bool isClientLeavingGame;
 
 messageInstancesCreate instancesCreateMessage;
 messageInstancesUpdate instancesUpdateMessage;
@@ -175,7 +176,7 @@ void clientReceiveMessageHandler()
 			if (result == 0 || (result == -1 && (WSAGetLastError() == WSAECONNRESET || WSAGetLastError() == WSAECONNABORTED)))
 			{
 				DbgPrintEx(LOG_SEVERITY_ERROR, "Server disconnected");
-				clientLeaveGame(true);
+				isClientLeavingGame = true;
 				return;
 			}
 		} while (result > 0);
@@ -1484,6 +1485,12 @@ int receiveLevelUpOptionsMessage(uint32_t playerID)
 
 void handleLevelUpOptionsMessage(CInstance* playerManager)
 {
+	// If the client is already paused, wait until they finished with their current menu before giving the options
+	if (isClientPaused)
+	{
+		return;
+	}
+
 	do
 	{
 		levelUpOptionsMessageQueueLock.acquire();
@@ -2327,6 +2334,7 @@ void handleStickerPlayerInteractedMessage()
 			unsetPauseMenu();
 			isClientUsingStamp = true;
 			RValue stickerInstance = interactableMap[curMessage.id];
+			setInstanceVariable(playerManagerInstanceVar, GML_stickerID, stickerInstance);
 			setInstanceVariable(stickerInstance, GML_stickerID, RValue(curMessage.stickerID));
 			RValue stickersMap = getInstanceVariable(playerManagerInstanceVar, GML_STICKERS);
 			RValue stickerData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { stickersMap, curMessage.stickerID.c_str() });
@@ -2676,6 +2684,11 @@ int receiveStickerChooseOptionMessage(uint32_t playerID)
 
 void handleStickerChooseOptionMessage()
 {
+	if (g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 }).ToInt32() < 0)
+	{
+		return;
+	}
+
 	do
 	{
 		stickerChooseOptionMessageQueueLock.acquire();
@@ -3601,7 +3614,7 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 		char weaponAndItemType = 4;
 		if (optionType.ToString().compare("Weapon") == 0)
 		{
-			std::string_view weaponType = getInstanceVariable(options[i], GML_weaponType).ToString();
+			std::string weaponType = getInstanceVariable(options[i], GML_weaponType).ToString();
 			if (weaponType.compare("Melee") == 0)
 			{
 				weaponAndItemType = 0;
@@ -3617,7 +3630,7 @@ int sendClientLevelUpOptionsMessage(uint32_t playerID)
 		}
 		else if (optionType.ToString().compare("Item") == 0)
 		{
-			std::string_view itemType = getInstanceVariable(options[i], GML_itemType).ToString();
+			std::string itemType = getInstanceVariable(options[i], GML_itemType).ToString();
 			if (itemType.compare("Healing") == 0)
 			{
 				weaponAndItemType = 0;

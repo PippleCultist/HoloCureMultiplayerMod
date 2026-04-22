@@ -2,10 +2,13 @@
 #include <YYToolkit/YYTK_Shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.3.2"
+#define VERSION_NUM "v1.3.3"
 #define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
 #define BROADCAST_PORT "27015"
 #define GAME_PORT "27016"
+
+#define STRING2(x) #x
+#define STRING(x) STRING2(x)
 
 #define SOME_ENUM(DO) \
 	DO(x) \

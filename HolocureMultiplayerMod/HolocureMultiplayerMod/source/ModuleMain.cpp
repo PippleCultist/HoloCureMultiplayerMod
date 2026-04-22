@@ -1006,6 +1006,11 @@ void initHooks()
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_Confirmed@gml_Object_obj_PlayerManager_Create_0");
 		return;
 	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_ReturnMenu@gml_Object_obj_PlayerManager_Create_0", nullptr, ReturnMenuPlayerManagerFuncAfter, nullptr)))
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_ReturnMenu@gml_Object_obj_PlayerManager_Create_0");
+		return;
+	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_GeneratePossibleOptions@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origGeneratePossibleOptionsScript)))
 	{
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_GeneratePossibleOptions@gml_Object_obj_PlayerManager_Other_23");
@@ -1214,6 +1219,11 @@ void initHooks()
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Heal", HealBefore, HealAfter, nullptr)))
 	{
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_Heal");
+		return;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Remove@Sticker@StickerDefinitions", RemoveStickerBefore, nullptr, nullptr)))
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_Remove@Sticker@StickerDefinitions");
 		return;
 	}
 

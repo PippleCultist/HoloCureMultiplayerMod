@@ -66,6 +66,8 @@ CSteamID curSelectedSteamID;
 
 bool hasHostPaused = false;
 
+bool isClientLeavingGame = false;
+
 extern IP_ADAPTER_ADDRESSES* adapterAddresses;
 
 // TODO: Improve this to assign better IDs
@@ -330,6 +332,8 @@ void clientLeaveGame(bool isHostDisconnected)
 		// TODO: Maybe potential race condition where it tries to join when it already joined?
 		messageHandlerThread.join();
 	}
+	// TODO: Should probably find a better way to fix this issue other than just setting hasConnected back to true until it reaches the title screen
+	hasConnected = true;
 	steamLobbyBrowser->leaveLobby();
 	closesocket(serverSocket);
 	serverSocket = INVALID_SOCKET;
@@ -347,6 +351,8 @@ void clientLeaveGame(bool isHostDisconnected)
 	{
 		g_ModuleInterface->CallBuiltin("instance_destroy", { playerManagerInstanceVar });
 	}
+	// TODO: Try to find a better way to get around attacks not being destroyed after leaving the room
+	g_ModuleInterface->CallBuiltin("instance_destroy", { objAttackIndex });
 	g_ModuleInterface->CallBuiltin("room_restart", {});
 	g_ModuleInterface->CallBuiltin("room_goto", { rmTitle });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "resetLevel", true });
@@ -422,6 +428,11 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 		}
 		else
 		{
+			if (isClientLeavingGame)
+			{
+				clientLeaveGame(true);
+				isClientLeavingGame = false;
+			}
 			handleRoomMessage();
 			handleInstanceCreateMessage();
 			handleInstanceUpdateMessage();
@@ -635,22 +646,26 @@ void PlayerManagerStepAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 {
 	if (hasConnected && isHost)
 	{
-		if (hasUsedSticker)
+		CInstance* Self = std::get<0>(Args);
+		if (!getInstanceVariable(Self, GML_paused).ToBoolean())
 		{
-			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			for (auto& curPlayer : playerMap)
+			if (hasUsedSticker)
 			{
-				uint32_t playerID = curPlayer.first;
-				if (playerID == 0)
+				RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+				for (auto& curPlayer : playerMap)
 				{
-					continue;
+					uint32_t playerID = curPlayer.first;
+					if (playerID == 0)
+					{
+						continue;
+					}
+					swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
+					RValue returnVal;
+					origUpdatePlayerPlayerManagerOtherScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
+					swapPlayerDataPop(playerManagerInstanceVar, attackController);
 				}
-				swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
-				RValue returnVal;
-				origUpdatePlayerPlayerManagerOtherScript(playerManagerInstanceVar, nullptr, returnVal, 0, nullptr);
-				swapPlayerDataPop(playerManagerInstanceVar, attackController);
+				hasUsedSticker = false;
 			}
-			hasUsedSticker = false;
 		}
 	}
 }
@@ -2250,6 +2265,7 @@ void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 	callbackManagerInterfacePtr->LogToFile(MODNAME, "HoloCure version %s", strVersion.ToString().data());
 	RValue newStrVersion = g_ModuleInterface->CallBuiltin("string_concat", { strVersion, " ", MODNAME });
 	setInstanceVariable(Self, GML_version, newStrVersion);
+	hasConnected = false;
 }
 
 void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)

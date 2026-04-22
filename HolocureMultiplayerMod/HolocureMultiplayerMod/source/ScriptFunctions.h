@@ -120,6 +120,7 @@ RValue& LevelUpPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 RValue& LevelUpPlayerManagerFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& ConfirmedPlayerManagerFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
+RValue& ReturnMenuPlayerManagerFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& UnpausePlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& ParseAndPushCommandTypePlayerManagerFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& ExecuteAttackBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
@@ -149,3 +150,4 @@ RValue& CreateSummonMobManagerCreateBefore(CInstance* Self, CInstance* Other, RV
 RValue& CreateSummonMobManagerCreateAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& HealBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
 RValue& HealAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);
+RValue& RemoveStickerBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args);

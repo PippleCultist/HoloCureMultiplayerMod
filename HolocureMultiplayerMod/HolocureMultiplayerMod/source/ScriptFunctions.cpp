@@ -25,6 +25,7 @@ extern std::thread messageHandlerThread;
 extern menuGrid lobbyMenuGrid;
 extern menuGrid selectingCharacterMenuGrid;
 extern menuGrid selectingMapMenuGrid;
+extern std::unordered_map<short, RValue> attackMap;
 
 int numClientsInGame = -1;
 
@@ -974,7 +975,21 @@ RValue& LevelUpPlayerManagerFuncAfter(CInstance* Self, CInstance* Other, RValue&
 	return ReturnValue;
 }
 
-bool hasRemovedSticker = false;
+struct stickerOptionMessage
+{
+	int stickerAction;
+	int stickerOption;
+
+	stickerOptionMessage() : stickerAction(0), stickerOption(0)
+	{
+	}
+
+	stickerOptionMessage(int stickerAction, int stickerOption) : stickerAction(stickerAction), stickerOption(stickerOption)
+	{
+	}
+};
+
+std::deque<stickerOptionMessage> stickerOptionMessageQueue;
 
 RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
@@ -1126,6 +1141,11 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				{
 					int stickerAction = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerAction).ToDouble()));
 					int stickerOption = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerOption).ToDouble()));
+					// TODO: Change this so that it only sends the remove message once the stamp menu is closed
+					// TODO: Also, should do something about swapping the sticker sprite when it swaps the sticker. Idk if it's possible to do it locally though
+//#pragma message(__FILE__ "(" STRING(__LINE__) ") Need to figure out how to get this working when the host is paused and unpaused")
+					stickerOptionMessageQueue.push_back(stickerOptionMessage(stickerAction, stickerOption));
+					/*
 					sendStickerChooseOptionMessage(HOST_INDEX, stickerOption, stickerAction);
 					if (stickerAction == 1)
 					{
@@ -1133,6 +1153,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 						g_ModuleInterface->CallBuiltin("variable_global_get", { "currentStickers" })[stickerOption - 1] = -1;
 						hasRemovedSticker = true;
 					}
+					*/
 				}
 			}
 			else if (gotGoldenAnvil.ToBoolean())
@@ -1295,11 +1316,67 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 
 RValue& ConfirmedPlayerManagerFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	if (hasRemovedSticker)
+	if (!getInstanceVariable(Self, GML_gotSticker).ToBoolean())
 	{
-		g_ModuleInterface->CallBuiltin("array_pop", { g_ModuleInterface->CallBuiltin("variable_global_get", { "removeStickers" }) });
-		hasRemovedSticker = false;
+		bool hasSentStickerMessage = false;
+
+		while (!stickerOptionMessageQueue.empty())
+		{
+			auto& curMessage = stickerOptionMessageQueue.front();
+			sendStickerChooseOptionMessage(HOST_INDEX, curMessage.stickerOption, curMessage.stickerAction);
+			stickerOptionMessageQueue.pop_front();
+			hasSentStickerMessage = true;
+		}
+
+		if (hasSentStickerMessage)
+		{
+			RValue stickerID = getInstanceVariable(Self, GML_stickerID);
+			if (stickerID.ToInt32() != -1 && g_ModuleInterface->CallBuiltin("instance_exists", { stickerID }).ToBoolean())
+			{
+				RValue collectedSticker = g_ModuleInterface->CallBuiltin("variable_global_get", { "collectedSticker" });
+				if (collectedSticker.ToInt32() != -1)
+				{
+					setInstanceVariable(stickerID, GML_stickerData, collectedSticker);
+					setInstanceVariable(stickerID, GML_sprite_index, getInstanceVariable(collectedSticker, GML_optionIcon));
+				}
+			}
+			setInstanceVariable(Self, GML_stickerID, -1);
+		}
 	}
+
+	return ReturnValue;
+}
+
+RValue& ReturnMenuPlayerManagerFuncAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (!getInstanceVariable(Self, GML_gotSticker).ToBoolean())
+	{
+		bool hasSentStickerMessage = false;
+
+		while (!stickerOptionMessageQueue.empty())
+		{
+			auto& curMessage = stickerOptionMessageQueue.front();
+			sendStickerChooseOptionMessage(HOST_INDEX, curMessage.stickerOption, curMessage.stickerAction);
+			stickerOptionMessageQueue.pop_front();
+			hasSentStickerMessage = true;
+		}
+
+		if (hasSentStickerMessage)
+		{
+			RValue stickerID = getInstanceVariable(Self, GML_stickerID);
+			if (stickerID.ToInt32() != -1 && g_ModuleInterface->CallBuiltin("instance_exists", { stickerID }).ToBoolean())
+			{
+				RValue collectedSticker = g_ModuleInterface->CallBuiltin("variable_global_get", { "collectedSticker" });
+				if (collectedSticker.ToInt32() != -1)
+				{
+					setInstanceVariable(stickerID, GML_stickerData, collectedSticker);
+					setInstanceVariable(stickerID, GML_sprite_index, getInstanceVariable(collectedSticker, GML_optionIcon));
+				}
+			}
+			setInstanceVariable(Self, GML_stickerID, -1);
+		}
+	}
+
 	return ReturnValue;
 }
 
@@ -1592,32 +1669,25 @@ RValue& ApplyBuffAttackControllerBefore(CInstance* Self, CInstance* Other, RValu
 		RValue* creator = Args[0];
 		uint32_t playerID = 100000;
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-		if (isInBaseMobOnDeath)
+		if (creator->ToInt32() == objPlayerIndex)
 		{
-			// TODO: Find a good general fix for which player should get the buff
-			callbackManagerInterfacePtr->CancelOriginalFunction();
-			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
-			return ReturnValue;
-		}
-		RValue isPlayer = getInstanceVariable(*creator, GML_isPlayer);
-		if (isPlayer.m_Kind == VALUE_UNDEFINED || isPlayer.m_Kind == VALUE_UNSET)
-		{
-			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
-			return ReturnValue;
-		}
-		if (creator->m_Kind == VALUE_REAL)
-		{
-			/*
-			printf("Applying to first player\n");
-			Args[0] = &playerList[curPlayerIndex];
-			*/
-			// TODO: Find a good general fix for which player should get the buff
-//			callbackManagerInterfacePtr->CancelOriginalFunction();
+			// Assume that the curPlayerID is set correctly in the code called before this
+			// TODO: Check to make sure this doesn't cause any other issues
+			playerID = curPlayerID;
+			LogPrint(LOG_SEVERITY_INFO, "setting playerID to %d creator kind %d", curPlayerID, creator->m_Kind);
 		}
 		else
 		{
+			RValue isPlayer = getInstanceVariable(*creator, GML_isPlayer);
+			if (isPlayer.m_Kind == VALUE_UNDEFINED || isPlayer.m_Kind == VALUE_UNSET)
+			{
+				swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
+				return ReturnValue;
+			}
+
 			playerID = getPlayerID(getInstanceVariable(*creator, GML_id).ToInstance());
 		}
+		
 		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 	}
 	return ReturnValue;
@@ -1831,6 +1901,7 @@ void cleanupPlayerClientData()
 	hasClientPlayerDisconnected.clear();
 	steamIDToClientIDMap.clear();
 	clientIDToSteamIDMap.clear();
+	attackMap.clear();
 	if (isHost)
 	{
 		for (auto& messageQueue : steamIDToConnectionMap)
@@ -2045,6 +2116,15 @@ RValue& HealAfter(CInstance* Self, CInstance* Other, RValue& ReturnValue, int nu
 		uint32_t playerID = getPlayerID(getInstanceVariable(*Args[0], GML_id).ToInstance());
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 		swapPlayerDataPop(playerManagerInstanceVar, attackController);
+	}
+	return ReturnValue;
+}
+
+RValue& RemoveStickerBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected && !isHost)
+	{
+		callbackManagerInterfacePtr->CancelOriginalFunction();
 	}
 	return ReturnValue;
 }
