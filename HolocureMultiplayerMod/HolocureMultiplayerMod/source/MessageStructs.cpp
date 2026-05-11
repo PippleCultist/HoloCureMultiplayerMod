@@ -224,6 +224,19 @@ int messageEliminateLevelUpClientChoice::receiveMessage(uint32_t playerID)
 	return curMessageSize;
 }
 
+int messageHoldLevelUpClientChoice::receiveMessage(uint32_t playerID)
+{
+	int curMessageSize = sizeof(levelUpOption);
+	int result = -1;
+	char receivedLevelUpOption = 0;
+	if ((result = receiveBytesFromPlayer(playerID, &receivedLevelUpOption, curMessageSize)) <= 0)
+	{
+		return result;
+	}
+	levelUpOption = receivedLevelUpOption;
+	return curMessageSize;
+}
+
 int messageCautionCreate::receiveMessage(uint32_t playerID)
 {
 	const int curMessageSize = sizeof(messageCautionCreate);

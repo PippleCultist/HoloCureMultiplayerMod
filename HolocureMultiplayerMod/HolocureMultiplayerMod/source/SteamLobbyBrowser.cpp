@@ -14,6 +14,7 @@ extern bool hasJoinedSteamLobby;
 extern std::thread messageHandlerThread;
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
+extern std::unordered_map<uint64, messageModVersion> modVersionMap;
 extern int numClientsInGame;
 
 inline void strncpy_safe(char* pDest, char const* pSrc, size_t maxLen)
@@ -89,6 +90,7 @@ void CSteamLobbyBrowser::OnLobbyMatchListCallback(LobbyMatchList_t* pCallback, b
 // Occurs whenever there's a change in the lobbies
 void CSteamLobbyBrowser::OnLobbyDataUpdatedCallback(LobbyDataUpdate_t* pCallback)
 {
+	LogPrint(LOG_SEVERITY_INFO, "OnLobbyDataUpdated");
 	CSteamID steamLobbyID = getSteamLobbyID();
 	if (steamLobbyID != pCallback->m_ulSteamIDLobby)
 		return;
@@ -158,6 +160,8 @@ void CSteamLobbyBrowser::OnPersonaStateChange(PersonaStateChange_t* pCallback)
 //-----------------------------------------------------------------------------
 void CSteamLobbyBrowser::OnLobbyChatUpdate(LobbyChatUpdate_t* pCallback)
 {
+	callbackManagerInterfacePtr->LogToFile(MODNAME, "Lobby chat update");
+	printf("Lobby chat update\n");
 	// callbacks are broadcast to all listeners, so we'll get this for every lobby we're requesting
 	CSteamID steamLobbyID = getSteamLobbyID();
 	if (steamLobbyID.ConvertToUint64() != pCallback->m_ulSteamIDLobby)
@@ -212,8 +216,6 @@ void CSteamLobbyBrowser::OnLobbyChatUpdate(LobbyChatUpdate_t* pCallback)
 		}
 	}
 
-	callbackManagerInterfacePtr->LogToFile(MODNAME, "Lobby chat update");
-	printf("Lobby chat update\n");
 	int cLobbyMembers = SteamMatchmaking()->GetNumLobbyMembers(steamLobbyID);
 	m_lobbyMemberList.clear();
 	
@@ -241,7 +243,7 @@ void CSteamLobbyBrowser::OnLobbyChatUpdate(LobbyChatUpdate_t* pCallback)
 //-----------------------------------------------------------------------------
 // Purpose: Finishes up entering a lobby
 //-----------------------------------------------------------------------------
-void CSteamLobbyBrowser::OnLobbyEntered(LobbyEnter_t* pCallback, bool bIOFailure)
+void CSteamLobbyBrowser::OnLobbyEntered(LobbyEnter_t* pCallback)
 {
 
 	if (pCallback->m_EChatRoomEnterResponse != k_EChatRoomEnterResponseSuccess)
@@ -264,7 +266,20 @@ void CSteamLobbyBrowser::OnLobbyEntered(LobbyEnter_t* pCallback, bool bIOFailure
 	SteamNetworkingSockets()->ConnectP2P(identity, 0, 0, nullptr);
 	*/
 	// move forward the state
+	LogPrint(LOG_SEVERITY_INFO, "On lobby entered");
 
+	char messageBuffer[sizeof(steamLobbyMessageType) + sizeof(short) * 3];
+	char* curMessageBufferPtr = messageBuffer;
+	reinterpret_cast<steamLobbyMessageType*>(curMessageBufferPtr)[0] = STEAM_LOBBY_MESSAGE_MOD_VERSION;
+	curMessageBufferPtr += sizeof(steamLobbyMessageType);
+	reinterpret_cast<short*>(curMessageBufferPtr)[0] = MAJOR_VERSION_NUM;
+	curMessageBufferPtr += sizeof(short);
+	reinterpret_cast<short*>(curMessageBufferPtr)[0] = MINOR_VERSION_NUM;
+	curMessageBufferPtr += sizeof(short);
+	reinterpret_cast<short*>(curMessageBufferPtr)[0] = PATCH_VERSION_NUM;
+	curMessageBufferPtr += sizeof(short);
+	// TODO: Figure out what's causing the discrepency between the initial assigned steam lobby id 
+	SteamMatchmaking()->SendLobbyChatMsg(pCallback->m_ulSteamIDLobby, messageBuffer, sizeof(messageBuffer));
 }
 
 // enums for use in 
@@ -452,20 +467,54 @@ void CSteamLobbyBrowser::leaveLobby()
 //-----------------------------------------------------------------------------
 void CSteamLobbyBrowser::OnLobbyChatMessage(LobbyChatMsg_t* pCallback)
 {
-	if (pCallback->m_ulSteamIDLobby != getSteamLobbyID().ConvertToUint64() || isHost)
+	if (pCallback->m_ulSteamIDLobby != getSteamLobbyID().ConvertToUint64())
 	{
 		return;
 	}
-	uint64 receivedSteamID = 0;
-	SteamMatchmaking()->GetLobbyChatEntry(getSteamLobbyID(), pCallback->m_iChatID, nullptr, &receivedSteamID, sizeof(receivedSteamID), nullptr);
-	if (receivedSteamID != SteamUser()->GetSteamID().ConvertToUint64())
+	CSteamID SteamIDUser;
+	char buffer[4096];
+	char* curBufferPtr = buffer;
+	SteamMatchmaking()->GetLobbyChatEntry(getSteamLobbyID(), pCallback->m_iChatID, &SteamIDUser, &buffer, sizeof(buffer), nullptr);
+	steamLobbyMessageType curMessageType = reinterpret_cast<steamLobbyMessageType*>(curBufferPtr)[0];
+	curBufferPtr += sizeof(steamLobbyMessageType);
+
+	switch (curMessageType)
 	{
-		return;
+		case STEAM_LOBBY_MESSAGE_CLIENT_CONNECT:
+		{
+			uint64 receivedSteamID = reinterpret_cast<uint64*>(curBufferPtr)[0];
+			if (receivedSteamID != SteamUser()->GetSteamID().ConvertToUint64())
+			{
+				return;
+			}
+			
+			// TODO: Prompt client to accept the connection
+			// TODO: Need to replace this
+			SteamNetworkingIdentity hostIdentity{};
+			m_steamLobbyHostID = CSteamID(pCallback->m_ulSteamIDUser);
+			hostIdentity.SetSteamID(m_steamLobbyHostID);
+			m_steamLobbyHostConnection = steamConnection(SteamNetworkingSockets()->ConnectP2P(hostIdentity, 0, 0, nullptr));
+			break;
+		}
+		case STEAM_LOBBY_MESSAGE_MOD_VERSION:
+		{
+			// TODO: Need to have the client send its mod version
+			messageModVersion curMessage = messageModVersion();
+			curMessage.majorVersionNum = reinterpret_cast<short*>(curBufferPtr)[0];
+			curBufferPtr += sizeof(short);
+			curMessage.minorVersionNum = reinterpret_cast<short*>(curBufferPtr)[0];
+			curBufferPtr += sizeof(short);
+			curMessage.patchVersionNum = reinterpret_cast<short*>(curBufferPtr)[0];
+			curBufferPtr += sizeof(short);
+			curMessage.steamID = SteamIDUser.ConvertToUint64();
+			
+			modVersionMap[curMessage.steamID] = curMessage;
+			
+			break;
+		}
+		default:
+		{
+			LogPrint(LOG_SEVERITY_ERROR, "Unhandled message type %d buffer %s", curMessageType, buffer);
+		}
 	}
-	// TODO: Prompt client to accept the connection
-	// TODO: Need to replace this
-	SteamNetworkingIdentity hostIdentity{};
-	m_steamLobbyHostID = CSteamID(pCallback->m_ulSteamIDUser);
-	hostIdentity.SetSteamID(m_steamLobbyHostID);
-	m_steamLobbyHostConnection = steamConnection(SteamNetworkingSockets()->ConnectP2P(hostIdentity, 0, 0, nullptr));
 }

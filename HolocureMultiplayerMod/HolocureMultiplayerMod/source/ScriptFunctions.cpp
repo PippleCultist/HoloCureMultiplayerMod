@@ -80,6 +80,9 @@ std::unordered_map<uint32_t, RValue> currentStickersMap;
 std::unordered_map<uint32_t, RValue> charSelectedMap;
 std::unordered_map<uint32_t, RValue> summonMap;
 std::unordered_map<uint32_t, RValue> customDrawScriptMap;
+std::unordered_map<uint32_t, RValue> optionsMap;
+std::unordered_map<uint32_t, RValue> holdingOptionMap;
+std::unordered_map<uint64, messageModVersion> modVersionMap;
 std::unordered_map<uint32_t, int> playerPingMap;
 std::unordered_map<uint32_t, lobbyPlayerData> lobbyPlayerDataMap;
 std::unordered_map<uint32_t, bool> clientUnpausedMap;
@@ -301,6 +304,9 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			summonMap.clear();
 			customDrawScriptMap.clear();
 			curPlayerIDStack.clear();
+			optionsMap.clear();
+			holdingOptionMap.clear();
+			modVersionMap.clear();
 
 			curPlayerIDStack.push_back(0);
 
@@ -376,6 +382,20 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			// Initialize charSelected list
 			charSelectedMap[HOST_INDEX] = prevCharData;
 			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevCharData });
+
+			RValue prevOptionsContainer = g_ModuleInterface->CallBuiltin("array_create", { 1 });
+			RValue prevOptions = getInstanceVariable(Self, GML_options);
+			prevOptionsContainer[0] = prevOptions;
+			// Initialize options list
+			optionsMap[HOST_INDEX] = prevOptionsContainer;
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevOptionsContainer });
+
+			RValue prevHoldingOptionContainer = g_ModuleInterface->CallBuiltin("array_create", { 1 });
+			RValue prevHoldingOption = g_ModuleInterface->CallBuiltin("variable_global_get", { "holdingOption" });
+			prevHoldingOptionContainer[0] = prevHoldingOption;
+			// Initialize holding option list
+			holdingOptionMap[HOST_INDEX] = prevHoldingOptionContainer;
+			g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, prevHoldingOptionContainer });
 
 			RValue prevAttackID = getInstanceVariable(prevCharData, GML_attackID);
 
@@ -462,6 +482,15 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 				RValue newCurrentStickers = g_ModuleInterface->CallBuiltin("array_create", { 3, -1.0 });
 				currentStickersMap[clientID] = newCurrentStickers;
 				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newCurrentStickers });
+
+				RValue newOptionsArr = g_ModuleInterface->CallBuiltin("array_create", { 1 });
+				newOptionsArr[0] = g_ModuleInterface->CallBuiltin("array_create", { 4, -1 });
+				optionsMap[clientID] = newOptionsArr;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newOptionsArr });
+
+				RValue newHoldingOptionContainer = g_ModuleInterface->CallBuiltin("array_create", { 1 });
+				holdingOptionMap[clientID] = newHoldingOptionContainer;
+				g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, newHoldingOptionContainer });
 
 				RValue characterDataMap = g_ModuleInterface->CallBuiltin("variable_global_get", { "characterData" });
 				RValue charData = g_ModuleInterface->CallBuiltin("ds_map_find_value", { characterDataMap, lobbyPlayerDataMap[clientID].charName.c_str() });
@@ -765,7 +794,7 @@ RValue& CreateTakodachiAttackControllerOther14FuncBefore(CInstance* Self, CInsta
 {
 	if (hasConnected && isHost)
 	{
-		// TODO: Should probably send the flag to make takodachi transparent. Maybe just include it in the message struct itself?
+		setInstanceVariable(*Args[0], GML_forceFullDataSend, true);
 	}
 	return ReturnValue;
 }
@@ -856,6 +885,12 @@ void swapPlayerDataHelper(CInstance* playerManagerInstance, RValue attackControl
 		}
 		return;
 	}
+
+	RValue curHoldingOption = g_ModuleInterface->CallBuiltin("variable_global_get", { "holdingOption" });
+	holdingOptionMap[curPlayerID][0] = curHoldingOption;
+	RValue curOptions = getInstanceVariable(playerManagerInstance, GML_options);
+	optionsMap[curPlayerID][0] = curOptions;
+
 	curPlayerID = playerID;
 	setInstanceVariable(playerManagerInstance, GML_playerCharacter, playerMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_weapons, playerWeaponMap[playerID]);
@@ -873,9 +908,11 @@ void swapPlayerDataHelper(CInstance* playerManagerInstance, RValue attackControl
 	setInstanceVariable(playerManagerInstance, GML_customDrawScript, customDrawScriptMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_availableWeaponCollabs, playerAvailableWeaponCollabsMap[playerID]);
 	setInstanceVariable(playerManagerInstance, GML_weaponCollabs, playerWeaponCollabsMap[playerID]);
+	setInstanceVariable(playerManagerInstance, GML_options, optionsMap[playerID][0]);
 	setInstanceVariable(attackController, GML_attackIndex, playerAttackIndexMapMap[playerID]);
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "currentStickers", currentStickersMap[playerID] });
 	g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", charSelectedMap[playerID] });
+	g_ModuleInterface->CallBuiltin("variable_global_set", { "holdingOption", holdingOptionMap[playerID][0] });
 }
 
 void swapPlayerDataPush(CInstance* playerManagerInstance, RValue attackController, uint32_t playerID)
@@ -916,28 +953,14 @@ RValue& LevelUpPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 		}
 		isHostInLevelUp = true;
 		RValue result;
-		RValue options = getInstanceVariable(Self, GML_options);
 		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-
-		RValue prevOptions[4];
-		for (int i = 0; i < 4; i++)
-		{
-			prevOptions[i] = options[i];
-		}
 
 		for (auto& curClientIDMapping : clientIDToSteamIDMap)
 		{
 			uint32_t playerID = curClientIDMapping.first;
 			swapPlayerDataPush(Self, attackController, playerID);
-			origGeneratePossibleOptionsScript(Self, Other, result, 0, nullptr);
-			origOptionOneScript(Self, Other, result, 0, nullptr);
-			options[0] = result;
-			origOptionTwoScript(Self, Other, result, 0, nullptr);
-			options[1] = result;
-			origOptionThreeScript(Self, Other, result, 0, nullptr);
-			options[2] = result;
-			origOptionFourScript(Self, Other, result, 0, nullptr);
-			options[3] = result;
+			origGenerateOptionsScript(Self, Other, result, 0, nullptr);
+			RValue options = getInstanceVariable(Self, GML_options);
 			sendClientLevelUpOptionsMessage(playerID);
 			optionType optionType0 = convertStringOptionTypeToEnum(getInstanceVariable(options[0], GML_optionType));
 			optionType optionType1 = convertStringOptionTypeToEnum(getInstanceVariable(options[1], GML_optionType));
@@ -951,11 +974,6 @@ RValue& LevelUpPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RValue
 			);
 			clientUnpausedMap[playerID] = false;
 			swapPlayerDataPop(Self, attackController);
-		}
-
-		for (int i = 0; i < 4; i++)
-		{
-			options[i] = prevOptions[i];
 		}
 	}
 	return ReturnValue;
@@ -1042,8 +1060,8 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				}
 				RValue levelOptionSelect = getInstanceVariable(Self, GML_levelOptionSelect);
 				char selectedOption = static_cast<char>(lround(levelOptionSelect.ToDouble()));
-				// Run the original eliminate code
-				if (selectedOption == 5)
+				// Run the original eliminate code and hold code
+				if (selectedOption == 5 || selectedOption == 6)
 				{
 					return ReturnValue;
 				}
@@ -1054,11 +1072,20 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					RValue rerollTimes = g_ModuleInterface->CallBuiltin("variable_global_get", { "rerollTimes" });
 					if (static_cast<int>(lround(rerollTimes.ToDouble())) >= 1)
 					{
-						// TODO: Check if the message failed to send
-						sendLevelUpClientChoiceMessage(0, selectedOption);
 						setInstanceVariable(Self, GML_eliminateMode, RValue(false));
 						// TODO: Maybe should wait until an acknowledgement is received from the host before reducing the count (low priority)
 						g_ModuleInterface->CallBuiltin("variable_global_set", { "rerollTimes", rerollTimes.ToDouble() - 1 });
+						// Get around the paused check for handle level up
+						setInstanceVariable(Self, GML_paused, RValue(false));
+						setInstanceVariable(Self, GML_leveled, RValue(false));
+						setInstanceVariable(Self, GML_controlsFree, RValue(false));
+						setInstanceVariable(playerMap[clientID], GML_canControl, RValue(true));
+						isClientPaused = false;
+						// TODO: Something is crashing on the host side when client holds. Not necessarily enchants
+						// TODO: Can't replicate. Look into this later
+						g_ModuleInterface->CallBuiltin("variable_global_set", { "holdingOption", -1 });
+						// TODO: Check if the message failed to send
+						sendLevelUpClientChoiceMessage(0, selectedOption);
 						callbackManagerInterfacePtr->CancelOriginalFunction();
 					}
 					return ReturnValue;
@@ -1085,6 +1112,27 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					return ReturnValue;
 				}
 
+				RValue holdMode = getInstanceVariable(Self, GML_holdMode);
+				if (holdMode.ToBoolean())
+				{
+					// TODO: Make sure that the player can't select an upgrade on the same menu after rerolling to get a free upgrade
+					// TODO: Probably should have a finished leveling up variable to prevent multiple level up options
+					RValue options = getInstanceVariable(Self, GML_options);
+					optionType levelUpType = convertStringOptionTypeToEnum(getInstanceVariable(options[selectedOption], GML_optionType));
+					if (levelUpType == optionType_Consumable)
+					{
+						callbackManagerInterfacePtr->CancelOriginalFunction();
+						return ReturnValue;
+					}
+					RValue holdingOption = g_ModuleInterface->CallBuiltin("variable_global_get", { "holdingOption" });
+					if (holdingOption.m_Kind == VALUE_OBJECT)
+					{
+						setInstanceVariable(holdingOption, GML_holdingOption, false);
+					}
+					sendHoldLevelUpClientChoiceMessage(HOST_INDEX, selectedOption);
+					return ReturnValue;
+				}
+
 				RValue options = getInstanceVariable(Self, GML_options);
 				if (getInstanceVariable(options[selectedOption], GML_optionName).ToString().empty())
 				{
@@ -1102,7 +1150,13 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 					getInstanceVariable(options[selectedOption], GML_optionID)
 				);
 				processLevelUp(levelUpData, Self);
+				RValue holdingOption = g_ModuleInterface->CallBuiltin("variable_global_get", { "holdingOption" });
+				if (holdingOption.m_Kind == VALUE_OBJECT)
+				{
+					setInstanceVariable(holdingOption, GML_holdingOption, false);
+				}
 
+				g_ModuleInterface->CallBuiltin("variable_global_set", { "holdingOption", -1 });
 				RValue playerManager = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 });
 				setInstanceVariable(playerManager, GML_paused, RValue(false));
 				setInstanceVariable(playerManager, GML_leveled, RValue(false));
@@ -1141,19 +1195,7 @@ RValue& ConfirmedPlayerManagerFuncBefore(CInstance* Self, CInstance* Other, RVal
 				{
 					int stickerAction = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerAction).ToDouble()));
 					int stickerOption = static_cast<int>(lround(getInstanceVariable(Self, GML_stickerOption).ToDouble()));
-					// TODO: Change this so that it only sends the remove message once the stamp menu is closed
-					// TODO: Also, should do something about swapping the sticker sprite when it swaps the sticker. Idk if it's possible to do it locally though
-//#pragma message(__FILE__ "(" STRING(__LINE__) ") Need to figure out how to get this working when the host is paused and unpaused")
 					stickerOptionMessageQueue.push_back(stickerOptionMessage(stickerAction, stickerOption));
-					/*
-					sendStickerChooseOptionMessage(HOST_INDEX, stickerOption, stickerAction);
-					if (stickerAction == 1)
-					{
-						// Remove the sticker locally since it will be recreated on the host side
-						g_ModuleInterface->CallBuiltin("variable_global_get", { "currentStickers" })[stickerOption - 1] = -1;
-						hasRemovedSticker = true;
-					}
-					*/
 				}
 			}
 			else if (gotGoldenAnvil.ToBoolean())
@@ -1854,6 +1896,9 @@ void cleanupPlayerGameData()
 	lastTimeReceivedMoveDataMap.clear();
 	summonMap.clear();
 	customDrawScriptMap.clear();
+	optionsMap.clear();
+	holdingOptionMap.clear();
+	modVersionMap.clear();
 
 	instanceToIDMap.clear();
 	pickupableToIDMap.clear();
@@ -1942,8 +1987,10 @@ RValue& ReturnMenuTitleScreenBefore(CInstance* Self, CInstance* Other, RValue& R
 
 RValue& ReturnCharSelectCreateBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
-	// TODO: Don't cancel the return if it's not in the mod lobby
-	callbackManagerInterfacePtr->CancelOriginalFunction();
+	if (hasConnected)
+	{
+		callbackManagerInterfacePtr->CancelOriginalFunction();
+	}
 	return ReturnValue;
 }
 
@@ -2011,6 +2058,8 @@ RValue& OnDeathBaseMobCreateAfter(CInstance* Self, CInstance* Other, RValue& Ret
 	return ReturnValue;
 }
 
+bool inAddPerkPlayerManagerOther = false;
+
 RValue& UpdatePlayerPlayerManagerOtherBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
 {
 	if (hasConnected)
@@ -2021,8 +2070,41 @@ RValue& UpdatePlayerPlayerManagerOtherBefore(CInstance* Self, CInstance* Other, 
 		}
 		else
 		{
-			
+			if (inAddPerkPlayerManagerOther)
+			{
+				auto curSummon = summonMap[curPlayerID];
+				if (curSummon.m_Kind == VALUE_UNDEFINED)
+				{
+					RValue playerManager = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 });
+					RValue playerSummon = getInstanceVariable(playerManager, GML_playerSummon);
+					if (playerSummon.m_Kind == VALUE_OBJECT || playerSummon.m_Kind == VALUE_REF)
+					{
+						summonMap[curPlayerID] = playerSummon;
+					}
+					else if (playerSummon.m_Kind == VALUE_ARRAY)
+					{
+						// Add array to some keep alive array
+						RValue keepAliveArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "keepAliveArr" });
+						g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, playerSummon });
+						summonMap[curPlayerID] = playerSummon;
+					}
+					else
+					{
+						// Seems like the host couldn't find the summon?
+	//					DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't find player summon %d", playerSummon.m_Kind);
+					}
+				}
+			}
 		}
+	}
+	return ReturnValue;
+}
+
+RValue& AddPerkPlayerManagerOtherBefore(CInstance* Self, CInstance* Other, RValue& ReturnValue, int numArgs, RValue** Args)
+{
+	if (hasConnected && isHost)
+	{
+		inAddPerkPlayerManagerOther = true;
 	}
 	return ReturnValue;
 }
@@ -2033,28 +2115,7 @@ RValue& AddPerkPlayerManagerOtherAfter(CInstance* Self, CInstance* Other, RValue
 	{
 		if (isHost)
 		{
-			auto curSummon = summonMap[curPlayerID];
-			if (curSummon.m_Kind == VALUE_UNDEFINED)
-			{
-				RValue playerManager = g_ModuleInterface->CallBuiltin("instance_find", { objPlayerManagerIndex, 0 });
-				RValue playerSummon = getInstanceVariable(playerManager, GML_playerSummon);
-				if (playerSummon.m_Kind == VALUE_OBJECT || playerSummon.m_Kind == VALUE_REF)
-				{
-					summonMap[curPlayerID] = playerSummon;
-				}
-				else if (playerSummon.m_Kind == VALUE_ARRAY)
-				{
-					// Add array to some keep alive array
-					RValue keepAliveArr = g_ModuleInterface->CallBuiltin("variable_global_get", { "keepAliveArr" });
-					g_ModuleInterface->CallBuiltin("array_push", { keepAliveArr, playerSummon });
-					summonMap[curPlayerID] = playerSummon;
-				}
-				else
-				{
-					// Seems like the host couldn't find the summon?
-//					DbgPrintEx(LOG_SEVERITY_ERROR, "Couldn't find player summon %d", playerSummon.m_Kind);
-				}
-			}
+			inAddPerkPlayerManagerOther = false;
 		}
 	}
 	return ReturnValue;

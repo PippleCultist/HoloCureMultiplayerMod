@@ -98,7 +98,7 @@ void InstanceExistsBefore(RValue& Result, CInstance* Self, CInstance* Other, int
 	{
 		if (isHost)
 		{
-			if ((Args[0].m_Kind == VALUE_REAL || Args[0].m_Kind == VALUE_REF) && abs(Args[0].ToDouble() - objSummonIndex) < 1e-3)
+			if ((Args[0].m_Kind == VALUE_REAL || Args[0].m_Kind == VALUE_REF) && Args[0].ToInt32() == objSummonIndex)
 			{
 				// Apparently the instance_exists in the OnApply code for summoning stuff is there to prevent the summon from being summoned again if the perk remained at level 1
 				// Need to do a check to make sure it hasn't run before to prevent the summon from being created multiple times

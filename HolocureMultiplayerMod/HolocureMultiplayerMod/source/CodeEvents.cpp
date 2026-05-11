@@ -385,6 +385,7 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 			handleStickerChooseOptionMessage();
 			handleChooseCollabMessage();
 			handleLevelUpClientChoiceMessage();
+			handleHoldLevelUpClientChoiceMessage();
 			for (auto& curClientIDMapping : clientIDToSteamIDMap)
 			{
 				uint32_t clientPlayerID = curClientIDMapping.first;
@@ -475,10 +476,26 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 
 void instanceSendMessage(CInstance* Self)
 {
+	// TODO: Find a way to not need every instance to query this variable to reduce potential lag
+	RValue forceFullDataSend = getInstanceVariable(Self, GML_forceFullDataSend);
 	auto mapInstance = instanceToIDMap.find(Self);
-	if (mapInstance == instanceToIDMap.end())
+	if (mapInstance == instanceToIDMap.end() || forceFullDataSend.ToBoolean())
 	{
-		int instanceID = availableInstanceIDs.front();
+		int instanceID = -1;
+		if (mapInstance == instanceToIDMap.end())
+		{
+			instanceID = availableInstanceIDs.front();
+		}
+		else
+		{
+			instanceID = mapInstance->second.instanceID;
+		}
+
+		if (forceFullDataSend.ToBoolean())
+		{
+			setInstanceVariable(Self, GML_forceFullDataSend, false);
+		}
+		
 		float xPos = static_cast<float>(getInstanceVariable(Self, GML_x).ToDouble());
 		float yPos = static_cast<float>(getInstanceVariable(Self, GML_y).ToDouble());
 		float imageXScale = static_cast<float>(getInstanceVariable(Self, GML_image_xscale).ToDouble());
@@ -486,6 +503,7 @@ void instanceSendMessage(CInstance* Self)
 		// Probably should change this to uint16_t
 		short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).ToDouble()));
 		char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).ToDouble());
+		bool transparent = getInstanceVariable(Self, GML_transparent).ToBoolean();
 		// seems like there's something that doesn't have a sprite at the beginning? Not sure what it is
 		// Maybe it's the additional player I created?
 		// temp code to just make it work for now
@@ -493,7 +511,7 @@ void instanceSendMessage(CInstance* Self)
 		{
 			spriteIndex = 0;
 		}
-		instanceData data(xPos, yPos, 0, 0, imageXScale, imageYScale, spriteIndex, instanceID, truncatedImageIndex, 0, 1);
+		instanceData data(xPos, yPos, 0, 0, imageXScale, imageYScale, spriteIndex, instanceID, truncatedImageIndex, 0, 1, transparent);
 		instanceToIDMap[Self] = data;
 		//			if (spriteIndex >= 0)
 		{
@@ -515,6 +533,7 @@ void instanceSendMessage(CInstance* Self)
 		// Probably should change this to uint16_t
 		short spriteIndex = static_cast<short>(lround(getInstanceVariable(Self, GML_sprite_index).ToDouble()));
 		char truncatedImageIndex = static_cast<char>(getInstanceVariable(Self, GML_image_index).ToDouble());
+		// TODO: Maybe find a way to avoid needing to set a new bit in the hasChangedVar for transparency since it barely changes
 		char hasVarChanged = 0;
 		instanceData prevData = mapInstance->second;
 		// Mark dirty bits if anything has changed
@@ -539,7 +558,7 @@ void instanceSendMessage(CInstance* Self)
 		{
 			setBitInByte(hasVarChanged, 4);
 		}
-		instanceData data(xPos, yPos, static_cast<short>((xPos - prevData.xPos) * 10.0), static_cast<short>((yPos - prevData.yPos) * 10.0), imageXScale, imageYScale, spriteIndex, prevData.instanceID, truncatedImageIndex, hasVarChanged, prevData.frameCount + 1);
+		instanceData data(xPos, yPos, static_cast<short>((xPos - prevData.xPos) * 10.0), static_cast<short>((yPos - prevData.yPos) * 10.0), imageXScale, imageYScale, spriteIndex, prevData.instanceID, truncatedImageIndex, hasVarChanged, prevData.frameCount + 1, false);
 		instanceToIDMap[Self] = data;
 		instancesUpdateMessage.addInstance(data);
 		if (instancesUpdateMessage.numInstances >= instanceUpdateDataLen)

@@ -6,6 +6,12 @@
 #include <Windows.h>
 #include <vector>
 
+enum steamLobbyMessageType
+{
+	STEAM_LOBBY_MESSAGE_CLIENT_CONNECT = 0,
+	STEAM_LOBBY_MESSAGE_MOD_VERSION,
+};
+
 // an item in the list of lobbies we've found to display
 struct Lobby_t
 {
@@ -63,4 +69,6 @@ private:
 	STEAM_CALLBACK(CSteamLobbyBrowser, OnGameLobbyJoinRequested, GameLobbyJoinRequested_t);
 
 	STEAM_CALLBACK(CSteamLobbyBrowser, OnLobbyChatMessage, LobbyChatMsg_t);
+
+	STEAM_CALLBACK(CSteamLobbyBrowser, OnLobbyEntered, LobbyEnter_t);
 };

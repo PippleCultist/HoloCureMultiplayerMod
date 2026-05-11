@@ -17,6 +17,7 @@ extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
 extern double foodMultiplier;
 extern bool isClientLeavingGame;
+extern bool inAddPerkPlayerManagerOther;
 
 messageInstancesCreate instancesCreateMessage;
 messageInstancesUpdate instancesUpdateMessage;
@@ -163,6 +164,12 @@ bool receivedHostHasUnpaused = false;
 std::binary_semaphore kaelaOreAmountQueueLock(1);
 std::queue<messageKaelaOreAmount> kaelaOreAmountQueue;
 
+std::binary_semaphore holdLevelUpClientChoiceMessageQueueLock(1);
+std::queue<messageHoldLevelUpClientChoice> holdLevelUpClientChoiceMessageQueue;
+
+std::binary_semaphore modVersionMessageQueueLock(1);
+std::queue<messageModVersion> modVersionMessageQueue;
+
 // Message handler should probably only handle receiving messages. Let the sending be handled somewhere else
 
 void clientReceiveMessageHandler()
@@ -247,7 +254,9 @@ void processLevelUp(levelUpPausedData& levelUpData, CInstance* playerManagerInst
 		{
 			RValue** args = new RValue*[1];
 			args[0] = &levelUpName;
+			inAddPerkPlayerManagerOther = true;
 			origAddPerkScript(playerManagerInstance, nullptr, returnVal, 1, args);
+			inAddPerkPlayerManagerOther = false;
 			if (isHost)
 			{
 				auto curSummon = summonMap[curPlayerID];
@@ -835,14 +844,32 @@ void handleInstanceCreateMessage()
 		g_ModuleInterface->CallBuiltin("variable_global_set", { "reflection", false });
 		for (int i = 0; i < curInstances.numInstances; i++)
 		{
+			// TODO: There is a potential issue where if an ID is reused to create before the instance is deleted, it could possibly mess up some stuff.
 			instanceData curData = curInstances.data[i];
-			RValue createdInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, -curData.yPos, objBaseMobIndex });
-			setInstanceVariable(createdInstance, GML_image_xscale, RValue(curData.imageXScale));
-			setInstanceVariable(createdInstance, GML_image_yscale, RValue(curData.imageYScale));
-			setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
-			setInstanceVariable(createdInstance, GML_completeStop, RValue(true));
-			setInstanceVariable(createdInstance, GML_image_speed, RValue(0));
-			instanceArr[curData.instanceID] = createdInstance;
+			if (instanceArr[curData.instanceID].m_Kind == VALUE_UNDEFINED)
+			{
+				RValue createdInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, -curData.yPos, objBaseMobIndex });
+				setInstanceVariable(createdInstance, GML_image_xscale, RValue(curData.imageXScale));
+				setInstanceVariable(createdInstance, GML_image_yscale, RValue(curData.imageYScale));
+				setInstanceVariable(createdInstance, GML_sprite_index, RValue(curData.spriteIndex));
+				setInstanceVariable(createdInstance, GML_completeStop, RValue(true));
+				setInstanceVariable(createdInstance, GML_image_speed, RValue(0));
+				setInstanceVariable(createdInstance, GML_transparent, curData.transparent);
+				instanceArr[curData.instanceID] = createdInstance;
+			}
+			else
+			{
+				RValue& curInstance = instanceArr[curData.instanceID];
+				setInstanceVariable(curInstance, GML_x, curData.xPos);
+				setInstanceVariable(curInstance, GML_y, curData.yPos);
+				setInstanceVariable(curInstance, GML_image_xscale, RValue(curData.imageXScale));
+				setInstanceVariable(curInstance, GML_image_xscale, RValue(curData.imageXScale));
+				setInstanceVariable(curInstance, GML_image_yscale, RValue(curData.imageYScale));
+				setInstanceVariable(curInstance, GML_sprite_index, RValue(curData.spriteIndex));
+				setInstanceVariable(curInstance, GML_completeStop, RValue(true));
+				setInstanceVariable(curInstance, GML_image_speed, RValue(0));
+				setInstanceVariable(curInstance, GML_transparent, curData.transparent);
+			}
 		}
 
 	} while (true);
@@ -909,6 +936,7 @@ void handleInstanceUpdateMessage()
 			{
 				setInstanceVariable(instance, GML_sprite_index, RValue(curData.spriteIndex));
 			}
+
 			setInstanceVariable(instance, GML_image_index, RValue(curData.truncatedImageIndex));
 		}
 
@@ -1512,6 +1540,7 @@ void handleLevelUpOptionsMessage(CInstance* playerManager)
 		for (int i = 0; i < 4; i++)
 		{
 			levelUpOption curOption = curMessage.optionArr[i];
+			g_ModuleInterface->CallBuiltin("struct_remove", { options[i], "holdingOption" });
 			setInstanceVariable(options[i], GML_optionIcon, RValue(curOption.optionIcon));
 			setInstanceVariable(options[i], GML_optionType, RValue(curOption.optionType));
 			setInstanceVariable(options[i], GML_optionName, RValue(curOption.optionName));
@@ -1662,12 +1691,7 @@ void handleLevelUpClientChoiceMessage()
 		{
 			RValue result;
 			RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
-			RValue options = getInstanceVariable(playerManagerInstanceVar, GML_options);
-			RValue prevOptions[4];
-			for (int i = 0; i < 4; i++)
-			{
-				prevOptions[i] = options[i];
-			}
+
 			swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 
 			// Add to reroll container to decrease the chance of skipped upgrades
@@ -1690,15 +1714,8 @@ void handleLevelUpClientChoiceMessage()
 				}
 			}
 
-			origGeneratePossibleOptionsScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-			origOptionOneScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-			options[0] = result;
-			origOptionTwoScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-			options[1] = result;
-			origOptionThreeScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-			options[2] = result;
-			origOptionFourScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
-			options[3] = result;
+			origGenerateOptionsScript(playerManagerInstanceVar, nullptr, result, 0, nullptr);
+			RValue options = getInstanceVariable(playerManagerInstanceVar, GML_options);
 			sendClientLevelUpOptionsMessage(playerID);
 			optionType optionType0 = convertStringOptionTypeToEnum(getInstanceVariable(options[0], GML_optionType));
 			optionType optionType1 = convertStringOptionTypeToEnum(getInstanceVariable(options[1], GML_optionType));
@@ -1711,10 +1728,6 @@ void handleLevelUpClientChoiceMessage()
 				std::make_pair(optionType3, std::string(getInstanceVariable(options[3], GML_optionID).ToString()))
 			);
 
-			for (int i = 0; i < 4; i++)
-			{
-				options[i] = prevOptions[i];
-			}
 			swapPlayerDataPop(playerManagerInstanceVar, attackController);
 		}
 	} while (true);
@@ -3047,6 +3060,44 @@ void handleKaelaOreAmount()
 	} while (true);
 }
 
+int receiveHoldLevelUpClientChoiceMessage(uint32_t playerID)
+{
+	messageHoldLevelUpClientChoice curMessage = messageHoldLevelUpClientChoice();
+	curMessage.m_playerID = playerID;
+	int curMessageLen = curMessage.receiveMessage(playerID);
+	holdLevelUpClientChoiceMessageQueueLock.acquire();
+	holdLevelUpClientChoiceMessageQueue.push(curMessage);
+	holdLevelUpClientChoiceMessageQueueLock.release();
+
+	return curMessageLen;
+}
+
+void handleHoldLevelUpClientChoiceMessage()
+{
+	do
+	{
+		holdLevelUpClientChoiceMessageQueueLock.acquire();
+		if (holdLevelUpClientChoiceMessageQueue.empty())
+		{
+			holdLevelUpClientChoiceMessageQueueLock.release();
+			break;
+		}
+		messageHoldLevelUpClientChoice curMessage = holdLevelUpClientChoiceMessageQueue.front();
+		holdLevelUpClientChoiceMessageQueue.pop();
+		holdLevelUpClientChoiceMessageQueueLock.release();
+
+		uint32_t playerID = curMessage.m_playerID;
+		int levelUpOption = curMessage.levelUpOption;
+		RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
+
+		RValue options = getInstanceVariable(playerManagerInstanceVar, GML_options);
+
+		swapPlayerDataPop(playerManagerInstanceVar, attackController);
+	} while (true);
+}
+
 int receiveMessage(uint32_t playerID)
 {
 	const int messageTypeLen = 1;
@@ -3241,6 +3292,10 @@ int receiveMessage(uint32_t playerID)
 		case MESSAGE_KAELA_ORE_AMOUNT:
 		{
 			return receiveKaelaOreAmount(playerID);
+		}
+		case MESSAGE_HOLD_LEVEL_UP_CLIENT_CHOICE:
+		{
+			return receiveHoldLevelUpClientChoiceMessage(playerID);
 		}
 	}
 	DbgPrintEx(LOG_SEVERITY_ERROR, "Unknown message type received %d", messageType[0]);
@@ -4056,6 +4111,17 @@ int sendAllHostHasUnpausedMessage()
 int sendKaelaOreAmountMessage(uint32_t playerID, short oreA, short oreB, short oreC)
 {
 	messageKaelaOreAmount curMessage = messageKaelaOreAmount(oreA, oreB, oreC);
+	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
+	char* messageBuffer = new char[messageBufferLen];
+	curMessage.serialize(messageBuffer);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
+	delete[] messageBuffer;
+	return sentLen;
+}
+
+int sendHoldLevelUpClientChoiceMessage(uint32_t playerID, char levelUpOption)
+{
+	messageHoldLevelUpClientChoice curMessage = messageHoldLevelUpClientChoice(levelUpOption);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);

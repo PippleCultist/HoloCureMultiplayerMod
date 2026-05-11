@@ -1,5 +1,6 @@
 #pragma once
 #include "ModuleMain.h"
+#include "steam/steamtypes.h"
 
 enum MessageTypes : char
 {
@@ -49,6 +50,7 @@ enum MessageTypes : char
 	MESSAGE_HOST_HAS_PAUSED,
 	MESSAGE_HOST_HAS_UNPAUSED,
 	MESSAGE_KAELA_ORE_AMOUNT,
+	MESSAGE_HOLD_LEVEL_UP_CLIENT_CHOICE,
 	MESSAGE_INVALID
 };
 
@@ -156,14 +158,15 @@ struct instanceData
 	char truncatedImageIndex;
 	char hasVarChanged;
 	int frameCount;
+	char transparent;
 
-	instanceData() : xPos(0), yPos(0), xPosDiff(0), yPosDiff(0), imageXScale(0), imageYScale(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0), hasVarChanged(0), frameCount(1)
+	instanceData() : xPos(0), yPos(0), xPosDiff(0), yPosDiff(0), imageXScale(0), imageYScale(0), spriteIndex(0), instanceID(0), truncatedImageIndex(0), hasVarChanged(0), frameCount(1), transparent(false)
 	{
 	}
 
-	instanceData(float xPos, float yPos, short xPosDiff, short yPosDiff, float imageXScale, float imageYScale, short spriteIndex, short instanceID, char truncatedImageIndex, char hasVarChanged, int frameCount) :
+	instanceData(float xPos, float yPos, short xPosDiff, short yPosDiff, float imageXScale, float imageYScale, short spriteIndex, short instanceID, char truncatedImageIndex, char hasVarChanged, int frameCount, bool transparent) :
 		xPos(xPos), yPos(yPos), xPosDiff(xPosDiff), yPosDiff(yPosDiff), imageXScale(imageXScale), imageYScale(imageYScale), spriteIndex(spriteIndex),
-		instanceID(instanceID), truncatedImageIndex(truncatedImageIndex), hasVarChanged(hasVarChanged), frameCount(frameCount)
+		instanceID(instanceID), truncatedImageIndex(truncatedImageIndex), hasVarChanged(hasVarChanged), frameCount(frameCount), transparent(transparent)
 	{
 	}
 };
@@ -191,6 +194,7 @@ struct messageInstancesCreate
 			readByteBufferToShort(&data[i].spriteIndex, messageBuffer, startBufferPos);
 			readByteBufferToShort(&data[i].instanceID, messageBuffer, startBufferPos);
 			readByteBufferToChar(&data[i].truncatedImageIndex, messageBuffer, startBufferPos);
+			readByteBufferToChar(&data[i].transparent, messageBuffer, startBufferPos);
 		}
 	}
 
@@ -215,6 +219,7 @@ struct messageInstancesCreate
 			writeShortToByteBuffer(messageBuffer, data[i].spriteIndex, startBufferPos);
 			writeShortToByteBuffer(messageBuffer, data[i].instanceID, startBufferPos);
 			writeCharToByteBuffer(messageBuffer, data[i].truncatedImageIndex, startBufferPos);
+			writeCharToByteBuffer(messageBuffer, data[i].transparent, startBufferPos);
 		}
 	}
 };
@@ -222,11 +227,11 @@ struct messageInstancesCreate
 const int instanceUpdateDataLen = 20;
 
 // hasVarChanged
-// byte 0 - has position changed
-// byte 1 - is position update a diff or exact (0 = diff) (1 = exact)
-// byte 2 - is diff using byte or short (0 = byte) (1 = short)
-// byte 3 - has image scale changed
-// byte 4 - has sprite index changed
+// bit 0 - has position changed
+// bit 1 - is position update a diff or exact (0 = diff) (1 = exact)
+// bit 2 - is diff using byte or short (0 = byte) (1 = short)
+// bit 3 - has image scale changed
+// bit 4 - has sprite index changed
 struct messageInstancesUpdate
 {
 	instanceData data[instanceUpdateDataLen]{};
@@ -1153,6 +1158,39 @@ struct messageEliminateLevelUpClientChoice
 	}
 };
 
+struct messageHoldLevelUpClientChoice
+{
+	uint32_t m_playerID;
+	char levelUpOption;
+
+	messageHoldLevelUpClientChoice() : m_playerID(0), levelUpOption(0)
+	{
+	}
+
+	messageHoldLevelUpClientChoice(char levelUpOption) : m_playerID(0), levelUpOption(levelUpOption)
+	{
+	}
+
+	int receiveMessage(uint32_t playerID);
+
+	void serialize(char* messageBuffer)
+	{
+		size_t curBufferPos = 0;
+		messageBuffer[curBufferPos] = MESSAGE_HOLD_LEVEL_UP_CLIENT_CHOICE;
+		curBufferPos++;
+		messageBuffer[curBufferPos] = levelUpOption;
+		curBufferPos++;
+	}
+
+	size_t getMessageSize()
+	{
+		size_t curMessageSize = 0;
+		curMessageSize++;
+		curMessageSize++;
+		return curMessageSize;
+	}
+};
+
 struct messageClientSpecialAttack
 {
 	void serialize(char* messageBuffer)
@@ -2021,5 +2059,21 @@ struct messageKaelaOreAmount
 		curMessageSize += 2;
 		curMessageSize += 2;
 		return curMessageSize;
+	}
+};
+
+struct messageModVersion
+{
+	uint64 steamID;
+	short majorVersionNum;
+	short minorVersionNum;
+	short patchVersionNum;
+
+	messageModVersion() : majorVersionNum(0), minorVersionNum(0), patchVersionNum(0), steamID(0)
+	{
+	}
+
+	messageModVersion(short majorVersionNum, short minorVersionNum, short patchVersionNum) : majorVersionNum(majorVersionNum), minorVersionNum(minorVersionNum), patchVersionNum(patchVersionNum), steamID(0)
+	{
 	}
 };

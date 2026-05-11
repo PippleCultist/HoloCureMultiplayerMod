@@ -2,13 +2,17 @@
 #include <YYToolkit/YYTK_Shared.hpp>
 #include <CallbackManager/CallbackManagerInterface.h>
 
-#define VERSION_NUM "v1.3.3"
-#define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
-#define BROADCAST_PORT "27015"
-#define GAME_PORT "27016"
+#define MAJOR_VERSION_NUM 1
+#define MINOR_VERSION_NUM 3
+#define PATCH_VERSION_NUM 4
 
 #define STRING2(x) #x
 #define STRING(x) STRING2(x)
+
+#define VERSION_NUM "v" STRING(MAJOR_VERSION_NUM) "." STRING(MINOR_VERSION_NUM) "." STRING(PATCH_VERSION_NUM)
+#define MODNAME "Holocure Multiplayer Mod " VERSION_NUM 
+#define BROADCAST_PORT "27015"
+#define GAME_PORT "27016"
 
 #define SOME_ENUM(DO) \
 	DO(x) \
@@ -213,6 +217,9 @@
 	DO(stageIDName) \
 	DO(onCreate) \
 	DO(onDeath) \
+	DO(holdMode) \
+	DO(holdingOption) \
+	DO(forceFullDataSend) \
 
 #define MAKE_ENUM(VAR) GML_ ## VAR,
 enum VariableNames
@@ -249,11 +256,6 @@ extern PFUNC_YYGMLScript origInputPlayerConnectedCountScript;
 extern PFUNC_YYGMLScript origInputSourceGetArrayScript;
 extern PFUNC_YYGMLScript origInputSourceDetectNewScript;
 extern PFUNC_YYGMLScript origInputGamepadIsConnectedScript;
-extern PFUNC_YYGMLScript origGeneratePossibleOptionsScript;
-extern PFUNC_YYGMLScript origOptionOneScript;
-extern PFUNC_YYGMLScript origOptionTwoScript;
-extern PFUNC_YYGMLScript origOptionThreeScript;
-extern PFUNC_YYGMLScript origOptionFourScript;
 extern PFUNC_YYGMLScript origUnpauseScript;
 extern PFUNC_YYGMLScript origAddPerkScript;
 extern PFUNC_YYGMLScript origAddItemScript;
@@ -277,6 +279,7 @@ extern PFUNC_YYGMLScript origAddEnchantScript;
 extern PFUNC_YYGMLScript origAddCollabScript;
 extern PFUNC_YYGMLScript origAddSuperCollabScript;
 extern PFUNC_YYGMLScript origMouseOverButtonScript;
+extern PFUNC_YYGMLScript origGenerateOptionsScript;
 extern CInstance* globalInstance;
 extern int objPlayerIndex;
 extern int objBaseMobIndex;

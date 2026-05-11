@@ -57,7 +57,22 @@ CSteamHost::CSteamHost(bool isNewLobby)
 	memset(&m_rgPendingClientData, 0, sizeof(m_rgPendingClientData));
 	if (SteamNetworkingSockets())
 	{
-		printf("relay network status: %d\n", SteamNetworkingUtils()->GetRelayNetworkStatus(nullptr));
+		int numRetries = 0;
+		auto curRelayNetworkStatus = SteamNetworkingUtils()->GetRelayNetworkStatus(nullptr);
+		while (curRelayNetworkStatus != k_ESteamNetworkingAvailability_Current)
+		{
+			SteamNetworkingUtils()->InitRelayNetworkAccess();
+			LogPrint(LOG_SEVERITY_WARNING, "Steam relay network hasn't connected yet status: %d\n", curRelayNetworkStatus);
+			std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+			curRelayNetworkStatus = SteamNetworkingUtils()->GetRelayNetworkStatus(nullptr);
+			if (curRelayNetworkStatus != k_ESteamNetworkingAvailability_Current && numRetries > 12)
+			{
+				LogPrint(LOG_SEVERITY_ERROR, "Steam relay network hasn't connected after a minute of retrying. Please check your connection and try again.");
+				break;
+			}
+			numRetries++;
+		}
+		
 		// create the listen socket for listening for players connecting
 
 		m_hListenSocket = SteamNetworkingSockets()->CreateListenSocketP2P(0, 0, nullptr);

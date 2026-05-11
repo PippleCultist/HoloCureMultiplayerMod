@@ -21,6 +21,7 @@ extern int numClientsInGame;
 extern CSteamID curSelectedSteamID;
 extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::thread messageHandlerThread;
+extern std::unordered_map<uint64, messageModVersion> modVersionMap;
 
 std::shared_ptr<menuData> multiplayerMenuUseSavedNetworkAdapter(new menuDataButton(440, 104 + 29 * 0, 180, 29, "MULTIPLAYERMENU_UseSavedNetworkAdapter", "Use saved network adapter", true, clickUseSavedNetworkAdapter, nullptr));
 std::shared_ptr<menuData> multiplayerMenuSelectNetworkAdapter(new menuDataButton(440, 104 + 29 * 1, 180, 29, "MULTIPLAYERMENU_SelectNetworkAdapter", "Select network adapter", true, clickSelectNetworkAdapter, nullptr));
@@ -644,7 +645,7 @@ void clickLobbySteamPlayerInvite()
 {
 	if (!curSelectedSteamID.IsValid())
 	{
-		DbgPrintEx(LOG_SEVERITY_ERROR, "Steam ID isn't valid");
+		LogPrint(LOG_SEVERITY_ERROR, "Steam ID isn't valid");
 		return;
 	}
 	std::shared_ptr<menuData> selectedMenuData;
@@ -658,13 +659,27 @@ void clickLobbySteamPlayerInvite()
 			break;
 		}
 	}
+	
+	uint64 inviteeSteamID = curSelectedSteamID.ConvertToUint64();
+	auto& lobbyPlayerVersion = modVersionMap[inviteeSteamID];
+	if (lobbyPlayerVersion.majorVersionNum != MAJOR_VERSION_NUM || lobbyPlayerVersion.minorVersionNum != MINOR_VERSION_NUM || lobbyPlayerVersion.patchVersionNum != PATCH_VERSION_NUM)
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "lobby player %d version %d.%d.%d doesn't match own version %d.%d.%d", selectedSteamPlayerInviteIndex, lobbyPlayerVersion.majorVersionNum, lobbyPlayerVersion.minorVersionNum, lobbyPlayerVersion.patchVersionNum, MAJOR_VERSION_NUM, MINOR_VERSION_NUM, PATCH_VERSION_NUM);
+		return;
+	}
 	// TODO: Can probably have a better way to disable buttons
 	lobbyMenuLobbyPlayerInviteList[selectedSteamPlayerInviteIndex]->isVisible = false;
-	uint64 inviteeSteamID = curSelectedSteamID.ConvertToUint64();
 	steamIDToClientIDMap[inviteeSteamID] = 0;
-	SteamMatchmaking()->SendLobbyChatMsg(steamLobbyBrowser->getSteamLobbyID(), &inviteeSteamID, sizeof(inviteeSteamID));
+
+	char messageBuffer[sizeof(steamLobbyMessageType) + sizeof(uint64)];
+	char* curMessageBufferPtr = messageBuffer;
+	reinterpret_cast<steamLobbyMessageType*>(curMessageBufferPtr)[0] = STEAM_LOBBY_MESSAGE_CLIENT_CONNECT;
+	curMessageBufferPtr += sizeof(steamLobbyMessageType);
+	reinterpret_cast<uint64*>(curMessageBufferPtr)[0] = inviteeSteamID;
+	SteamMatchmaking()->SendLobbyChatMsg(steamLobbyBrowser->getSteamLobbyID(), messageBuffer, sizeof(messageBuffer));
+
 	curSelectedSteamID = CSteamID();
-	DbgPrintEx(LOG_SEVERITY_INFO, "Pressed invite button");
+	LogPrint(LOG_SEVERITY_INFO, "Pressed invite button");
 }
 
 void networkAdapterDisclaimerMenuGridReturn()

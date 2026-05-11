@@ -57,11 +57,6 @@ PFUNC_YYGMLScript origInputPlayerConnectedCountScript = nullptr;
 PFUNC_YYGMLScript origInputSourceGetArrayScript = nullptr;
 PFUNC_YYGMLScript origInputSourceDetectNewScript = nullptr;
 PFUNC_YYGMLScript origInputGamepadIsConnectedScript = nullptr;
-PFUNC_YYGMLScript origGeneratePossibleOptionsScript = nullptr;
-PFUNC_YYGMLScript origOptionOneScript = nullptr;
-PFUNC_YYGMLScript origOptionTwoScript = nullptr;
-PFUNC_YYGMLScript origOptionThreeScript = nullptr;
-PFUNC_YYGMLScript origOptionFourScript = nullptr;
 PFUNC_YYGMLScript origUnpauseScript = nullptr;
 PFUNC_YYGMLScript origAddPerkScript = nullptr;
 PFUNC_YYGMLScript origAddItemScript = nullptr;
@@ -85,6 +80,7 @@ PFUNC_YYGMLScript origAddEnchantScript = nullptr;
 PFUNC_YYGMLScript origAddCollabScript = nullptr;
 PFUNC_YYGMLScript origAddSuperCollabScript = nullptr;
 PFUNC_YYGMLScript origMouseOverButtonScript = nullptr;
+PFUNC_YYGMLScript origGenerateOptionsScript = nullptr;
 
 using PFUNC_YYGML_Variable_GetValue = void(*)(RValue* arg1, void* arg2, void* arg3, RValue* arg4, void* arg5, void* arg6);
 PVOID yyGMLVariableGetValueAddress = nullptr;
@@ -1011,31 +1007,6 @@ void initHooks()
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_ReturnMenu@gml_Object_obj_PlayerManager_Create_0");
 		return;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_GeneratePossibleOptions@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origGeneratePossibleOptionsScript)))
-	{
-		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_GeneratePossibleOptions@gml_Object_obj_PlayerManager_Other_23");
-		return;
-	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionOne@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionOneScript)))
-	{
-		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_OptionOne@gml_Object_obj_PlayerManager_Other_23");
-		return;
-	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionTwo@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionTwoScript)))
-	{
-		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_OptionTwo@gml_Object_obj_PlayerManager_Other_23");
-		return;
-	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionThree@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionThreeScript)))
-	{
-		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_OptionThree@gml_Object_obj_PlayerManager_Other_23");
-		return;
-	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_OptionFour@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origOptionFourScript)))
-	{
-		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_OptionFour@gml_Object_obj_PlayerManager_Other_23");
-		return;
-	}
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Unpause@gml_Object_obj_PlayerManager_Create_0", UnpausePlayerManagerFuncBefore, nullptr, &origUnpauseScript)))
 	{
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_Unpause@gml_Object_obj_PlayerManager_Create_0");
@@ -1046,7 +1017,7 @@ void initHooks()
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_ParseAndPushCommandType@gml_Object_obj_PlayerManager_Other_23");
 		return;
 	}
-	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddPerk@gml_Object_obj_PlayerManager_Other_24", nullptr, AddPerkPlayerManagerOtherAfter, &origAddPerkScript)))
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_AddPerk@gml_Object_obj_PlayerManager_Other_24", AddPerkPlayerManagerOtherBefore, AddPerkPlayerManagerOtherAfter, &origAddPerkScript)))
 	{
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_AddPerk@gml_Object_obj_PlayerManager_Other_24");
 		return;
@@ -1224,6 +1195,11 @@ void initHooks()
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_Remove@Sticker@StickerDefinitions", RemoveStickerBefore, nullptr, nullptr)))
 	{
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_Remove@Sticker@StickerDefinitions");
+		return;
+	}
+	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_GenerateOptions@gml_Object_obj_PlayerManager_Other_23", nullptr, nullptr, &origGenerateOptionsScript)))
+	{
+		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Script_GenerateOptions@gml_Object_obj_PlayerManager_Other_23");
 		return;
 	}
 
