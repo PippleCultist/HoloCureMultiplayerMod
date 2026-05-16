@@ -26,6 +26,7 @@ extern menuGrid lobbyMenuGrid;
 extern menuGrid selectingCharacterMenuGrid;
 extern menuGrid selectingMapMenuGrid;
 extern std::unordered_map<short, RValue> attackMap;
+extern std::unordered_map<uint32_t, messageEmote> playerEmoteMap;
 
 int numClientsInGame = -1;
 
@@ -307,6 +308,7 @@ RValue& InitializeCharacterPlayerManagerCreateFuncAfter(CInstance* Self, CInstan
 			optionsMap.clear();
 			holdingOptionMap.clear();
 			modVersionMap.clear();
+			playerEmoteMap.clear();
 
 			curPlayerIDStack.push_back(0);
 
@@ -1899,6 +1901,7 @@ void cleanupPlayerGameData()
 	optionsMap.clear();
 	holdingOptionMap.clear();
 	modVersionMap.clear();
+	playerEmoteMap.clear();
 
 	instanceToIDMap.clear();
 	pickupableToIDMap.clear();

@@ -20,6 +20,7 @@
 #include <Windows.h>
 #include <string>
 #include <semaphore>
+#include "nlohmann/json.hpp"
 #include "steam/steam_api.h"
 #include "HoloCureMenuInterface/HoloCureMenuInterface.h"
 
@@ -29,6 +30,9 @@ using namespace YYTK;
 extern bool hasJoinedSteamLobby;
 extern bool isSteamInitialized;
 extern std::shared_ptr<menuData> multiplayerMenuCreateFriendsSteamLobby;
+
+std::unordered_map<std::string, emoteData> emoteDataMap;
+std::vector<emoteData> emoteOrderedList;
 
 RValue GMLVarIndexMapGMLHash[1001];
 
@@ -166,6 +170,8 @@ std::unordered_map<int, PFUNC_YYGMLScript> indexToScriptFunctionMap;
 std::unordered_map<PFUNC_YYGMLScript, int> scriptFunctionToIndexMap;
 
 char broadcastAddressBuffer[16] = { 0 };
+
+HWND hWnd;
 
 std::string ConvertLPCWSTRToString(LPCWSTR lpcwszStr)
 {
@@ -865,7 +871,7 @@ void initHooks()
 		LogPrint(LOG_SEVERITY_ERROR, "Failed to register callback for %s", "gml_Object_obj_EXPAbsorb_Collision_obj_Player");
 		return;
 	}
-	
+
 
 	if (!AurieSuccess(callbackManagerInterfacePtr->RegisterScriptFunctionCallback(MODNAME, "gml_Script_input_binding_set", nullptr, nullptr, &origInputBindingSetScript)))
 	{
@@ -1315,6 +1321,42 @@ void initHooks()
 	// 
 	// TODO: Seems like there might be some minor issues with the hp stat not being calculated properly when upgraded?
 
+	if (!std::filesystem::exists("MultiplayerMod/Emotes"))
+	{
+		LogPrint(LOG_SEVERITY_WARNING, "Couldn't load emotes");
+	}
+	else
+	{
+		std::ifstream inFile;
+		inFile.open("MultiplayerMod/Emotes/emoteData.json");
+		try
+		{
+			nlohmann::json inputData = nlohmann::json::parse(inFile);
+			for (auto it = inputData.begin(); it != inputData.end(); it++)
+			{
+				std::string emotePath = "MultiplayerMod/Emotes/";
+				std::string emoteName = it->at("image");
+				emotePath += emoteName;
+				RValue sprite = g_ModuleInterface->CallBuiltin("sprite_add", { emotePath.c_str(), 1, false, false, 0, 0 });
+				emoteData curData(emoteName, it->at("illustrator"), it->at("priority"), sprite);
+				emoteDataMap[curData.emoteName] = curData;
+				emoteOrderedList.push_back(curData);
+			}
+			std::sort(emoteOrderedList.begin(), emoteOrderedList.end(), [](emoteData& a, emoteData& b)
+				{
+					if (a.priority != b.priority)
+					{
+						return a.priority > b.priority;
+					}
+					return _strnicmp(a.emoteName.c_str(), b.emoteName.c_str(), a.emoteName.size()) < 0;
+				});
+		}
+		catch (nlohmann::json::parse_error& e)
+		{
+			LogPrint(LOG_SEVERITY_ERROR, "Parse Error: %s when parsing emoteData", e.what());
+		}
+	}
+
 	objPlayerIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Player" }).ToInt32());
 	objBaseMobIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_BaseMob" }).ToInt32());
 	objAttackIndex = static_cast<int>(g_ModuleInterface->CallBuiltin("asset_get_index", { "obj_Attack" }).ToInt32());
@@ -1631,5 +1673,7 @@ EXPORTED AurieStatus ModuleInitialize(
 	IN const fs::path& ModulePath
 )
 {
+	hWnd = g_ModuleInterface->CallBuiltin("window_handle", {}).ToPointer<HWND>();
+
 	return moduleInitStatus;
 }

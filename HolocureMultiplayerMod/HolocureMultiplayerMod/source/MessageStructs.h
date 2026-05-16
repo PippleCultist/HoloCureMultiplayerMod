@@ -51,6 +51,7 @@ enum MessageTypes : char
 	MESSAGE_HOST_HAS_UNPAUSED,
 	MESSAGE_KAELA_ORE_AMOUNT,
 	MESSAGE_HOLD_LEVEL_UP_CLIENT_CHOICE,
+	MESSAGE_EMOTE,
 	MESSAGE_INVALID
 };
 
@@ -2075,5 +2076,41 @@ struct messageModVersion
 
 	messageModVersion(short majorVersionNum, short minorVersionNum, short patchVersionNum) : majorVersionNum(majorVersionNum), minorVersionNum(minorVersionNum), patchVersionNum(patchVersionNum), steamID(0)
 	{
+	}
+};
+
+struct messageEmote
+{
+	uint32_t playerID;
+	uint32_t originPlayerID;
+	std::string emoteName;
+	int frameDuration;
+
+	messageEmote() : originPlayerID(0), playerID(0), frameDuration(0)
+	{
+	}
+
+	messageEmote(uint32_t originPlayerID, std::string emoteName) : originPlayerID(originPlayerID), emoteName(emoteName), playerID(0), frameDuration(240)
+	{
+	}
+
+	int receiveMessage(uint32_t playerID);
+
+	void serialize(char* messageBuffer)
+	{
+		int startBufferPos = 0;
+		writeCharToByteBuffer(messageBuffer, MESSAGE_EMOTE, startBufferPos);
+		writeLongToByteBuffer(messageBuffer, originPlayerID, startBufferPos);
+		writeStringToByteBuffer(messageBuffer, emoteName, startBufferPos);
+	}
+
+	size_t getMessageSize()
+	{
+		size_t curMessageSize = 0;
+		curMessageSize++;
+		curMessageSize += 4;
+		curMessageSize += emoteName.size() + 2;
+		
+		return curMessageSize;
 	}
 };

@@ -39,6 +39,7 @@ RValue pickupableArr[maxNumAvailablePickupableIDs];
 
 std::binary_semaphore lastTimeReceivedMoveDataMapLock(1);
 std::unordered_map<uint32_t, clientMovementQueueData> lastTimeReceivedMoveDataMap;
+std::unordered_map<uint32_t, messageEmote> playerEmoteMap;
 
 std::binary_semaphore roomMessageLock(1);
 bool hasReceivedRoomMessage = false;
@@ -169,6 +170,9 @@ std::queue<messageHoldLevelUpClientChoice> holdLevelUpClientChoiceMessageQueue;
 
 std::binary_semaphore modVersionMessageQueueLock(1);
 std::queue<messageModVersion> modVersionMessageQueue;
+
+std::binary_semaphore emoteMessageQueueLock(1);
+std::queue<messageEmote> emoteMessageQueue;
 
 // Message handler should probably only handle receiving messages. Let the sending be handled somewhere else
 
@@ -3098,6 +3102,50 @@ void handleHoldLevelUpClientChoiceMessage()
 	} while (true);
 }
 
+int receiveEmoteMessage(uint32_t playerID)
+{
+	messageEmote curMessage = messageEmote();
+	curMessage.playerID = playerID;
+	int curMessageLen = curMessage.receiveMessage(playerID);
+	emoteMessageQueueLock.acquire();
+	emoteMessageQueue.push(curMessage);
+	emoteMessageQueueLock.release();
+
+	return curMessageLen;
+}
+
+void handleEmoteMessage()
+{
+	do
+	{
+		emoteMessageQueueLock.acquire();
+		if (emoteMessageQueue.empty())
+		{
+			emoteMessageQueueLock.release();
+			break;
+		}
+		messageEmote curMessage = emoteMessageQueue.front();
+		emoteMessageQueue.pop();
+		emoteMessageQueueLock.release();
+
+		if (isHost)
+		{
+			// Need to send the emote message to all the other clients
+			for (auto& player : lobbyPlayerDataMap)
+			{
+				if (player.first == curMessage.originPlayerID || player.first == 0)
+				{
+					continue;
+				}
+				sendEmoteMessage(player.first, curMessage.originPlayerID, curMessage.emoteName);
+			}
+		}
+
+		playerEmoteMap[curMessage.originPlayerID] = curMessage;
+		
+	} while (true);
+}
+
 int receiveMessage(uint32_t playerID)
 {
 	const int messageTypeLen = 1;
@@ -3296,6 +3344,10 @@ int receiveMessage(uint32_t playerID)
 		case MESSAGE_HOLD_LEVEL_UP_CLIENT_CHOICE:
 		{
 			return receiveHoldLevelUpClientChoiceMessage(playerID);
+		}
+		case MESSAGE_EMOTE:
+		{
+			return receiveEmoteMessage(playerID);
 		}
 	}
 	DbgPrintEx(LOG_SEVERITY_ERROR, "Unknown message type received %d", messageType[0]);
@@ -4122,6 +4174,17 @@ int sendKaelaOreAmountMessage(uint32_t playerID, short oreA, short oreB, short o
 int sendHoldLevelUpClientChoiceMessage(uint32_t playerID, char levelUpOption)
 {
 	messageHoldLevelUpClientChoice curMessage = messageHoldLevelUpClientChoice(levelUpOption);
+	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
+	char* messageBuffer = new char[messageBufferLen];
+	curMessage.serialize(messageBuffer);
+	int sentLen = sendBytesToPlayer(playerID, messageBuffer, messageBufferLen, NETWORKING_MESSAGE_USING_TCP);
+	delete[] messageBuffer;
+	return sentLen;
+}
+
+int sendEmoteMessage(uint32_t playerID, uint32_t originPlayerID, std::string emoteName)
+{
+	messageEmote curMessage = messageEmote(originPlayerID, emoteName);
 	int messageBufferLen = static_cast<int>(curMessage.getMessageSize());
 	char* messageBuffer = new char[messageBufferLen];
 	curMessage.serialize(messageBuffer);

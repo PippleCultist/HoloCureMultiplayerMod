@@ -3,8 +3,8 @@
 #include <CallbackManager/CallbackManagerInterface.h>
 
 #define MAJOR_VERSION_NUM 1
-#define MINOR_VERSION_NUM 3
-#define PATCH_VERSION_NUM 4
+#define MINOR_VERSION_NUM 4
+#define PATCH_VERSION_NUM 0
 
 #define STRING2(x) #x
 #define STRING(x) STRING2(x)

@@ -14,6 +14,7 @@
 #include <iphlpapi.h>
 #include <semaphore>
 #include <thread>
+#include <numbers>
 
 extern menuGrid lanSessionMenuGrid;
 extern menuGrid lobbyMenuGrid;
@@ -23,7 +24,11 @@ extern CSteamLobbyBrowser* steamLobbyBrowser;
 extern std::unordered_map<uint64, uint32_t> steamIDToClientIDMap;
 extern std::unordered_map<uint32_t, uint64> clientIDToSteamIDMap;
 extern std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
+extern std::unordered_map<std::string, emoteData> emoteDataMap;
+extern std::vector<emoteData> emoteOrderedList;
+extern std::unordered_map<uint32_t, messageEmote> playerEmoteMap;
 extern std::vector<uint32_t> curPlayerIDStack;
+extern HWND hWnd;
 
 bool hasJoinedSteamLobby = false;
 
@@ -161,6 +166,21 @@ void PlayerDrawAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 		double curXPos = getInstanceVariable(Self, GML_x).ToDouble();
 		double curYPos = getInstanceVariable(Self, GML_y).ToDouble();
 		drawTextOutline(Self, curXPos, curYPos, std::format("P{}", lobbyPlayerDataMap[playerID].playerName), 1, 0x000000, 14, 0, 100, 0xFFFFFF, 1);
+
+		auto& curEmoteMessage = playerEmoteMap[playerID];
+		if (!curEmoteMessage.emoteName.empty())
+		{
+			if (curEmoteMessage.frameDuration > 0)
+			{
+				auto curEmoteFind = emoteDataMap.find(curEmoteMessage.emoteName);
+				if (curEmoteFind != emoteDataMap.end())
+				{
+					// TODO: Adjust this to scale other image sizes that aren't 512 x 512 down to 64 x 64
+					g_ModuleInterface->CallBuiltin("draw_sprite_ext", { curEmoteFind->second.sprite, 0, curXPos - 32, curYPos - 96, .125, .125, 0, 0xFFFFFF, .8 });
+				}
+				curEmoteMessage.frameDuration--;
+			}
+		}
 
 		// Draw ping numbers under all clients for the host and only under the host for the clients
 		// Equivalent to xor, but probably not as readable
@@ -372,6 +392,7 @@ void InputControllerObjectStep1Before(std::tuple<CInstance*, CInstance*, CCode*,
 	RValue returnVal;
 	if (hasConnected)
 	{
+		handleEmoteMessage();
 		handleCharDataMessage();
 		if (isHost)
 		{
@@ -614,6 +635,8 @@ void EnemyStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& A
 
 void PlayerManagerCreateBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
+	CInstance* Self = std::get<0>(Args);
+	setInstanceVariable(Self, GML_depth, 99);
 }
 
 void PlayerManagerStepBefore(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
@@ -1078,10 +1101,150 @@ void PlayerManagerDraw64Before(std::tuple<CInstance*, CInstance*, CCode*, int, R
 	}
 }
 
+int curOffset = 0;
+bool isEmoteMenuOpen = false;
+bool isEmoteMenuButtonHeld = false;
+
+bool isKeyPressed(int vKey)
+{
+	return GetForegroundWindow() == hWnd && (GetAsyncKeyState(vKey) & 0xFFFE) != 0;
+}
+
+int selectedEmoteNum = -1;
+
+#define GAMEPAD_A_BUTTON 32769
+#define GAMEPAD_Y_BUTTON 32772
+#define GAMEPAD_LEFT_BUMPER 32773
+#define GAMEPAD_RIGHT_BUMPER 32774
+
 void PlayerManagerDraw64After(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)
 {
 	if (hasConnected)
 	{
+		RValue paused = getInstanceVariable(std::get<0>(Args), GML_paused);
+		if (!paused.ToBoolean())
+		{
+			if (isKeyPressed('E'))
+			{
+				if (!isEmoteMenuButtonHeld)
+				{
+					isEmoteMenuOpen = !isEmoteMenuOpen;
+					isEmoteMenuButtonHeld = true;
+				}
+			}
+			else
+			{
+				isEmoteMenuButtonHeld = false;
+			}
+
+			if (g_ModuleInterface->CallBuiltin("gamepad_button_check_pressed", { 0, GAMEPAD_Y_BUTTON }).ToBoolean())
+			{
+				isEmoteMenuOpen = !isEmoteMenuOpen;
+			}
+
+			if (!isEmoteMenuOpen)
+			{
+				selectedEmoteNum = -1;
+			}
+
+			if (isEmoteMenuOpen)
+			{
+				if (g_ModuleInterface->CallBuiltin("mouse_wheel_up", {}).ToBoolean())
+				{
+					if (curOffset > 0)
+					{
+						curOffset--;
+					}
+				}
+				else if (g_ModuleInterface->CallBuiltin("mouse_wheel_down", {}).ToBoolean())
+				{
+					if (curOffset < (emoteDataMap.size() - 1) / 8)
+					{
+						curOffset++;
+					}
+				}
+
+				if (g_ModuleInterface->CallBuiltin("gamepad_button_check_pressed", { 0, GAMEPAD_LEFT_BUMPER }).ToBoolean())
+				{
+					if (curOffset > 0)
+					{
+						curOffset--;
+					}
+				}
+				else if (g_ModuleInterface->CallBuiltin("gamepad_button_check_pressed", { 0, GAMEPAD_RIGHT_BUMPER }).ToBoolean())
+				{
+					if (curOffset < (emoteDataMap.size() - 1) / 8)
+					{
+						curOffset++;
+					}
+				}
+
+				RValue mouseX = g_ModuleInterface->CallBuiltin("device_mouse_x_to_gui", { 0 });
+				RValue mouseY = g_ModuleInterface->CallBuiltin("device_mouse_y_to_gui", { 0 });
+
+				RValue returnVal;
+				RValue** args = new RValue*[5];
+				args[0] = new RValue();
+				args[1] = new RValue("aim_left");
+				args[2] = new RValue("aim_right");
+				args[3] = new RValue("aim_up");
+				args[4] = new RValue("aim_down");
+				origInputDirectionScript(globalInstance, nullptr, returnVal, 5, args);
+
+				if (returnVal.m_Kind == VALUE_UNDEFINED)
+				{
+					if ((mouseX.ToDouble() - 320) * (mouseX.ToDouble() - 320) + (mouseY.ToDouble() - (240 - 48)) * (mouseY.ToDouble() - (240 - 48)) < 142 * 142)
+					{
+						selectedEmoteNum = lround((atan2(mouseY.ToDouble() - (240 - 48), mouseX.ToDouble() - 320) / std::numbers::pi + 1) * 4 + 6) % 8 + curOffset * 8;
+					}
+				}
+				else
+				{
+					selectedEmoteNum = (lround(-returnVal.ToDouble() + 450) % 360) / 45 + curOffset * 8;
+				}
+
+				if (selectedEmoteNum >= 0 && selectedEmoteNum < emoteOrderedList.size())
+				{
+					std::string emoteName = emoteOrderedList[selectedEmoteNum].emoteName;
+					RValue inputManager = g_ModuleInterface->CallBuiltin("instance_find", { objInputManagerIndex, 0 });
+					if (g_ModuleInterface->CallBuiltin("mouse_check_button_pressed", { 1 }).ToBoolean() || g_ModuleInterface->CallBuiltin("gamepad_button_check_pressed", { 0, GAMEPAD_A_BUTTON }).ToBoolean())
+					{
+						if (isHost)
+						{
+							playerEmoteMap[0] = messageEmote(0, emoteName);
+							for (auto& player : lobbyPlayerDataMap)
+							{
+								if (player.first == 0)
+								{
+									continue;
+								}
+								sendEmoteMessage(player.first, 0, emoteName);
+							}
+						}
+						else
+						{
+							playerEmoteMap[clientID] = messageEmote(clientID, emoteName);
+							sendEmoteMessage(0, clientID, emoteName);
+						}
+					}
+				}
+
+				CInstance* Self = std::get<0>(Args);
+				for (int i = curOffset * 8; i < (curOffset + 1) * 8 && i < emoteOrderedList.size(); i++)
+				{
+					double xPosDiff = sin(i * std::numbers::pi / 4) * 110;
+					double yPosDiff = -cos(i * std::numbers::pi / 4) * 110;
+					double imageXPos = 320 + xPosDiff - 32;
+					double imageYPos = 240 + yPosDiff - 80;
+					g_ModuleInterface->CallBuiltin("draw_sprite_ext", { emoteOrderedList[i].sprite, 0, imageXPos, imageYPos, .125, .125, 0, 0xFFFFFF, i == selectedEmoteNum ? .9 : .5});
+					drawTextOutline(Self, imageXPos, imageYPos + 64, emoteOrderedList[i].illustrator, 1, 0x000000, 8, 0, 440, 0xFFFFFF, 1);
+				}
+
+				g_ModuleInterface->CallBuiltin("draw_set_halign", { 1 });
+				drawTextOutline(Self, 320, 350, std::format("{}/{}", curOffset + 1, (emoteOrderedList.size() - 1) / 8 + 1), 1, 0x000000, 8, 0, 440, 0xFFFFFF, 1);
+			}
+		}
+
 		if (isHost)
 		{
 			if (isHostWaitingForClientUnpause)

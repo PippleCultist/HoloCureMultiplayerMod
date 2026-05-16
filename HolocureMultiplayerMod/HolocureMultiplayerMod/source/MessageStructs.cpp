@@ -995,3 +995,27 @@ int messageKaelaOreAmount::receiveMessage(uint32_t playerID)
 
 	return messageLen;
 }
+
+int messageEmote::receiveMessage(uint32_t playerID)
+{
+	int messageLen = 0;
+	int result = -1;
+
+	frameDuration = 240;
+
+	char originPlayerIDArr[4];
+	if ((result = receiveBytesFromPlayer(playerID, originPlayerIDArr, sizeof(originPlayerIDArr))) <= 0)
+	{
+		return result;
+	}
+	int startBufferPos = 0;
+	readByteBufferToLong(&originPlayerID, originPlayerIDArr, startBufferPos);
+	messageLen += result;
+
+	if ((result = receiveString(playerID, &emoteName)) <= 0)
+	{
+		return result;
+	}
+	messageLen += result;
+	return messageLen;
+}

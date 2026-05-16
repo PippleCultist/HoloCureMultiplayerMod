@@ -5,6 +5,23 @@
 
 inline uint32_t getPlayerID(CInstance* currentPlayerPtr);
 
+struct emoteData
+{
+	std::string emoteName;
+	std::string illustrator;
+	int priority;
+	RValue sprite;
+
+	emoteData() : priority(0)
+	{
+	}
+
+	emoteData(std::string emoteName, std::string illustrator, int priority, RValue sprite) : emoteName(emoteName), illustrator(illustrator), priority(priority), sprite(sprite)
+	{
+
+	}
+};
+
 extern std::unordered_map<CInstance*, instanceData> instanceToIDMap;
 extern std::unordered_map<CInstance*, uint16_t> pickupableToIDMap;
 extern std::unordered_map<short, RValue> preCreateMap;
