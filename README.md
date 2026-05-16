@@ -35,3 +35,8 @@ A Holocure mod that adds multiplayer to the game. Will probably be buggy and hav
     - After joining the lobby, you will need to wait for the host to then invite you into their game before playing.
 ## Adding Emotes
 Add the emote png to `MultiplayerMod/Emotes` and then add it to emoteData.json as well. Make sure every player has the same emote to avoid issues.
+## Using Emotes
+### Instructions for Mouse and Keyboard:
+Press the `E` key to open/close the menu. Then click on the emote you want to send.
+### Instructions for Controller:
+Press the `Y` button to open/close the menu. Then use the right joystick to select the emote you want to send and press the `A` button.
