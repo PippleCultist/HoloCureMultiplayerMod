@@ -7,13 +7,14 @@ A Holocure mod that adds multiplayer to the game. Will probably be buggy and hav
 - Run `AurieManager.exe` and uninstall Aurie from `HoloCure.exe`
     - The latest version of Aurie is moving away from AurieManager and is instead patching the game to run the mods. This has the benefit of not requiring admin privileges anymore and easily disabling mods by deleting the mods folder or replacing the original exe without crashing.
 # Normal installation steps
-- Download `HoloCureMultiplayerMod.dll`, `HoloCureMenuMod.dll`, and `CallbackManagerMod.dll` from the latest version of the mod https://github.com/PippleCultist/HoloCureMultiplayerMod/releases
+- Download `HoloCureMultiplayerMod.dll`, `HoloCureMenuMod.dll`, `CallbackManagerMod.dll`, and `Emotes.zip` from the latest version of the mod https://github.com/PippleCultist/HoloCureMultiplayerMod/releases
 - Download `AurieInstaller.exe` from the latest version of Aurie https://github.com/AurieFramework/Aurie/releases
 - Launch `AurieInstaller.exe`, click `Find my game!`, and select `HoloCure.exe`
     - You can find `HoloCure.exe` through Steam by clicking `Browse local files`
 - Click `Confirm Version`
 - Go to the `mods` folder where `HoloCure.exe` is located and locate the `Aurie` folder and `Native` folder.
     - In the `Aurie` folder, copy over `HoloCureMultiplayerMod.dll`, `CallbackManagerMod.dll`, and `HoloCureMenuMod.dll`
+- Create `MultiplayerMod` folder in the `HoloCure` folder and unzip `Emotes.zip` in there. The `Emotes` folder containing all the pngs should be directly in the `MultiplayerMod` folder with no extra folders in between.
 - Running the game either using the executable or through Steam should now launch the mods as well
 ## Common Issues
 - If you deleted the mods folder and are seeing `Missing game executable`, you most likely didn't click `Uninstall Aurie` in AurieManager before deleting the folder. To fix this issue, uninstall Aurie through AurieManager.
@@ -32,3 +33,5 @@ A Holocure mod that adds multiplayer to the game. Will probably be buggy and hav
 ### Instructions for Client:
 - When the host has clicked `Create friend Steam lobby`, you will be able to see them playing `HoloCure - Save the Fans` in your Steam friends list. While in the HoloCure title screen, right click on their name in the Steam friends list and click `Join Game` to join their lobby.
     - After joining the lobby, you will need to wait for the host to then invite you into their game before playing.
+## Adding Emotes
+Add the emote png to `MultiplayerMod/Emotes` and then add it to emoteData.json as well. Make sure every player has the same emote to avoid issues.
