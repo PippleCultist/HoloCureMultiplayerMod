@@ -12,7 +12,7 @@ A Holocure mod that adds multiplayer to the game. Will probably be buggy and hav
 - Launch `AurieInstaller.exe`, click `Find my game!`, and select `HoloCure.exe`
     - You can find `HoloCure.exe` through Steam by clicking `Browse local files`
 - Click `Confirm Version`
-- Go to the `mods` folder where `HoloCure.exe` is located and locate the `Aurie` folder and `Native` folder.
+- Go to the `mods` folder where `HoloCure.exe` is located and locate the `Aurie` folder.
     - In the `Aurie` folder, copy over `HoloCureMultiplayerMod.dll`, `CallbackManagerMod.dll`, and `HoloCureMenuMod.dll`
 - Create `MultiplayerMod` folder in the `HoloCure` folder and unzip `Emotes.zip` in there. The `Emotes` folder containing all the pngs should be directly in the `MultiplayerMod` folder with no extra folders in between.
 - Running the game either using the executable or through Steam should now launch the mods as well
