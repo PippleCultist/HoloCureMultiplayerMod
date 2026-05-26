@@ -4,7 +4,7 @@
 
 #define MAJOR_VERSION_NUM 1
 #define MINOR_VERSION_NUM 4
-#define PATCH_VERSION_NUM 0
+#define PATCH_VERSION_NUM 1
 
 #define STRING2(x) #x
 #define STRING(x) STRING2(x)

@@ -84,7 +84,7 @@ extern std::binary_semaphore lastTimeReceivedMoveDataMapLock;
 extern std::unordered_map<uint32_t, clientMovementQueueData> lastTimeReceivedMoveDataMap;
 extern bool isSteamInitialized;
 
-extern RValue instanceArr[maxNumAvailableInstanceIDs];
+std::unordered_map<int, RValue> clientInstanceMap;
 
 // TODO: Make sure that the additional players will teleport accordingly on the infinite maps when crossing the border
 
@@ -291,6 +291,7 @@ void resetAllData()
 	pickupableToIDMap.clear();
 	preCreateMap.clear();
 	vfxMap.clear();
+	clientInstanceMap.clear();
 	interactableMap.clear();
 	clientSocketMap.clear();
 	playerDataMap.clear();
@@ -2447,7 +2448,10 @@ void TitleScreenCreateAfter(std::tuple<CInstance*, CInstance*, CCode*, int, RVal
 	callbackManagerInterfacePtr->LogToFile(MODNAME, "HoloCure version %s", strVersion.ToString().data());
 	RValue newStrVersion = g_ModuleInterface->CallBuiltin("string_concat", { strVersion, " ", MODNAME });
 	setInstanceVariable(Self, GML_version, newStrVersion);
-	hasConnected = false;
+	if (curMenuGridPtr == nullptr)
+	{
+		hasConnected = false;
+	}
 }
 
 void TitleScreenMouse53Before(std::tuple<CInstance*, CInstance*, CCode*, int, RValue*>& Args)

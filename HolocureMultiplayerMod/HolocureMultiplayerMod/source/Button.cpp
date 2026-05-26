@@ -570,6 +570,8 @@ void clickLobbyChooseCharacter()
 	// TODO: Might want to fix this needing to be after the swap to make sure it actually enables the buttons
 	holoCureMenuInterfacePtr->EnableActionButtons(MODNAME);
 	lobbyPlayerDataMap[clientID].isReady = 0;
+	lobbyPlayerDataMap[clientID].charName = "";
+	g_ModuleInterface->CallBuiltin("variable_global_set", { "charSelected", -1 });
 	g_ModuleInterface->CallBuiltin("instance_create_depth", { 0, 0, 0, objCharSelectIndex });
 }
 

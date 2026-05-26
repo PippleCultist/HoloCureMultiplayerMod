@@ -329,21 +329,31 @@ RValue& OnDeathScriptFunctionBefore(CInstance* Self, CInstance* Other, RValue& R
 	int scriptFunctionIndex = -1;
 	callbackManagerInterfacePtr->GetCurrentScriptFunctionInfo(MODNAME, nullptr, scriptFunctionIndex);
 
+	RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
+	if (Args[0]->ToInt32() != -1)
+	{
+		// Assume that this is a player
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, 100000);
+		LogPrint(LOG_SEVERITY_INFO, "Assuming OnDeath function is called for player %d", Args[0]->ToInt32());
+		return ReturnValue;
+	}
+
 	int32_t mobID = getInstanceVariable(*Args[1], GML_id).ToInt32();
 	auto findMobID = mobOnDeathFuncSwapPlayerIDMap.find(mobID);
 	if (findMobID == mobOnDeathFuncSwapPlayerIDMap.end())
 	{
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, 100000);
 		LogPrint(LOG_SEVERITY_ERROR, "Couldn't find mob id %d for script function id %d", mobID, scriptFunctionIndex);
 		return ReturnValue;
 	}
 	auto findScriptFunctionIndex = findMobID->second.find(scriptFunctionIndex);
 	if (findScriptFunctionIndex == findMobID->second.end())
 	{
+		swapPlayerDataPush(playerManagerInstanceVar, attackController, 100000);
 		LogPrint(LOG_SEVERITY_ERROR, "Couldn't find script function id %d", scriptFunctionIndex);
 		return ReturnValue;
 	}
 	int playerID = findScriptFunctionIndex->second;
-	RValue attackController = g_ModuleInterface->CallBuiltin("instance_find", { objAttackControllerIndex, 0 });
 	swapPlayerDataPush(playerManagerInstanceVar, attackController, playerID);
 	return ReturnValue;
 }

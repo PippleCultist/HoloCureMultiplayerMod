@@ -27,6 +27,7 @@ extern menuGrid selectingCharacterMenuGrid;
 extern menuGrid selectingMapMenuGrid;
 extern std::unordered_map<short, RValue> attackMap;
 extern std::unordered_map<uint32_t, messageEmote> playerEmoteMap;
+extern std::unordered_map<int, RValue> clientInstanceMap;
 
 int numClientsInGame = -1;
 
@@ -1907,6 +1908,7 @@ void cleanupPlayerGameData()
 	pickupableToIDMap.clear();
 	preCreateMap.clear();
 	vfxMap.clear();
+	clientInstanceMap.clear();
 	interactableMap.clear();
 	hasClientFinishedInteracting = true;
 	isAnyInteracting = false;

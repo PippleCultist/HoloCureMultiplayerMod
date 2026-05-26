@@ -18,6 +18,7 @@ extern std::unordered_map<uint64, steamConnection> steamIDToConnectionMap;
 extern double foodMultiplier;
 extern bool isClientLeavingGame;
 extern bool inAddPerkPlayerManagerOther;
+extern std::unordered_map<int, RValue> clientInstanceMap;
 
 messageInstancesCreate instancesCreateMessage;
 messageInstancesUpdate instancesUpdateMessage;
@@ -32,7 +33,6 @@ std::queue<uint16_t> availablePickupableIDs;
 std::queue<uint16_t> availablePreCreateIDs;
 std::queue<uint16_t> availableVFXIDs;
 std::queue<uint16_t> availableInteractableIDs;
-RValue instanceArr[maxNumAvailableInstanceIDs];
 
 std::unordered_map<short, RValue> attackMap;
 RValue pickupableArr[maxNumAvailablePickupableIDs];
@@ -850,7 +850,8 @@ void handleInstanceCreateMessage()
 		{
 			// TODO: There is a potential issue where if an ID is reused to create before the instance is deleted, it could possibly mess up some stuff.
 			instanceData curData = curInstances.data[i];
-			if (instanceArr[curData.instanceID].m_Kind == VALUE_UNDEFINED)
+			auto instanceFind = clientInstanceMap.find(curData.instanceID);
+			if (instanceFind == clientInstanceMap.end())
 			{
 				RValue createdInstance = g_ModuleInterface->CallBuiltin("instance_create_depth", { curData.xPos, curData.yPos, -curData.yPos, objBaseMobIndex });
 				setInstanceVariable(createdInstance, GML_image_xscale, RValue(curData.imageXScale));
@@ -859,11 +860,11 @@ void handleInstanceCreateMessage()
 				setInstanceVariable(createdInstance, GML_completeStop, RValue(true));
 				setInstanceVariable(createdInstance, GML_image_speed, RValue(0));
 				setInstanceVariable(createdInstance, GML_transparent, curData.transparent);
-				instanceArr[curData.instanceID] = createdInstance;
+				clientInstanceMap[curData.instanceID] = createdInstance;
 			}
 			else
 			{
-				RValue& curInstance = instanceArr[curData.instanceID];
+				RValue& curInstance = clientInstanceMap[curData.instanceID];
 				setInstanceVariable(curInstance, GML_x, curData.xPos);
 				setInstanceVariable(curInstance, GML_y, curData.yPos);
 				setInstanceVariable(curInstance, GML_image_xscale, RValue(curData.imageXScale));
@@ -907,11 +908,12 @@ void handleInstanceUpdateMessage()
 		for (int i = 0; i < curInstances.numInstances; i++)
 		{
 			instanceData curData = curInstances.data[i];
-			if (instanceArr[curData.instanceID].m_Kind == VALUE_UNDEFINED)
+			auto instanceFind = clientInstanceMap.find(curData.instanceID);
+			if (instanceFind == clientInstanceMap.end())
 			{
 				continue;
 			}
-			RValue instance = instanceArr[curData.instanceID];
+			RValue instance = instanceFind->second;
 			if (checkBitInByte(curData.hasVarChanged, 0))
 			{
 				if (checkBitInByte(curData.hasVarChanged, 1))
@@ -982,13 +984,14 @@ void handleInstanceDeleteMessage()
 		for (int i = 0; i < curInstances.numInstances; i++)
 		{
 			int instanceID = curInstances.instanceIDArr[i];
-			if (instanceArr[instanceID].m_Kind == VALUE_UNDEFINED)
+			auto instanceFind = clientInstanceMap.find(instanceID);
+			if (instanceFind == clientInstanceMap.end())
 			{
 				continue;
 			}
 			// TODO: Could probably cache the instance or deactivate it instead of destroying it
-			g_ModuleInterface->CallBuiltin("instance_destroy", { instanceArr[instanceID] });
-			instanceArr[instanceID] = RValue();
+			g_ModuleInterface->CallBuiltin("instance_destroy", { instanceFind->second });
+			clientInstanceMap.erase(instanceID);
 		}
 
 	} while (true);
